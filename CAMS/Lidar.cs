@@ -34,7 +34,7 @@ namespace IngameScript
             Cameras = a.ToArray();
         }
 
-        public MyDetectedEntityInfo? TryScanTarget(Vector3D targetPosition, Target t, ref CombatManager m)
+        public MyDetectedEntityInfo? TryScanTarget(Vector3D targetPosition, Target t, ref CombatManager m) // from sahraki
         {
             var offset = t.Radius * scat;
 
@@ -83,7 +83,29 @@ namespace IngameScript
         public IMyCameraBlock MainCamera;
         public LidarArray Array;
         public DynamicLidar(IMyMotorStator azi, TurretComp c)
-            : base(azi, c) { }
+            : base(azi, c) 
+        {
+
+        }
+
+        public override iniWrap Setup(ref CombatManager m)
+        {
+            base.Setup(ref m);
+            if (Elevation != null)
+            {
+                var tid = Elevation.TopGrid.EntityId;
+                var cml = new List<IMyCameraBlock>();
+                m.Terminal.GetBlocksOfType(cml, (b)=> b.CubeGrid.EntityId == Elevation.TopGrid.EntityId);
+                Array = new LidarArray(cml);
+                for(int i = 0; i < cml.Count; i++)
+                    if (cml[i].CustomName.ToUpper().Contains("MAIN"))
+                    {
+                        MainCamera = cml[i];
+                        break;
+                    }
+            }
+            return null;
+        }
 
         public override void SelectTarget(ref Dictionary<long, Target> targets)
         {
