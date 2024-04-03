@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.6.33815.320
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CAMS", "CAMS\CAMS.csproj", "{C72BDF4A-A166-4AA3-AAF4-7E14F31D1E9B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C72BDF4A-A166-4AA3-AAF4-7E14F31D1E9B}.Debug|x64.ActiveCfg = Debug|x64
+		{C72BDF4A-A166-4AA3-AAF4-7E14F31D1E9B}.Debug|x64.Build.0 = Debug|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {795DB014-348C-41BB-B5DA-E92F08760BD1}
+	EndGlobalSection
+EndGlobal
