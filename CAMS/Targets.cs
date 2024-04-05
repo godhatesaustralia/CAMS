@@ -1,4 +1,5 @@
 ﻿using Sandbox.ModAPI.Ingame;
+using System;
 using VRage;
 using VRage.Game;
 using VRageMath;
@@ -8,7 +9,7 @@ namespace IngameScript
     public class Target
     {
         public long EID, Source;
-        public double Radius, Timestamp;
+        public double Radius, Distance, Timestamp;
         public Vector3D Position, Velocity;
         public BoundingBoxD Box;
         public MyDetectedEntityType type;

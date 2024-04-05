@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using VRage.Game.ModAPI.Ingame.Utilities;
+using VRageMath;
 
 namespace IngameScript
 {
@@ -14,10 +15,7 @@ namespace IngameScript
         public readonly string Name;
         public Dictionary<string, Action<MyCommandLine>> Commands = new Dictionary<string, Action<MyCommandLine>>();
         public IMyShipController Reference => Manager.Controller;
-        protected CombatManager Manager;
-        public WCAPI wcAPI => Manager.API;
-        public double Time => Manager.Time;
-        public Random rand => Manager.Random;
+        public CombatManager Manager;
 
         public CompBase(string n, CombatManager m)
         {
@@ -31,14 +29,23 @@ namespace IngameScript
         public MyGridProgram Program;
         public IMyGridTerminalSystem Terminal;
         public IMyShipController Controller;
+        public Vector3D Center => Controller.WorldMatrix.Translation;
         public Dictionary<long, Target> Targets = new Dictionary<long, Target>();
         public Random Random = new Random();
         public WCAPI API;
 
         double RuntimeMS = 0;
-        long Frame = 0;
-        public double Time => RuntimeMS;
+        long Frame = 0, Ticks = 0;
+        public double Runtime => RuntimeMS;
+        public long RuntimeTicks => Ticks;
 
+        private void UpdateTimes()
+        {
+            Frame++;
+            var r = Program.Runtime.TimeSinceLastRun;
+            RuntimeMS += r.TotalSeconds;
+            Ticks += r.Ticks;
+        }
 
         public CombatManager(MyGridProgram p)
         {
@@ -46,6 +53,10 @@ namespace IngameScript
             Terminal = Program.GridTerminalSystem;
         }
         
+        public void Update(string arg, UpdateType src)
+        {
+            UpdateTimes();
+        }
 
     }
 }

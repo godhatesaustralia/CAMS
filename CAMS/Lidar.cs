@@ -1,6 +1,7 @@
 ﻿using Sandbox.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using VRage;
 using VRage.Game;
 using VRageMath;
@@ -8,111 +9,125 @@ using VRageMath;
 namespace IngameScript
 {
 
-    public class LidarArray
+    public class LidarArray // a group of c all with the same orientation
     {
-        IMyCameraBlock[] Cameras;
-        float scat = 0.25f;
-        public Vector3D ArrayCenter
+        public IMyCameraBlock Camera => Cameras[0];
+        private List<IMyCameraBlock> Cameras;
+        public readonly string tag;
+        const float scat = 0.25f;
+        public LidarArray(List<IMyCameraBlock> c = null, string t = "")
         {
-            get
-            {
-                Vector3D r = Vector3D.Zero;
-                if (Cameras.Length == 0) return r;
-                for (int i = 0; i < Cameras.Length; i++)
-                    r += Cameras[i].WorldMatrix.Translation;
-                r /= Cameras.Length;
-                return r;
-            }
+            Cameras = c ?? new List<IMyCameraBlock>();
+            tag = t;
+            foreach (var c2 in Cameras)
+                c2.EnableRaycast = true;
         }
 
-        public Vector3D Aim => Vector3D.Normalize(Cameras[0].WorldMatrix.Forward);
-        public Vector3D Right => Vector3D.Normalize(Cameras[0].WorldMatrix.Right);
-        public Vector3D Up => Vector3D.Normalize(Cameras[0].WorldMatrix.Up);
-
-        public LidarArray(List<IMyCameraBlock> a)
+        public Vector3D ArrayDir => Camera.WorldMatrix.Forward.Normalized();
+        public void TryScanUpdate(ref ScanComp h)
         {
-            Cameras = a.ToArray();
-        }
-
-        public MyDetectedEntityInfo? TryScanTarget(Vector3D targetPosition, Target t, ref CombatManager m) // from sahraki
-        {
-            var offset = t.Radius * scat;
-
-            int fails = 0;
-            for (int i = 0; i < Cameras.Length; ++i)
+            int scans = 0;
+            if (scans == Cameras.Count) return;
+            Target nT;
+            if (h.Targets.Count == 0)
+                return;
+            else
             {
-                if (!Cameras[i].IsWorking)
-                    continue;
-
-                var castPos = targetPosition;
-
-                if (fails > 0)
-                    castPos += new Vector3D(m.Random.NextDouble() - 0.5, m.Random.NextDouble() - 0.5, m.Random.NextDouble() - 0.5) * offset;
-
-                if (!Cameras[i].CanScan(castPos))
-                    continue;
-
-                var info = Cameras[i].Raycast(castPos);
-                if (!info.IsEmpty())
+                foreach (var t in h.Targets.Values)
                 {
-                    if (info.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies ||
-                    info.Relationship == MyRelationsBetweenPlayerAndBlock.NoOwnership ||
-                    info.Relationship == MyRelationsBetweenPlayerAndBlock.Neutral)
+                    nT = null;
+                    if (h.Manager.Runtime - t.Timestamp < Lib.maxTimeTGT) 
+                        continue;
+                    for (int i = 0; i < Cameras.Count; i++)
                     {
-                        if (t == null || info.EntityId == t.EID)
-                            return info;
+                        if (!Cameras[i].IsWorking)
+                            continue;
+                        if (!Cameras[i].CanScan(t.Distance)) 
+                            continue;
+                        if (!Camera.CanScan(t.Position)) 
+                            continue;
+                        nT = new Target(Cameras[i].Raycast(t.Position), h.Time, h.ID);
+                        scans++;
+                        h.AddOrUpdateTGT(ref nT);
                     }
-                    else
-                        fails++;
+
                 }
-                else
-                {
-                    fails++;
-                    if (t == null)
-                        break;
-                }
-                if (fails > 5)
-                    break;
             }
-            return null;
         }
     }
-
-    public class DynamicLidar : TurretDriver
+    // tags = {"[A]", "[B]", "[C]", "[D]"}
+    public class LidarTurret : TurretParts
     {
         public IMyCameraBlock MainCamera;
-        public LidarArray Array;
-        public DynamicLidar(IMyMotorStator azi, TurretComp c)
-            : base(azi, c) 
-        {
+        public Dictionary<string, LidarArray> Lidars = new Dictionary<string, LidarArray>();
+        private readonly string[] tags;
+        private string mainName;
+        ScanComp Scanner;
+        int nCt, tCt;
 
+        public LidarTurret(ScanComp s, IMyMotorStator azi, string[] t = null)
+            : base(azi) 
+        {
+            Scanner = s;
+            tags = t;
         }
-
-        public override iniWrap Setup(ref CombatManager m)
+        private LidarArray GetTaggedCameras(ref CombatManager m, string t)
         {
-            base.Setup(ref m);
+            var list = new List<IMyCameraBlock>();
+            m.Terminal.GetBlocksOfType(list, (cam) =>
+            {
+                if (cam.CustomName.ToUpper().Contains("MAIN"))
+                {
+                    MainCamera = cam;
+                    MainCamera.EnableRaycast = true;
+                    mainName = cam.CustomName;
+                }
+                return cam.CubeGrid.EntityId == Elevation.TopGrid.EntityId && cam.CustomName.Contains(t); 
+            });
+            return new LidarArray(list, t);
+        }
+        public void Setup(ref CombatManager m)
+        {
+            var p = GetParts(ref m);
             if (Elevation != null)
             {
-                var tid = Elevation.TopGrid.EntityId;
-                var cml = new List<IMyCameraBlock>();
-                m.Terminal.GetBlocksOfType(cml, (b)=> b.CubeGrid.EntityId == Elevation.TopGrid.EntityId);
-                Array = new LidarArray(cml);
-                for(int i = 0; i < cml.Count; i++)
-                    if (cml[i].CustomName.ToUpper().Contains("MAIN"))
-                    {
-                        MainCamera = cml[i];
-                        break;
-                    }
+                var a = new List<IMyCameraBlock>();
+                foreach (var tag in tags)
+                    Lidars.Add(tag, GetTaggedCameras(ref m, tag));
             }
-            return null;
         }
 
-        public override void SelectTarget(ref Dictionary<long, Target> targets)
+        public void Designate()
         {
-            // Auto reset
-            aziTgt = aziRest;
-            elTgt = elRest;
-
+            if (!ActiveCTC || !MainCamera.CanScan(Scanner.maxDistance)) 
+                return;
+            var info = MainCamera.Raycast(Scanner.maxDistance);
+            if (info.IsEmpty()) return;
+            var t = new Target(info, Scanner.Time, Scanner.ID);
+            Scanner.AddOrUpdateTGT(ref t);
         }
+
+        public void TryScanUpdate()
+        {
+            if (Scanner.Targets.Count == 0) return;
+            foreach (var t in Scanner.Targets.Values)
+            {
+                foreach (var ldr in Lidars.Values)
+                {
+                    var mat = ldr.Camera.WorldMatrix;
+                    var vect2TGT = mat.Translation - t.Position;
+                    if (mat.Forward.Dot(vect2TGT) > 0.8) // todo - what is max pitch/yaw and how do i figure out. need basis for this number
+                        ldr.TryScanUpdate(ref Scanner);
+                }
+            }
+        }
+
+        public void Update()
+        {
+            if (ActiveCTC)
+                return;
+            
+        }
+
     }
 }
