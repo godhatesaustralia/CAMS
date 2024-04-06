@@ -15,7 +15,7 @@ namespace IngameScript
         public MyDetectedEntityType type;
         public bool isEngaged = false;
 
-        public Target(MyDetectedEntityInfo threat, double time, long id)
+        public Target(MyDetectedEntityInfo threat, double time, long id, double dist)
         {
             EID = threat.EntityId;
             Timestamp = time;
@@ -25,6 +25,7 @@ namespace IngameScript
             Velocity = threat.Velocity;
             Box = threat.BoundingBox;
             Radius = threat.BoundingBox.Size.Length();
+            Distance = dist;
         }
 
         public Target(MyTuple<MyTuple<long, long, double, int, bool>, MyTuple<Vector3D, Vector3D, MatrixD, BoundingBoxD>> data)

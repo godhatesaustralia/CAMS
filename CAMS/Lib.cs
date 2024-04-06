@@ -8,7 +8,8 @@ namespace IngameScript
 {
     public static class Lib
     {
-        public static string hdr = "CAMS";
+        public static string hdr = "CAMS", array = "ARY", tr = "Turrets", sn = "Scanner";
+
         public static readonly double maxTimeTGT = 43; //ms
         static Dictionary<string, ITerminalProperty> _terminalPropertyDict = new Dictionary<string, ITerminalProperty>();
         public static Vector3D GetAttackPoint(Vector3D relVel, Vector3D relPos, double projSpd)

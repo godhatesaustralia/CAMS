@@ -17,11 +17,16 @@ namespace IngameScript
         public Dictionary<string, GunTurret> Turrets = new Dictionary<string, GunTurret>();
         public Random rnd = new Random();
         public IMyGridTerminalSystem GTS => Manager.Terminal;
-        public TurretComp(string n, CombatManager m) : base(n, m)
+        public TurretComp(string n, CombatManager m) : base(n)
         {
         }
-
-        public void Update()
+        public override void Setup(CombatManager m)
+        {
+            Turrets.Clear();
+            Manager = m;
+           
+        }
+        public override void Update()
         {
             if (Manager.Targets.Count == 0) return;
             foreach (var tur in Turrets.Values)
@@ -37,6 +42,10 @@ namespace IngameScript
     public class TurretParts
     {
         public string Name;
+        protected double
+            aziRest = 0,
+            elRest = 0;
+        public const double rad = Math.PI / 180;
         protected readonly string elv = "Elevation", el = "EL";
         public IMyMotorStator Azimuth;
         public IMyMotorStator Elevation;
@@ -58,6 +67,8 @@ namespace IngameScript
             if (p.CustomData(Azimuth, out res))
             {
                 Name = p.String(Lib.hdr, "Name");
+                aziRest = rad * p.Double(Lib.hdr, "aRest");
+                elRest = rad * p.Double(Lib.hdr, "eRest");
             }
             else throw new Exception(res.Error);
             m.Terminal.GetBlocksOfType<IMyMotorStator>(null, (b) =>
@@ -69,13 +80,14 @@ namespace IngameScript
             });
             if (Elevation != null)
             {
+                var n = Elevation.TopGrid.CustomName;
                 id = Elevation.TopGrid.EntityId;
-                Elevation.TopGrid.CustomName = Name + " Arm";
+                Elevation.TopGrid.CustomName = n.Contains("Grid") ?  Name + " Arm" : n;
             }
             m.Terminal.GetBlocksOfType<IMyTurretControlBlock>(null, (b) =>
             {
-                if (b.CustomName.Contains(Name))
-                    CTC = b as IMyTurretControlBlock;
+                if (b.CustomName.Contains(Name) || b.CubeGrid.EntityId == Elevation.CubeGrid.EntityId)
+                    CTC = b;
                 return true;
             });
             return p;
@@ -88,17 +100,15 @@ namespace IngameScript
             protected bool aziWrap = false, hasTarget = false;
 
             protected CompBase Host;
-            protected double
-                rad = Math.PI / 180,
-                aziMin,
-                aziMax,
-                elMin,
-                elMax,
-                //    aimOffset,
-                aziTgt = 0,
-                elTgt = 0,
-                aziRest = 0,
-                elRest = 0;
+        protected double
+            aziMin,
+            aziMax,
+            elMin,
+            elMax,
+            //    aimOffset,
+            aziTgt = 0,
+            elTgt = 0;
+
             protected int
                 range,
                 projSpd,
@@ -115,9 +125,6 @@ namespace IngameScript
             public virtual iniWrap Setup(ref CombatManager m)
             {
                 var p = GetParts(ref m);
-
-                aziRest = rad * p.Double(Lib.hdr, "aRest");
-                elRest = rad * p.Double(Lib.hdr, "eRest");
                 aziMax = rad * p.Double(Lib.hdr, "aMax");
                 aziMin = rad * p.Double(Lib.hdr, "aMin", -aziMax);
                 elMax = rad * p.Double(Lib.hdr, "eMax", 90);
@@ -221,7 +228,6 @@ namespace IngameScript
         public class GunTurret : TurretDriver
         {
             public long tEID;
-            public LidarArray Array = null;
             double scat;
             bool spray = false, selOffset = true;
             readonly string wpns = "Weapons";
@@ -247,8 +253,8 @@ namespace IngameScript
                 if (Elevation != null)
                 {
                     var l2 = new List<IMyCameraBlock>();
-                    m.Terminal.GetBlocksOfType(l2, (b) => b.CubeGrid.EntityId == Elevation.TopGrid.EntityId);
-                    Array = new LidarArray(l2);
+                    m.Terminal.GetBlocksOfType(l2, (b) => b.CubeGrid.EntityId == Elevation.TopGrid.EntityId && b.CustomName.Contains(Lib.array));
+                    m.RegisterLidar(new LidarArray(l2, Name));
                 }
                 return null;
             }

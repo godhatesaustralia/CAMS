@@ -9,7 +9,7 @@ using VRageMath;
 namespace IngameScript
 {
 
-    public class LidarArray // a group of c all with the same orientation
+    public class LidarArray // list group of c all with the same orientation
     {
         public IMyCameraBlock Camera => Cameras[0];
         private List<IMyCameraBlock> Cameras;
@@ -24,18 +24,16 @@ namespace IngameScript
         }
 
         public Vector3D ArrayDir => Camera.WorldMatrix.Forward.Normalized();
-        public void TryScanUpdate(ref ScanComp h)
+        public void TryScanUpdate(ScanComp h)
         {
             int scans = 0;
             if (scans == Cameras.Count) return;
-            Target nT;
             if (h.Targets.Count == 0)
                 return;
             else
             {
                 foreach (var t in h.Targets.Values)
                 {
-                    nT = null;
                     if (h.Manager.Runtime - t.Timestamp < Lib.maxTimeTGT) 
                         continue;
                     for (int i = 0; i < Cameras.Count; i++)
@@ -46,11 +44,9 @@ namespace IngameScript
                             continue;
                         if (!Camera.CanScan(t.Position)) 
                             continue;
-                        nT = new Target(Cameras[i].Raycast(t.Position), h.Time, h.ID);
                         scans++;
-                        h.AddOrUpdateTGT(ref nT);
+                        h.AddOrUpdateTGT(Cameras[i].Raycast(t.Position));
                     }
-
                 }
             }
         }
@@ -71,29 +67,29 @@ namespace IngameScript
             Scanner = s;
             tags = t;
         }
-        private LidarArray GetTaggedCameras(ref CombatManager m, string t)
-        {
-            var list = new List<IMyCameraBlock>();
-            m.Terminal.GetBlocksOfType(list, (cam) =>
-            {
-                if (cam.CustomName.ToUpper().Contains("MAIN"))
-                {
-                    MainCamera = cam;
-                    MainCamera.EnableRaycast = true;
-                    mainName = cam.CustomName;
-                }
-                return cam.CubeGrid.EntityId == Elevation.TopGrid.EntityId && cam.CustomName.Contains(t); 
-            });
-            return new LidarArray(list, t);
-        }
+
         public void Setup(ref CombatManager m)
         {
             var p = GetParts(ref m);
             if (Elevation != null)
             {
-                var a = new List<IMyCameraBlock>();
+                var list = new List<IMyCameraBlock>();
                 foreach (var tag in tags)
-                    Lidars.Add(tag, GetTaggedCameras(ref m, tag));
+                {
+                    list.Clear();
+                    m.Terminal.GetBlocksOfType(list, (cam) =>
+                    {
+                        bool b = cam.CubeGrid.EntityId == Elevation.TopGrid.EntityId;
+                        if (b && cam.CustomName.ToUpper().Contains("MAIN"))
+                        {
+                            MainCamera = cam;
+                            MainCamera.EnableRaycast = true;
+                            mainName = cam.CustomName;
+                        }
+                        return b && cam.CustomName.Contains(tag);
+                    });
+                    Lidars.Add(tag, new LidarArray(list, tag));
+                }
             }
         }
 
@@ -103,31 +99,22 @@ namespace IngameScript
                 return;
             var info = MainCamera.Raycast(Scanner.maxDistance);
             if (info.IsEmpty()) return;
-            var t = new Target(info, Scanner.Time, Scanner.ID);
-            Scanner.AddOrUpdateTGT(ref t);
+            Scanner.AddOrUpdateTGT(info);
         }
 
-        public void TryScanUpdate()
+        public void Update()
         {
-            if (Scanner.Targets.Count == 0) return;
+            if (ActiveCTC || Scanner.Targets.Count == 0) return;
             foreach (var t in Scanner.Targets.Values)
             {
                 foreach (var ldr in Lidars.Values)
                 {
                     var mat = ldr.Camera.WorldMatrix;
                     var vect2TGT = mat.Translation - t.Position;
-                    if (mat.Forward.Dot(vect2TGT) > 0.8) // todo - what is max pitch/yaw and how do i figure out. need basis for this number
-                        ldr.TryScanUpdate(ref Scanner);
+                    if (mat.Forward.Dot(vect2TGT) > 0.707) // max limit = 45 deg
+                        ldr.TryScanUpdate(Scanner);
                 }
             }
         }
-
-        public void Update()
-        {
-            if (ActiveCTC)
-                return;
-            
-        }
-
     }
 }

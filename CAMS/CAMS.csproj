@@ -38,6 +38,7 @@
   <Import Project="MDK/MDK.options.props" />
   <Import Project="MDK/MDK.paths.props" Condition="exists('MDK/MDK.paths.props')" />
   <ItemGroup>
+    <Compile Include="Digi.cs" />
     <Compile Include="Lidar.cs" />
     <Compile Include="ScanComp.cs" />
     <Compile Include="Targets.cs" />
