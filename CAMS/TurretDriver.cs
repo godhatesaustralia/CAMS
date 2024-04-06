@@ -20,13 +20,22 @@ namespace IngameScript
         public TurretComp(string n, CombatManager m) : base(n)
         {
         }
-        public override void Setup(CombatManager m)
+        public override void Setup(CombatManager m, ref iniWrap p)
         {
             Turrets.Clear();
             Manager = m;
-           
+            Manager.Terminal.GetBlocksOfType<IMyMotorStator>(null, (b) =>
+            {
+                if (b.CubeGrid.EntityId == m.Controller.CubeGrid.EntityId && b.CustomName.Contains("Azimuth") && !b.CustomName.Contains(Lib.array))
+                {
+                    var t = new GunTurret(b, this);
+                    t.Setup(ref m);
+                    Turrets.Add(t.Name, t);
+                }
+                return true;
+            });
         }
-        public override void Update()
+        public override void Update(UpdateFrequency u)
         {
             if (Manager.Targets.Count == 0) return;
             foreach (var tur in Turrets.Values)
@@ -50,7 +59,14 @@ namespace IngameScript
         public IMyMotorStator Azimuth;
         public IMyMotorStator Elevation;
         protected IMyTurretControlBlock CTC;
-        public bool ActiveCTC => CTC.AIEnabled || CTC.IsUnderControl;
+        public bool ActiveCTC
+        {
+            get
+            {
+                if (CTC == null) return false;
+                return CTC.AIEnabled || CTC.IsUnderControl;
+            }
+        }
 
         protected TurretParts(IMyMotorStator az)
         {

@@ -1,20 +1,24 @@
 ﻿using Sandbox.ModAPI.Ingame;
 using SpaceEngineers.Game.ModAPI.Ingame;
+using System;
 using System.Collections.Generic;
 
 namespace IngameScript
 {
     public class ScanComp : CompBase
     {
-        public Dictionary<long, Target> Targets => Manager.Targets;
+        Dictionary<long, Target> TargetsScratchpad = new Dictionary<long, Target>();
+        public Dictionary<long, Target> Targets => Manager.Targets; // IEnumerator sneed
         public long ID => Manager.Program.Me.CubeGrid.EntityId;
-        readonly string[] tags = { "[A]", "[B]", "[C]", "[D]" };
+        string[] tags; //= { "[A]", "[B]", "[C]", "[D]" };
         readonly HashSet<long> subgrids = new HashSet<long>();
         public double Time => Manager.Runtime;
         public List<LidarArray> Lidars = new List<LidarArray>();
-        public List<LidarTurret> Masts = new List<LidarTurret>();
+        public Dictionary<string, LidarTurret> Masts = new Dictionary<string, LidarTurret>();
         public List<IMyLargeTurretBase> Turrets, LockingTurrets;
-        public double maxDistance = 5000;
+        public double maxRaycast;
+        public string Debug;
+        int tPtr, tStep;
         public ScanComp(string n) : base(n) 
         {
             Turrets = new List<IMyLargeTurretBase>();
@@ -29,12 +33,26 @@ namespace IngameScript
             Lidars.Clear();
             Masts.Clear();
         }
-
-        public override void Setup(CombatManager m)
+        // [CAMS]
+        // tStep = 5
+        // maxRaycast = 4000
+        // lidarTags = 
+        // |[A]
+        // |[B]
+        // |[C]
+        // |[D]
+        public override void Setup(CombatManager m, ref iniWrap p)
         {
             Clear();
             Manager = m;
             var lct = "LargeCalibreTurret";
+            tStep = p.Int(Lib.hdr, "tStep", 4);
+            maxRaycast = p.Double(Lib.hdr, "maxRaycast", 5000);
+            var tagstr = p.String(Lib.hdr, "lidarTags", "[A]\n[B]\n[C]\n[D]");
+            var a = tagstr.Split('\n');
+            for (int i = 0; i < a.Length; i++)
+                a[i] = a[i].Trim('|');
+            tags = a;
             Manager.Terminal.GetBlocksOfType<IMyMotorStator>(null, (b) =>
             {
                 var i = b.TopGrid.EntityId;
@@ -49,37 +67,54 @@ namespace IngameScript
                 if (mtr.CustomName.Contains(Lib.array) && mtr.CubeGrid.EntityId == ID)
                 {
                     var tur = new LidarTurret(this, mtr, tags);
-                    if (!Masts.Contains(tur))
-                        Masts.Add(tur);
+                    tur.Setup(ref m);
+                    if (!Masts.ContainsKey(tur.Name))
+                        Masts.Add(tur.Name, tur);
                 }
                 return true;
             });
-            foreach (var mast in Masts)
-                mast.Setup(ref Manager);
         }
-
-        public override void Update()
+        void CheckTurret(IMyLargeTurretBase t)
         {
             MyDetectedEntityInfo info;
-            for (int i = 0; i < Turrets.Count; i++)
+            if (t.HasTarget)
             {
-                if (Turrets[i].HasTarget)
-                {
-                    info = Turrets[i].GetTargetedEntity();
-                    if (!Targets.ContainsKey(info.EntityId))
-                    {
-                        AddOrUpdateTGT(info);
-                        continue;
-                    }
-                }
-                Turrets[i].ResetTargetingToDefault();
-                Turrets[i].Range = 800;
-                Turrets[i].EnableIdleRotation = false;
+                 info = t.GetTargetedEntity();
+                 AddOrUpdateTGT(info);
+                t.ResetTargetingToDefault();
+                t.Range = 800;
+                t.EnableIdleRotation = false;
             }
-            foreach (var m in Masts)
+        }
+        public override void Update(UpdateFrequency u)
+        {
+            Debug = "";
+            // i THINK this is a laggy thing
+            int n = Math.Min(Turrets.Count, tPtr + tStep);
+            for (; tPtr < n; tPtr++)
+            {
+                CheckTurret(Turrets[tPtr]);
+            }
+            for (int i = 0; i < LockingTurrets.Count; i++)
+            {
+                CheckTurret(LockingTurrets[i]);
+            }
+            if (n == Turrets.Count)
+            {
+                tPtr = 0;
+            }
+            foreach (var m in Masts.Values)
                 m.Update();
             foreach (var l in Lidars)
                 l.TryScanUpdate(this);
+            foreach (var tgt in TargetsScratchpad)
+            {
+                var i = tgt.Key;
+                if (Targets.ContainsKey(i) && (Manager.Runtime - Targets[i].Timestamp <= Lib.maxTimeTGT))
+                    continue;
+                Targets[i] = TargetsScratchpad[i];
+            }
+                
         }
 
         public void ResetAllStupidTurrets()
@@ -91,6 +126,8 @@ namespace IngameScript
             }
         }
 
+        public void Designate(string name) => Masts[name].Designate();
+
         public void AddOrUpdateTGT(MyDetectedEntityInfo info)
         {
             var i = info.EntityId;
@@ -101,10 +138,8 @@ namespace IngameScript
             {
                 if ((Manager.Runtime - Targets[i].Timestamp <= Lib.maxTimeTGT))
                     return;
-                else
-                    Targets[i] = new Target(info, Manager.Runtime, ID, d);
             }
-            else Targets.Add(info.EntityId, new Target(info, Manager.Runtime, ID, d));
+            TargetsScratchpad[i] = new Target(info, Manager.Runtime, ID, d);
         }
         
     }

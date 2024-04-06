@@ -6,12 +6,23 @@ using VRageMath;
 
 namespace IngameScript
 {
+    // bunch of different global fields and methjods and stuff
     public static class Lib
     {
         public static string hdr = "CAMS", array = "ARY", tr = "Turrets", sn = "Scanner";
 
         public static readonly double maxTimeTGT = 43; //ms
         static Dictionary<string, ITerminalProperty> _terminalPropertyDict = new Dictionary<string, ITerminalProperty>();
+        public static Color debug = new Color(100, 250, 100);
+        public static UpdateFrequency UpdateConverter(UpdateType src)
+        {
+            var updateFrequency = UpdateFrequency.None; //0000
+            if ((src & UpdateType.Update1) != 0) updateFrequency |= UpdateFrequency.Update1; //0001
+            if ((src & UpdateType.Update10) != 0) updateFrequency |= UpdateFrequency.Update10; //0010
+            if ((src & UpdateType.Update100) != 0) updateFrequency |= UpdateFrequency.Update100;//0100
+            return updateFrequency;
+        }
+
         public static Vector3D GetAttackPoint(Vector3D relVel, Vector3D relPos, double projSpd)
         {
             if (relVel == Vector3D.Zero) return relPos;

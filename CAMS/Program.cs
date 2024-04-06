@@ -26,8 +26,11 @@ namespace IngameScript
         public Program()
         {
             Manager = new CombatManager(this);
-            Manager.Components.Add(Lib.sn, new ScanComp(Lib.sn));
-            Manager.Components.Add(Lib.tr, new TurretComp(Lib.tr, Manager));
+            Manager.Debug = new DebugAPI(this, true);
+            //Manager.Components.Add(Lib.sn, new ScanComp(Lib.sn));
+            //Manager.Components.Add(Lib.tr, new TurretComp(Lib.tr, Manager));
+            Manager.Scanner = new ScanComp(Lib.sn);
+            Manager.Turrets = new TurretComp(Lib.tr, Manager);
             Runtime.UpdateFrequency |= UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;
             Manager.Start();
         }

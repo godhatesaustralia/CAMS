@@ -38,13 +38,16 @@ namespace IngameScript
                         continue;
                     for (int i = 0; i < Cameras.Count; i++)
                     {
+                        
                         if (!Cameras[i].IsWorking)
                             continue;
                         if (!Cameras[i].CanScan(t.Distance)) 
                             continue;
                         if (!Camera.CanScan(t.Position)) 
                             continue;
-                        scans++;
+                        scans++;     
+                        h.Debug += $"\n{scans}. {Cameras[i].CustomName}";
+                        h.Manager.Debug.DrawLine(Cameras[i].WorldMatrix.Translation, t.Position, Lib.debug, 0.03f);
                         h.AddOrUpdateTGT(Cameras[i].Raycast(t.Position));
                     }
                 }
@@ -95,24 +98,32 @@ namespace IngameScript
 
         public void Designate()
         {
-            if (!ActiveCTC || !MainCamera.CanScan(Scanner.maxDistance)) 
+            if (!ActiveCTC || !MainCamera.CanScan(Scanner.maxRaycast)) 
                 return;
-            var info = MainCamera.Raycast(Scanner.maxDistance);
+            var v = MainCamera.WorldMatrix.Translation;
+            Scanner.Manager.Debug.DrawLine(v, v + MainCamera.WorldMatrix.Forward * Scanner.maxRaycast, Lib.debug);
+            var info = MainCamera.Raycast(Scanner.maxRaycast);
             if (info.IsEmpty()) return;
             Scanner.AddOrUpdateTGT(info);
         }
 
         public void Update()
         {
-            if (ActiveCTC || Scanner.Targets.Count == 0) return;
+
+            if (ActiveCTC) return;
+            Azimuth.TargetVelocityRPM = 30;
+            Elevation.TargetVelocityRPM = 60;
+            if (Scanner.Targets.Count > 0)
             foreach (var t in Scanner.Targets.Values)
             {
                 foreach (var ldr in Lidars.Values)
                 {
                     var mat = ldr.Camera.WorldMatrix;
                     var vect2TGT = mat.Translation - t.Position;
-                    if (mat.Forward.Dot(vect2TGT) > 0.707) // max limit = 45 deg
+                    bool b = mat.Forward.Dot(vect2TGT) > 0.707;
+                    if (b) // max limit = 45 deg
                         ldr.TryScanUpdate(Scanner);
+                    //Scanner.Manager.Debug.PrintHUD($"{Name}, {ldr.tag}, {b}", seconds: 0.01f);
                 }
             }
         }
