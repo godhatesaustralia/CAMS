@@ -3,6 +3,7 @@ using Sandbox.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using VRageMath;
 
@@ -17,10 +18,11 @@ namespace IngameScript
         public Dictionary<string, Action<MyCommandLine>> Commands = new Dictionary<string, Action<MyCommandLine>>();
         public IMyShipController Reference => Manager.Controller;
         public CombatManager Manager;
-
-        public CompBase(string n)
+        protected UpdateFrequency freq;
+        public CompBase(string n, UpdateFrequency u)
         {
             Name = n;
+            freq = u;
         }
         public abstract void Setup(CombatManager m, ref iniWrap p);
         public abstract void Update(UpdateFrequency u);
@@ -31,11 +33,14 @@ namespace IngameScript
         public MyGridProgram Program;
         public IMyGridTerminalSystem Terminal;
         public IMyShipController Controller;
+        IMyTextSurface Display;
         public DebugAPI Debug;
+        public bool Based;
+        string activeScr = Lib.tr;
         public Vector3D Center => Controller.WorldMatrix.Translation;
         public Dictionary<long, Target> Targets = new Dictionary<long, Target>();
         List<long> removeIDs = new List<long>();
-        public Dictionary<string, CompBase> Components = new Dictionary<string, CompBase>();
+        public Dictionary<string, Screen> Screens = new Dictionary<string, Screen>();
         public Random Random = new Random();
         public WCAPI API;
         public ScanComp Scanner;
@@ -58,17 +63,27 @@ namespace IngameScript
             var r = new MyIniParseResult();
             if (p.CustomData(Program.Me, out r))
             {
+                Based = p.Bool(Lib.hdr, "vcr");
                 Program.GridTerminalSystem.GetBlocksOfType<IMyShipController>(null, (b) =>
                 {
                     if (b.CubeGrid.EntityId == Program.Me.CubeGrid.EntityId && b.CustomName.Contains("Helm"))
                         Controller = b;
                     return true;
                 });
+                if (Controller != null)
+                {
+                    var c = Controller as IMyTextSurfaceProvider;
+                    if (c!= null)
+                    {
+                        Display = c.GetSurface(0);
+                        Display.ContentType = VRage.Game.GUI.TextPanel.ContentType.SCRIPT;
+                    }
+                }
                 //foreach (var c in Components.Values)
                 //    c.Setup(this, ref p);
                 Scanner.Setup(this, ref p);
                 Turrets.Setup(this, ref p);
-                
+                Screens[activeScr].Active = true;
             }
             else throw new Exception($"\n{r.Error} at line {r.LineNo} of {Program.Me} custom data.");
 
@@ -78,7 +93,7 @@ namespace IngameScript
         {
             Frame++;
             var r = Program.Runtime.TimeSinceLastRun;
-            RuntimeMS += r.TotalSeconds;
+            RuntimeMS += r.TotalMilliseconds;
             Ticks += r.Ticks;
         }
 
@@ -106,7 +121,21 @@ namespace IngameScript
                     case "designate":
                         Scanner.Designate(cmd.Argument(1));
                         break;
+                    case "screen":
+                        if (Screens.ContainsKey(cmd.Argument(1)))
+                        {
+                            activeScr = cmd.Argument(1);
+                            Screens[activeScr].Active = true;
+                        }    
+                        break;
+                    case "up":
+                        Screens[activeScr].Up();
+                        break;
+                    case "down":
+                        Screens[activeScr].Down();
+                        break;
                     default: break;
+     
                 }
             }
 
@@ -118,18 +147,18 @@ namespace IngameScript
             Program.Runtime.UpdateFrequency |= u;
             if ((u & UpdateFrequency.Update10) != 0)
             {
-                AverageRun = totalRt / Frame;
+                AverageRun = totalRt / Frame; 
+                Scanner.Update(u);
                 Debug.RemoveDraw();
             }
-            
-            Scanner.Update(u);
             Turrets.Update(u);
-            foreach (var tgt in Targets)
-                if (tgt.Value.Timestamp - RuntimeMS > Lib.maxTimeTGT)
-                    removeIDs.Add(tgt.Key);
+            foreach (var id in Targets.Keys)
+                if (Targets[id].Elapsed(Runtime) >= Lib.maxTimeTGT)
+                    removeIDs.Add(id);
+            Screens[activeScr].Draw(Display, u);
             string r = "[[COMBAT MANAGER]]\n\n";
             foreach (var tgt in Targets.Values)
-                r += $"{tgt.EID.ToString("X").Remove(0, 6)}\nDIST {tgt.Distance}, VEL {tgt.Velocity}\n";
+                r += $"{tgt.EID.ToString("X").Remove(0, 6)}\nDIST {tgt.Distance}, ELAPSED {tgt.Elapsed(Runtime)}\n";
             Debug.PrintHUD(Scanner.Debug);
             r += $"RUNS - {Frame}\nRUNTIME - {rt} ms\nAVG - {AverageRun.ToString("0.####")} ms\nWORST - {WorstRun} ms, F{WorstFrame}\n";
             //r = Inventory.DebugString;

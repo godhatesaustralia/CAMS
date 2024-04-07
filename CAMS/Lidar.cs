@@ -15,10 +15,14 @@ namespace IngameScript
         private List<IMyCameraBlock> Cameras;
         public readonly string tag;
         const float scat = 0.25f;
-        public LidarArray(List<IMyCameraBlock> c = null, string t = "")
+        public int scans, index;
+        public double avgDist;
+        public int ct => Cameras.Count;
+        public LidarArray(List<IMyCameraBlock> c = null, string t = "", int i = -1)
         {
             Cameras = c ?? new List<IMyCameraBlock>();
             tag = t;
+            index = i;
             foreach (var c2 in Cameras)
                 c2.EnableRaycast = true;
         }
@@ -26,7 +30,7 @@ namespace IngameScript
         public Vector3D ArrayDir => Camera.WorldMatrix.Forward.Normalized();
         public void TryScanUpdate(ScanComp h)
         {
-            int scans = 0;
+            scans = 0;
             if (scans == Cameras.Count) return;
             if (h.Targets.Count == 0)
                 return;
@@ -34,11 +38,12 @@ namespace IngameScript
             {
                 foreach (var t in h.Targets.Values)
                 {
+                    avgDist = 0;
                     if (h.Manager.Runtime - t.Timestamp < Lib.maxTimeTGT) 
                         continue;
                     for (int i = 0; i < Cameras.Count; i++)
                     {
-                        
+                        avgDist += Cameras[i].AvailableScanRange; 
                         if (!Cameras[i].IsWorking)
                             continue;
                         if (!Cameras[i].CanScan(t.Distance)) 
@@ -47,9 +52,10 @@ namespace IngameScript
                             continue;
                         scans++;     
                         h.Debug += $"\n{scans}. {Cameras[i].CustomName}";
-                        h.Manager.Debug.DrawLine(Cameras[i].WorldMatrix.Translation, t.Position, Lib.debug, 0.03f);
+                        h.Manager.Debug.DrawLine(Cameras[i].WorldMatrix.Translation, t.Position, Lib.Green, 0.03f);
                         h.AddOrUpdateTGT(Cameras[i].Raycast(t.Position));
                     }
+                    avgDist /= Cameras.Count;
                 }
             }
         }
@@ -58,11 +64,14 @@ namespace IngameScript
     public class LidarTurret : TurretParts
     {
         public IMyCameraBlock MainCamera;
-        public Dictionary<string, LidarArray> Lidars = new Dictionary<string, LidarArray>();
+        public List<LidarArray> Lidars = new List<LidarArray>();
         private readonly string[] tags;
         private string mainName;
         ScanComp Scanner;
-        int nCt, tCt;
+
+        // metrics
+        public int[] scans;
+        public double[] avgDists;
 
         public LidarTurret(ScanComp s, IMyMotorStator azi, string[] t = null)
             : base(azi) 
@@ -76,23 +85,26 @@ namespace IngameScript
             var p = GetParts(ref m);
             if (Elevation != null)
             {
+                int i = 0;
                 var list = new List<IMyCameraBlock>();
-                foreach (var tag in tags)
+                for (; i < tags.Length; i++)
                 {
                     list.Clear();
                     m.Terminal.GetBlocksOfType(list, (cam) =>
                     {
-                        bool b = cam.CubeGrid.EntityId == Elevation.TopGrid.EntityId;
+                        bool b = cam.CubeGrid.EntityId == Elevation?.TopGrid.EntityId;
                         if (b && cam.CustomName.ToUpper().Contains("MAIN"))
                         {
                             MainCamera = cam;
                             MainCamera.EnableRaycast = true;
                             mainName = cam.CustomName;
                         }
-                        return b && cam.CustomName.Contains(tag);
+                        return b && cam.CustomName.Contains(tags[i]);
                     });
-                    Lidars.Add(tag, new LidarArray(list, tag));
+                    Lidars.Add(new LidarArray(list, tags[i], i));
                 }
+                scans = new int[Lidars.Count];
+                avgDists = new double[Lidars.Count];
             }
         }
 
@@ -101,7 +113,7 @@ namespace IngameScript
             if (!ActiveCTC || !MainCamera.CanScan(Scanner.maxRaycast)) 
                 return;
             var v = MainCamera.WorldMatrix.Translation;
-            Scanner.Manager.Debug.DrawLine(v, v + MainCamera.WorldMatrix.Forward * Scanner.maxRaycast, Lib.debug);
+            Scanner.Manager.Debug.DrawLine(v, v + MainCamera.WorldMatrix.Forward * Scanner.maxRaycast, Lib.Green);
             var info = MainCamera.Raycast(Scanner.maxRaycast);
             if (info.IsEmpty()) return;
             Scanner.AddOrUpdateTGT(info);
@@ -109,23 +121,29 @@ namespace IngameScript
 
         public void Update()
         {
-
             if (ActiveCTC) return;
             Azimuth.TargetVelocityRPM = 30;
             Elevation.TargetVelocityRPM = 60;
             if (Scanner.Targets.Count > 0)
-            foreach (var t in Scanner.Targets.Values)
-            {
-                foreach (var ldr in Lidars.Values)
+                foreach (var t in Scanner.Targets.Values)
                 {
-                    var mat = ldr.Camera.WorldMatrix;
-                    var vect2TGT = mat.Translation - t.Position;
-                    bool b = mat.Forward.Dot(vect2TGT) > 0.707;
-                    if (b) // max limit = 45 deg
-                        ldr.TryScanUpdate(Scanner);
-                    //Scanner.Manager.Debug.PrintHUD($"{Name}, {ldr.tag}, {b}", seconds: 0.01f);
+                    for (int i = 0; i < Lidars.Count; i++)
+                    {
+                        var mat = Lidars[i].Camera.WorldMatrix;
+                        var vect2TGT = mat.Translation - t.Position;
+                        bool b = mat.Forward.Dot(vect2TGT) > 0.707;
+                        if (b) // max limit = 45 deg
+                        {
+                            Lidars[i].TryScanUpdate(Scanner);
+                            scans[i] = Lidars[i].scans;
+                            avgDists[i] = Lidars[i].avgDist;
+                        }
+
+                        //Scanner.Manager.Debug.PrintHUD($"{Name}, {ldr.tag}, {b}", seconds: 0.01f);
+                    }
                 }
-            }
+            else for (int i = 0; i < Lidars.Count; i++)
+                    avgDists[i] = Scanner.maxRaycast;
         }
     }
 }

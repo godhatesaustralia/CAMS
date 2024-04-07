@@ -14,6 +14,7 @@ namespace IngameScript
         public BoundingBoxD Box;
         public MyDetectedEntityType type;
         public bool isEngaged = false;
+        
 
         public Target(MyDetectedEntityInfo threat, double time, long id, double dist)
         {
@@ -39,6 +40,11 @@ namespace IngameScript
             Velocity = data.Item2.Item2;
             Box = data.Item2.Item4;
             Radius = Box.Size.Length();
+        }
+
+        public double Elapsed(double now)
+        {
+            return now - Timestamp;
         }
 
         public Vector3D PositionUpdate(double now, double offset = 0)

@@ -1,6 +1,7 @@
 ﻿using Sandbox.Game.AI.Navigation;
 using Sandbox.ModAPI.Ingame;
 using SpaceEngineers.Game.ModAPI.Ingame;
+using VRage.Game.GUI.TextPanel;
 using System;
 using System.CodeDom;
 using System.Collections.Generic;
@@ -14,10 +15,9 @@ namespace IngameScript
 {
     public class TurretComp : CompBase
     {
-        public Dictionary<string, GunTurret> Turrets = new Dictionary<string, GunTurret>();
-        public Random rnd = new Random();
+        public List<GunTurret> Turrets = new List<GunTurret>();
         public IMyGridTerminalSystem GTS => Manager.Terminal;
-        public TurretComp(string n, CombatManager m) : base(n)
+        public TurretComp(string n) : base(n, UpdateFrequency.Update1)
         {
         }
         public override void Setup(CombatManager m, ref iniWrap p)
@@ -30,15 +30,34 @@ namespace IngameScript
                 {
                     var t = new GunTurret(b, this);
                     t.Setup(ref m);
-                    Turrets.Add(t.Name, t);
+                    if (t.Elevation != null)
+                        Turrets.Add(t);
                 }
                 return true;
             });
+            Manager.Screens.Add(Name, new Screen(() => Turrets.Count, new MySprite[]
+            { new MySprite(SpriteType.TEXT, "", new Vector2(20, 112), null, Lib.Green, Lib.vb, 0, 0.925f),// 1. TUR NAME
+              new MySprite(SpriteType.TEXT, "AZ\nEL", new Vector2(20, 160), null, Lib.Green, Lib.vb, 0, 1.825f),// 2. ANGLE HDR
+              new MySprite(SpriteType.TEXT, "", new Vector2(132, 164), null, Lib.Green, Lib.vb, 0, 0.9125f),// 3. ANGLE DATA
+              new MySprite(SpriteType.TEXT, "", new Vector2(488, 160), null, Lib.Green, Lib.vb, (TextAlignment)1, 1.825f),// 4. RPM
+              new MySprite(SpriteType.TEXT, "", new Vector2(20, 348), null, Lib.Green, Lib.vb, 0, 0.925f)// 5. WPNS
+            }, (s) =>
+            {
+                var t = Turrets[s.ptr];
+                string n = t.Name;
+                var ct = 14 -  t.Name.Length;
+                for (; ct-- > 0;)
+                    n += " ";
+                s.SetData(n + $"{s.ptr + 1}/{Turrets.Count}", 0);
+                s.SetData($"TGT {MathHelper.ToDegrees(t.aziTgt).ToString("##0.#")}°\nCUR {t.aCur.ToString("##0.#")}°\nTGT {MathHelper.ToDegrees(t.elTgt).ToString("##0.#")}°\nCUR {t.eCur.ToString("##0.#")}°", 2);
+                s.SetData($"{t.Azimuth.TargetVelocityRPM}\n{t.Elevation.TargetVelocityRPM}", 3);
+                s.SetData("WEAPONS- " + (t.isShoot ? " ENABLED" : "INACTIVE"), 4);
+            }));
         }
         public override void Update(UpdateFrequency u)
         {
             if (Manager.Targets.Count == 0) return;
-            foreach (var tur in Turrets.Values)
+            foreach (var tur in Turrets)
             {
                 if (tur.ActiveCTC) continue;
                 tur.SelectTarget(ref Manager.Targets);
@@ -54,6 +73,8 @@ namespace IngameScript
         protected double
             aziRest = 0,
             elRest = 0;
+        public double aCur => MathHelper.ToDegrees(Azimuth.Angle);
+        public double eCur => MathHelper.ToDegrees(Elevation.Angle);
         public const double rad = Math.PI / 180;
         protected readonly string elv = "Elevation", el = "EL";
         public IMyMotorStator Azimuth;
@@ -120,8 +141,9 @@ namespace IngameScript
             aziMin,
             aziMax,
             elMin,
-            elMax,
+            elMax;
             //    aimOffset,
+        public double
             aziTgt = 0,
             elTgt = 0;
 
@@ -131,7 +153,6 @@ namespace IngameScript
                 aziRPM,
                 elRPM;
             protected float aimTolerance = 0.05f;
-
             public TurretDriver(IMyMotorStator azi, CompBase c)
             : base(azi)
             {
@@ -145,6 +166,8 @@ namespace IngameScript
                 aziMin = rad * p.Double(Lib.hdr, "aMin", -aziMax);
                 elMax = rad * p.Double(Lib.hdr, "eMax", 90);
                 elMin = rad * p.Double(Lib.hdr, "eMin", -elMax);
+                aziRPM = p.Int(Lib.hdr, "aRPM", 30);
+                elRPM = p.Int(Lib.hdr, "eRPM", 30);
                 if (Elevation != null)
                 {
                     // here is where i would put occlusion parse if 
@@ -178,12 +201,6 @@ namespace IngameScript
                 return true;
             }
 
-            private void SetAzimuth(float lower, float upper, int sign)
-            {
-                Azimuth.LowerLimitRad = lower;
-                Azimuth.UpperLimitRad = upper;
-                Azimuth.TargetVelocityRPM = aziRPM * sign;
-            }
             public bool AtAimPoint()
             {
                 if (aziTgt == aziRest && elTgt == elRest)
@@ -193,7 +210,7 @@ namespace IngameScript
                 double
                     aziDif = Math.Abs(Azimuth.Angle - aziTgt),
                     elDif = Math.Abs(Elevation.Angle - elTgt);
-                if (aziDif > aimTolerance && elDif > aimTolerance)
+                if (aziDif > aimTolerance || elDif > aimTolerance)
                     return false;
                 return true;
             }
@@ -217,15 +234,21 @@ namespace IngameScript
                 {
                     if (aziWrap && aziDiff > Math.PI)
                     {
-                        SetAzimuth((float)(aziTgt - 2 * Math.PI), float.MaxValue, -1);
+                        Azimuth.LowerLimitRad = (float)(aziTgt - 2 * Math.PI);
+                        Azimuth.UpperLimitRad = float.MaxValue;
+                        Azimuth.TargetVelocityRPM = aziRPM * -1;
                     }
                     else if (aziWrap && aziDiff < -Math.PI)
                     {
-                        SetAzimuth(float.MinValue, (float)(aziTgt + 2 * Math.PI), 1);
-                    }
+                        Azimuth.LowerLimitRad = float.MinValue;
+                        Azimuth.UpperLimitRad = (float)(aziTgt + 2 * Math.PI);
+                        Azimuth.TargetVelocityRPM = aziRPM;
+                }
                     else
                     {
-                        SetAzimuth(aziDiff > 0 ? (float)aziTgt : aziTrue + 0.5f * 3.1415f / 180, aziDiff < 0 ? (float)aziTgt : aziTrue - 0.5f * 3.1415f / 180, Math.Sign(aziDiff));
+                        Azimuth.UpperLimitRad = aziDiff > 0 ? (float)aziTgt : aziTrue + 0.5f * 3.1415f / 180;
+                        Azimuth.LowerLimitRad = aziDiff < 0 ? (float)aziTgt : aziTrue - 0.5f * 3.1415f / 180;
+                        Azimuth.TargetVelocityRPM = aziRPM * Math.Sign(aziDiff);
                     }
                 }
                 if (Math.Abs(elevationDiff) < 0.00002)
@@ -247,6 +270,7 @@ namespace IngameScript
             double scat;
             bool spray = false, selOffset = true;
             readonly string wpns = "Weapons";
+        public bool isShoot;
 
         Weapons turGuns;
             Vector3D randOffset = new Vector3D();
@@ -261,7 +285,7 @@ namespace IngameScript
                 projSpd = p.Int(Lib.hdr, "Speed");
                 var sticks = p.Int(Lib.hdr, "Salvo", 0);
                 spray = scat != 0;
-                aziWrap = aziMax >= Math.PI && aziMin <= -Math.PI;
+                aziWrap = aziMax > Math.PI && aziMin < -Math.PI;
                 p.Dispose();
                 var list = new List<IMyFunctionalBlock>();
                 m.Terminal.GetBlockGroupWithName(Name + " " + wpns).GetBlocksOfType(list); // e.g. PDL-LT Guns
@@ -280,7 +304,8 @@ namespace IngameScript
                 // Auto reset
                 aziTgt = aziRest;
                 elTgt = elRest;
-                if (Elevation == null || Azimuth == null) return;
+
+                if (Elevation == null || Azimuth == null || targets.Count == 0) return;
 
                 if (spray && selOffset)
                 {
@@ -312,6 +337,7 @@ namespace IngameScript
                 // todo: add occlusions
                 if (AtAimPoint())
                 {
+                    isShoot = true;
                     turGuns.OpenFire();
                     if (turGuns.fireTimer >= 30)
                     {
@@ -321,6 +347,7 @@ namespace IngameScript
                 }
                 else
                 {
+                    isShoot = false;
                     turGuns.HoldFire();
                     turGuns.fireTimer = 0;
                 }
