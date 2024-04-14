@@ -9,7 +9,15 @@ namespace IngameScript
     // bunch of different global fields and methjods and stuff
     public static class Lib
     {
-        public static string hdr = "CAMS", array = "ARY", tr = "turrets", sn = "scanner", v = "VCR", vb = "VCRBold";
+        public static string
+            hdr = "CAMS",
+            array = "ARY",
+            tr = "turrets",
+            sn = "scanner",
+            v = "VCR",
+            vb = "VCRBold",
+            sA = "SYS-A",
+            sB = "SYS-B";
 
         public static readonly double maxTimeTGT = 53; //ms
         static Dictionary<string, ITerminalProperty> _terminalPropertyDict = new Dictionary<string, ITerminalProperty>();
@@ -90,7 +98,12 @@ namespace IngameScript
                 return Vector3D.Zero;
             return a.Dot(b) / b.LengthSquared() * b;
         }
+        public static Vector3D RandomOffset(ref Random r, double scat)
+        {
+            return new Vector3D(((r.NextDouble() * 2) - 1), ((r.NextDouble() * 2) - 1), ((r.NextDouble() * 2) - 1)) * scat;
+        }
     }
+
 
 
     public class DebugAPI

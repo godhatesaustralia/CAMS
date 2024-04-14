@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using VRageMath;
+using System.Security.Cryptography.X509Certificates;
 
 namespace IngameScript
 {
@@ -49,7 +50,7 @@ namespace IngameScript
                 for (; ct-- > 0;)
                     n += " ";
                 s.SetData(n + $"{s.ptr + 1}/{Turrets.Count}", 0);
-                s.SetData($"TGT {MathHelper.ToDegrees(t.aziTgt).ToString("##0.#")}°\nCUR {t.aCur.ToString("##0.#")}°\nTGT {MathHelper.ToDegrees(t.elTgt).ToString("##0.#")}°\nCUR {t.eCur.ToString("##0.#")}°", 2);
+                s.SetData($"TGT {MathHelper.ToDegrees(t.aziTgt).ToString("##0.#")}°\nCUR {t.aziDeg.ToString("##0.#")}°\nTGT {MathHelper.ToDegrees(t.elTgt).ToString("##0.#")}°\nCUR {t.elDeg.ToString("##0.#")}°", 2);
                 s.SetData($"{t.Azimuth.TargetVelocityRPM}\n{t.Elevation.TargetVelocityRPM}", 3);
                 s.SetData("WEAPONS- " + (t.isShoot ? " ENABLED" : "INACTIVE"), 4);
             }));
@@ -73,9 +74,9 @@ namespace IngameScript
         protected double
             aziRest = 0,
             elRest = 0;
-        public double aCur => MathHelper.ToDegrees(Azimuth.Angle);
-        public double eCur => MathHelper.ToDegrees(Elevation.Angle);
-        public const double rad = Math.PI / 180;
+        public double aziDeg => Azimuth.Angle * deg;
+        public double elDeg => Elevation.Angle * deg;
+        public const double rad = Math.PI / 180, deg = 1 / rad;
         protected readonly string elv = "Elevation", el = "EL";
         public IMyMotorStator Azimuth;
         public IMyMotorStator Elevation;
@@ -115,7 +116,7 @@ namespace IngameScript
                     Elevation = b as IMyMotorStator;
                 return true;
             });
-            if (Elevation != null)
+            if (Elevation != null && Elevation.TopGrid != null)
             {
                 var n = Elevation.TopGrid.CustomName;
                 id = Elevation.TopGrid.EntityId;
@@ -168,7 +169,7 @@ namespace IngameScript
                 elMin = rad * p.Double(Lib.hdr, "eMin", -elMax);
                 aziRPM = p.Int(Lib.hdr, "aRPM", 30);
                 elRPM = p.Int(Lib.hdr, "eRPM", 30);
-                if (Elevation != null)
+                if (Elevation != null && Elevation.TopGrid != null)
                 {
                     // here is where i would put occlusion parse if 
                 }
@@ -208,9 +209,9 @@ namespace IngameScript
                 if (!hasTarget)
                     return false;
                 double
-                    aziDif = Math.Abs(Azimuth.Angle - aziTgt),
-                    elDif = Math.Abs(Elevation.Angle - elTgt);
-                if (aziDif > aimTolerance || elDif > aimTolerance)
+                    azD = Math.Abs(Azimuth.Angle - aziTgt),
+                    elD = Math.Abs(Elevation.Angle - elTgt);
+                if (azD > aimTolerance || elD > aimTolerance)
                     return false;
                 return true;
             }
@@ -288,13 +289,13 @@ namespace IngameScript
                 aziWrap = aziMax > Math.PI && aziMin < -Math.PI;
                 p.Dispose();
                 var list = new List<IMyFunctionalBlock>();
-                m.Terminal.GetBlockGroupWithName(Name + " " + wpns).GetBlocksOfType(list); // e.g. PDL-LT Guns
+                m.Terminal.GetBlockGroupWithName(Name + " " + wpns)?.GetBlocksOfType(list); // e.g. PDL-LT Guns
                 turGuns = new Weapons(sticks, list);
-                if (Elevation != null)
+                if (Elevation != null && Elevation.TopGrid != null)
                 {
                     var l2 = new List<IMyCameraBlock>();
                     m.Terminal.GetBlocksOfType(l2, (b) => b.CubeGrid.EntityId == Elevation.TopGrid.EntityId && b.CustomName.Contains(Lib.array));
-                    m.RegisterLidar(new LidarArray(l2, Name));
+                    ((ScanComp)m.Components[Lib.sn]).Lidars.Add(new LidarArray(l2, Name));
                 }
                 return null;
             }
@@ -304,12 +305,12 @@ namespace IngameScript
                 // Auto reset
                 aziTgt = aziRest;
                 elTgt = elRest;
-
+                
                 if (Elevation == null || Azimuth == null || targets.Count == 0) return;
 
                 if (spray && selOffset)
                 {
-                    randOffset = new Vector3D(((Host.Manager.Random.NextDouble() * 2) - 1), ((Host.Manager.Random.NextDouble() * 2) - 1), ((Host.Manager.Random.NextDouble() * 2) - 1)) * scat;
+                randOffset = Lib.RandomOffset(ref Host.Manager.Random, scat);
                     selOffset = false;
                 }
 
@@ -467,4 +468,25 @@ namespace IngameScript
                 }
             }
         }
+    public class MapTurret : GunTurret
+    {
+        List<IMyCameraBlock> Cameras = new List<IMyCameraBlock>();
+        int oclTest, oclLast, elRange, oclTotal;
+        public MapTurret(IMyMotorStator azi, TurretComp c)
+        : base(azi, c) { }
+
+        public override iniWrap Setup(ref CombatManager m)
+        {
+            base.Setup(ref m);
+            m.Terminal.GetBlocksOfType(Cameras, (c) =>
+            {
+                bool b = c.CubeGrid.EntityId == Elevation.TopGrid.EntityId && !c.CustomName.Contains(Lib.array);
+                c.EnableRaycast = b;
+                return b;
+            });
+            Cameras[0].ShowOnHUD = true;
+            oclTotal = Convert.ToInt32((aziMax - aziMin) * (elMax - elMin) * deg);
+            return null;
+        }
+    }
     }
