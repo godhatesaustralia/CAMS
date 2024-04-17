@@ -53,7 +53,6 @@ namespace IngameScript
         {
             if ((u & update) == 0) return;
             s.ScriptBackgroundColor = Lib.bG;
-            //if (!Active) return;
             GetData(this);
             var f = s?.DrawFrame();
             if (!f.HasValue) return;

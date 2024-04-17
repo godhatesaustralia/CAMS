@@ -125,7 +125,7 @@ namespace IngameScript
                     //var vect2TGT = mat.Translation - t.Position;
                     //bool b = mat.Forward.Dot(vect2TGT) > 0.707;
                     //if (b) // max limit = 45 deg
-                        Lidars[i].TryScanUpdate(Scanner, true);
+                        Lidars[i].TryScanUpdate(Scanner);
                     scans[i] = Lidars[i].scans;
                     avgDists[i] = Lidars[i].avgDist;
 

@@ -18,11 +18,11 @@ namespace IngameScript
         public IMyShipController Reference => Manager.Controller;
         public Dictionary<string, Action<MyCommandLine>> Commands = new Dictionary<string, Action<MyCommandLine>>();
         public CombatManager Manager;
-        public readonly UpdateFrequency freq;
+        public readonly UpdateFrequency Frequency;
         public CompBase(string n, UpdateFrequency u)
         {
             Name = n;
-            freq = u;
+            Frequency = u;
         }
         public abstract void Setup(CombatManager m, ref iniWrap p);
         public abstract void Update(UpdateFrequency u);
@@ -111,21 +111,33 @@ namespace IngameScript
             cmd.Clear();
             if (arg != "" && cmd.TryParse(arg))
             {
-                if (cmd.Argument(0) == "up")
-                    Screens[activeScr].Up();
-                else if (cmd.Argument(0) == "down")
-                    Screens[activeScr].Down();
+                if (Components.ContainsKey(cmd.Argument(0)) && Components[cmd.Argument(0)].Commands.ContainsKey(cmd.Argument(1)))
+                    Components[cmd.Argument(0)].Commands[cmd.Argument(1)].Invoke(cmd);
                 else if (cmd.Argument(0) == "screen" && Screens.ContainsKey(cmd.Argument(1)))
                 {
                     activeScr = cmd.Argument(1);
                     Screens[activeScr].Active = true;
                 }
-                else if (Components.ContainsKey(cmd.Argument(0)) && Components[cmd.Argument(0)].Commands.ContainsKey(cmd.Argument(1)))
-                    Components[cmd.Argument(0)].Commands[cmd.Argument(1)].Invoke(cmd); 
+                else
+                {
+                    var scr = Screens[activeScr];
+                    if (cmd.Argument(0) == "up")
+                        scr.Up();
+                    else if (cmd.Argument(0) == "down")
+                        scr.Down();
+                    else if (cmd.Argument(0) == "select")
+                        scr.Select.Invoke(scr);
+                    else if (cmd.Argument(0) == "back")
+                        scr.Back.Invoke(scr);
+                }
             }
             var u = Lib.UpdateConverter(src);
             var rt = Program.Runtime.LastRunTimeMs;
-            if (WorstRun < rt) { WorstRun = rt; WorstFrame = Frame; }
+            if (WorstRun < rt) 
+            {
+                WorstRun = rt; 
+                WorstFrame = Frame; 
+            }
             totalRt += rt;
             Program.Runtime.UpdateFrequency |= u;
             if ((u & UpdateFrequency.Update10) != 0)
@@ -133,19 +145,19 @@ namespace IngameScript
                 AverageRun = totalRt / Frame;  
                 Debug.RemoveDraw();
             }
-            UpdateFrequency tfreq = UpdateFrequency.Update1;
+            UpdateFrequency tgtFreq = UpdateFrequency.Update1;
             foreach (var comp in Components.Values)
             {
-                comp.Update(tfreq);
-                tfreq |= comp.freq;
+                comp.Update(tgtFreq);
+                tgtFreq |= comp.Frequency;
             }
             Screens[activeScr].Draw(Display, u);
             Screens[Lib.sA].Draw(sysA, u);
             Screens[Lib.sB].Draw(sysB, u);
-            Program.Runtime.UpdateFrequency = tfreq;
+            Program.Runtime.UpdateFrequency = tgtFreq;
             string r = "[[COMBAT MANAGER]]\n\n";
-            foreach (var tgt in Targets.Values)
-                r += $"{tgt.EID.ToString("X").Remove(0, 6)}\nDIST {tgt.Distance}, ELAPSED {tgt.Elapsed(Runtime)}\n";
+            //foreach (var tgt in Targets.Values)
+            //    r += $"{tgt.eIDString}\nDIST {tgt.Distance}, ELAPSED {tgt.Elapsed(Runtime)}\n";
             Debug.PrintHUD(((ScanComp)Components[Lib.sn]).Debug);
             r += $"RUNS - {Frame}\nRUNTIME - {rt} ms\nAVG - {AverageRun.ToString("0.####")} ms\nWORST - {WorstRun} ms, F{WorstFrame}\n";
             //r = Inventory.DebugString;

@@ -19,7 +19,7 @@ namespace IngameScript
             sA = "SYS-A",
             sB = "SYS-B";
 
-        public static readonly double maxTimeTGT = 53; //ms
+        public static readonly double maxTimeTGT = 37; //ms
         static Dictionary<string, ITerminalProperty> _terminalPropertyDict = new Dictionary<string, ITerminalProperty>();
         public static Color Green = new Color(100, 250, 100), bG = new Color(7, 16, 7);
         public static UpdateFrequency UpdateConverter(UpdateType src)

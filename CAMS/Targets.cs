@@ -8,13 +8,13 @@ namespace IngameScript
 {
     public class Target
     {
-        public long EID, Source;
+        public readonly long EID, Source;
         public double Radius, Distance, Timestamp;
         public Vector3D Position, Velocity;
         public BoundingBoxD Box;
-        public MyDetectedEntityType type;
+        public readonly MyDetectedEntityType type;
         public bool isEngaged = false;
-        
+        public string eIDString => EID.ToString("X").Remove(0, 6);
 
         public Target(MyDetectedEntityInfo threat, double time, long id, double dist)
         {
@@ -37,6 +37,7 @@ namespace IngameScript
             type = (MyDetectedEntityType)data.Item1.Item4;
             isEngaged = data.Item1.Item5;
             Position = data.Item2.Item1;
+
             Velocity = data.Item2.Item2;
             Box = data.Item2.Item4;
             Radius = Box.Size.Length();
