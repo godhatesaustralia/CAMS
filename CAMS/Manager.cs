@@ -15,9 +15,11 @@ namespace IngameScript
     public abstract class CompBase
     {
         public readonly string Name;
+        public virtual string Debug { get; protected set; }
         public IMyShipController Reference => Manager.Controller;
         public Dictionary<string, Action<MyCommandLine>> Commands = new Dictionary<string, Action<MyCommandLine>>();
         public CombatManager Manager;
+        public Dictionary<long, Target> Targets => Manager.Targets; // IEnumerator sneed
         public readonly UpdateFrequency Frequency;
         public CompBase(string n, UpdateFrequency u)
         {
@@ -36,8 +38,10 @@ namespace IngameScript
         IMyTextSurface Display, sysA, sysB;
         public DebugAPI Debug;
         public bool Based;
+        bool systemsDisplays;
         string activeScr = Lib.tr;
         public Vector3D Center => Controller.WorldMatrix.Translation;
+        public Vector3D Gravity;
         public Dictionary<long, Target> Targets = new Dictionary<long, Target>();
         public Dictionary<string, Screen> Screens = new Dictionary<string, Screen>();
         public Dictionary<string, CompBase> Components = new Dictionary<string, CompBase>();
@@ -60,6 +64,7 @@ namespace IngameScript
             if (p.CustomData(Program.Me, out r))
             {
                 Based = p.Bool(Lib.hdr, "vcr");
+                systemsDisplays = p.Bool(Lib.hdr, "systems", true);
                 Program.GridTerminalSystem.GetBlocksOfType<IMyShipController>(null, (b) =>
                 {
                     if (b.CubeGrid.EntityId == Program.Me.CubeGrid.EntityId && b.CustomName.Contains("Helm"))
@@ -144,6 +149,7 @@ namespace IngameScript
             {
                 AverageRun = totalRt / Frame;  
                 Debug.RemoveDraw();
+                Gravity = Controller.GetNaturalGravity();
             }
             UpdateFrequency tgtFreq = UpdateFrequency.Update1;
             foreach (var comp in Components.Values)
@@ -152,13 +158,18 @@ namespace IngameScript
                 tgtFreq |= comp.Frequency;
             }
             Screens[activeScr].Draw(Display, u);
-            Screens[Lib.sA].Draw(sysA, u);
-            Screens[Lib.sB].Draw(sysB, u);
+            if (systemsDisplays)
+            {
+                Screens[Lib.sA].Draw(sysA, u);
+                Screens[Lib.sB].Draw(sysB, u);
+            }
             Program.Runtime.UpdateFrequency = tgtFreq;
             string r = "[[COMBAT MANAGER]]\n\n";
             //foreach (var tgt in Targets.Values)
             //    r += $"{tgt.eIDString}\nDIST {tgt.Distance}, ELAPSED {tgt.Elapsed(Runtime)}\n";
-            Debug.PrintHUD(((ScanComp)Components[Lib.sn]).Debug);
+            //foreach (var c in Components.Values)
+            //    Debug.PrintHUD(c.Debug);
+            //Debug.PrintHUD(Components[Lib.tr].Debug);
             r += $"RUNS - {Frame}\nRUNTIME - {rt} ms\nAVG - {AverageRun.ToString("0.####")} ms\nWORST - {WorstRun} ms, F{WorstFrame}\n";
             //r = Inventory.DebugString;
             Program.Echo(r);

@@ -50,7 +50,10 @@ namespace IngameScript
 
         public Vector3D PositionUpdate(double now, double offset = 0)
         {
-            return Position + (now + offset - Timestamp) * Velocity;       
+            var diff = now + offset - Timestamp;
+            if (Velocity.Length() < 0.5 || diff < Lib.maxTimeTGT)
+                return Position;
+            return Position + diff * Velocity;       
         }
     }
 }

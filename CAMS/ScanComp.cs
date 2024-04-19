@@ -13,7 +13,6 @@ namespace IngameScript
     public class ScanComp : CompBase
     {
         Dictionary<long, Target> TargetsScratchpad = new Dictionary<long, Target>();
-        public Dictionary<long, Target> Targets => Manager.Targets; // IEnumerator sneed
         public long ID => Manager.Program.Me.CubeGrid.EntityId;
         string[] masts, tags; //= { "[A]", "[B]", "[C]", "[D]" };
         readonly HashSet<long> ownGrids = new HashSet<long>();
@@ -25,13 +24,14 @@ namespace IngameScript
             removeIDs = new List<long>();
         public List<IMyLargeTurretBase> Turrets, LockingTurrets;
         public double maxRaycast;
-        public string Debug;
         int tPtr, tStep;
         public ScanComp(string n) : base(n, UpdateFrequency.Update10)
         {
             Turrets = new List<IMyLargeTurretBase>();
             LockingTurrets = new List<IMyLargeTurretBase>();
         }
+
+        public void SetDebug(string s) => Debug += s;
 
         void Clear()
         {

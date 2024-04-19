@@ -49,7 +49,7 @@ namespace IngameScript
                     if (!Camera.CanScan(pos))
                         continue;
                     scans++;
-                    h.Debug += $"\n{scans}. {Cameras[i].CustomName}";
+                    h.SetDebug($"\n{scans}. {Cameras[i].CustomName}");
                     //h.Manager.Debug.DrawLine(Cameras[i].WorldMatrix.Translation, t.Position, Lib.Green, 0.03f);
                     h.AddOrUpdateTGT(Cameras[i].Raycast(pos));
                 }
@@ -58,7 +58,7 @@ namespace IngameScript
         }
     }
     // tags = {"[A]", "[B]", "[C]", "[D]"}
-    public class LidarTurret : TurretParts
+    public class LidarTurret : TurretBase
     {
         public IMyCameraBlock MainCamera;
         public List<LidarArray> Lidars = new List<LidarArray>();
@@ -71,7 +71,7 @@ namespace IngameScript
         public double[] avgDists;
 
         public LidarTurret(ScanComp s, IMyMotorStator azi, string[] t = null)
-            : base(azi)
+            : base(azi, null)
         {
             Scanner = s;
             tags = t;
