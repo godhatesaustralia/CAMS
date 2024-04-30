@@ -3,6 +3,7 @@ using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using VRage.Game;
 using VRage.Game.GUI.TextPanel;
 using VRage.Game.ModAPI.Ingame.Utilities;
@@ -12,33 +13,32 @@ namespace IngameScript
 {
     public class ScanComp : CompBase
     {
-        Dictionary<long, Target> TargetsScratchpad = new Dictionary<long, Target>();
         public long ID => Manager.Program.Me.CubeGrid.EntityId;
+        public readonly int BVR = 1900;
+
         string[] masts, tags; //= { "[A]", "[B]", "[C]", "[D]" };
-        readonly HashSet<long> ownGrids = new HashSet<long>();
         public double Time => Manager.Runtime;
         public List<LidarArray> Lidars = new List<LidarArray>();
-        public Dictionary<string, LidarTurret> Masts = new Dictionary<string, LidarTurret>();
-        List<long> 
-            targetIDs = new List<long>(),
-            removeIDs = new List<long>();
-        public List<IMyLargeTurretBase> Turrets, LockingTurrets;
+        public Dictionary<string, LidarMast> Masts = new Dictionary<string, LidarMast>();
+        public HashSet<long> ScannedIDs = new HashSet<long>();
+        public List<IMyLargeTurretBase> AllTurrets, Artillery;
+        List<IMyCameraBlock> _camerasDebug = new List<IMyCameraBlock>();
         public double maxRaycast;
         int tPtr, tStep;
-        public ScanComp(string n) : base(n, UpdateFrequency.Update10)
+        //DEBUG
+        IMyTextPanel _panel;
+        public ScanComp(string n) : base(n, UpdateFrequency.Update10 | UpdateFrequency.Update100)
         {
-            Turrets = new List<IMyLargeTurretBase>();
-            LockingTurrets = new List<IMyLargeTurretBase>();
+            AllTurrets = new List<IMyLargeTurretBase>();
+            Artillery = new List<IMyLargeTurretBase>();
         }
 
         public void SetDebug(string s) => Debug += s;
 
         void Clear()
         {
-            Turrets.Clear();
-            targetIDs.Clear();
-            LockingTurrets.Clear();
-            ownGrids.Clear();
+            AllTurrets.Clear();
+            Artillery.Clear();
             Lidars.Clear();
             Masts.Clear();
         }
@@ -56,52 +56,51 @@ namespace IngameScript
             var l = Masts[masts[p]];
             for (; i < l.Lidars.Count; i++)
             {
-                grps += $"GRP {l.Lidars[i].tag} {l.Lidars[i].scans}/{l.Lidars[i].ct}\n";
+                grps += $"GRP {l.Lidars[i].tag} {l.Lidars[i].Scans}/{l.Lidars[i].ct}\n";
                 cams += l.Lidars[i].ct;
-                scns += l.Lidars[i].scans;
+                scns += l.Lidars[i].Scans;
             }
             grps += $"TTL CAMS {cams} SCNS " + (scns < 10 ? $" {scns}" : $"{scns}");
             s.SetData(grps, 1);
-            for (i = 0; i < l.Lidars.Count; ++i)
-                s.SetLength(Convert.ToSingle(l.avgDists[i] / maxRaycast), i + 2);
             return l.Name;
         }
-        public override void Setup(CombatManager m, ref iniWrap p)
+        public override void Setup(CombatManager m)
         {
             Clear();
             Manager = m;
             var lct = "LargeCalibreTurret";
-            tStep = p.Int(Lib.hdr, "tStep", 4);
-            maxRaycast = p.Double(Lib.hdr, "maxRaycast", 5000);
-            var tagstr = p.String(Lib.hdr, "lidarTags", "[A]\n[B]\n[C]\n[D]");
-            var a = tagstr.Split('\n');
-            for (int i = 0; i < a.Length; i++)
-                a[i] = a[i].Trim('|');
-            tags = a;
-            ownGrids.Add(m.Program.Me.CubeGrid.EntityId);
-            Manager.Terminal.GetBlocksOfType<IMyMotorStator>(null, (b) =>
-            {
-                if (b.TopGrid == null) return false;
-                var i = b.TopGrid.EntityId;
-                if (!ownGrids.Contains(i))
-                    ownGrids.Add(i);
-                return true;
-            });
-            Manager.Terminal.GetBlocksOfType(Turrets, (b) => b.BlockDefinition.SubtypeName != lct && (b.CubeGrid.EntityId == ID) && !(b is IMyLargeInteriorTurret));
-            Manager.Terminal.GetBlocksOfType(LockingTurrets, (b) => b.BlockDefinition.SubtypeName == lct && (b.CubeGrid.EntityId == ID));
-            Manager.Terminal.GetBlocksOfType<IMyMotorStator>(null, (mtr) =>
-            {
-                if (mtr.CustomName.Contains(Lib.array) && mtr.CubeGrid.EntityId == ID)
+            using (var p = new iniWrap())
+                if (p.CustomData(Me))
                 {
-                    var tur = new LidarTurret(this, mtr, tags);
-                    tur.Setup(ref m);
-                    if (!Masts.ContainsKey(tur.Name))
-                        Masts.Add(tur.Name, tur);
+                    tStep = p.Int(Lib.hdr, "tStep", 4);
+                    maxRaycast = p.Double(Lib.hdr, "maxRaycast", 5000);
+                    var tagstr = p.String(Lib.hdr, "lidarTags", "[A]\n[B]\n[C]\n[D]");
+                    var a = tagstr.Split('\n');
+                    for (int i = 0; i < a.Length; i++)
+                        a[i] = a[i].Trim('|');
+                    tags = new string[]{ "[A]", "[B]", "[C]", "[D]" };
+                    Manager.Terminal.GetBlocksOfType(AllTurrets, b => b.BlockDefinition.SubtypeName != lct && (b.CubeGrid.EntityId == ID) && !(b is IMyLargeInteriorTurret));
+                    Manager.Terminal.GetBlocksOfType(Artillery, b => b.BlockDefinition.SubtypeName == lct && (b.CubeGrid.EntityId == ID));
+                    Manager.Terminal.GetBlocksOfType<IMyMotorStator>(null, mtr =>
+                    {
+                        if (mtr.CustomName.Contains(Lib.array) && mtr.CubeGrid.EntityId == ID)
+                        {
+                            var tur = new LidarMast(this, mtr, tags);
+                            tur.Setup(ref m);
+                            if (!Masts.ContainsKey(tur.Name))
+                                Masts.Add(tur.Name, tur);
+                        }
+                        return true;
+                    });
+                    Manager.Terminal.GetBlocksOfType<IMyTextPanel>(null, b =>
+                    {
+                        if (b.CustomName.Contains("BCR Info LCD CIC-FWD"))
+                            _panel = b as IMyTextPanel;
+                        return false;
+                    });
+                    masts = Masts.Keys.ToArray();
                 }
-                return true;
-            });
-            masts = Masts.Keys.ToArray();
-            //Manager.Screens.Add("targets", new Screen(() => targetIDs.Count, new MySprite[]
+            //Manager.Screens.Add("targets", new Screen(() => _targetIDs.Count, new MySprite[]
             //{
             //  new MySprite(SpriteType.TEXT, "", new Vector2(20, 112), null, Lib.Green, Lib.vb, 0, 0.925f),// 1. TUR NAME
             //  new MySprite(SpriteType.TEXT, "", new Vector2(20, 160), null, Lib.Green, Lib.vb, 0, 1.825f),// 2. ANGLE HDR
@@ -110,7 +109,7 @@ namespace IngameScript
             //  new MySprite(SpriteType.TEXT, "", new Vector2(20, 348), null, Lib.Green, Lib.vb, 0, 0.925f)// 5. WPNS
             //  }, (s) =>
             //  {
-            //      var t = targetIDs[s.ptr];
+            //      var t = _targetIDs[s.ptr];
             //      s.SetData($"T {t.ToString("X")}", 0);
             //      s.SetData($"TGT {MathHelper.ToDegrees(t.aziTgt)}°\nCUR {t.aziDeg}°\nTGT {MathHelper.ToDegrees(t.elTgt)}°\nCUR {t.elDeg}°", 2);
             //      s.SetData($"{t.Azimuth.TargetVelocityRPM}\n{t.Elevation.TargetVelocityRPM}", 3);
@@ -126,9 +125,10 @@ namespace IngameScript
                 new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(356, 302) ,new Vector2(128, 28), Lib.Green, "", al),
                 new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(356, 342) ,new Vector2(128, 28), Lib.Green, "", al),
             }, (s) =>
-            {         
+            {       
                 s.SetData($"{mastUpdate(ref s)} {s.ptr + 1}/{masts.Length}", 0);
             }, 128f, UpdateFrequency.Update10));
+
             Manager.Screens.Add(Lib.sA, new Screen(() => masts.Length, new MySprite[]
 {
                new MySprite(SpriteType.TEXT, "", new Vector2(24, 112), null, Lib.Green, Lib.vb, 0, 1.75f),// 1. TUR NAME
@@ -141,6 +141,7 @@ namespace IngameScript
             {
                 s.SetData($"{mastUpdate(ref s, 0)} LDR", 0);
             }, 128f, UpdateFrequency.Update1));
+            if (Masts.Count == 2)
             Manager.Screens.Add(Lib.sB, new Screen(() => masts.Length, new MySprite[]
             {
                new MySprite(SpriteType.TEXT, "", new Vector2(24, 112), null, Lib.Green, Lib.vb, 0, 1.75f),// 1. TUR NAME
@@ -160,17 +161,21 @@ namespace IngameScript
             });
             Commands.Add("tureset", (b) =>
             {
-                foreach (var t in Turrets)
+                foreach (var t in AllTurrets)
                 {
                     t.Azimuth = 0;
                     t.Elevation = 0;
                 }
-                foreach (var t in LockingTurrets)
+                foreach (var t in Artillery)
                 {
                     t.Azimuth = 0;
                     t.Elevation = 0;
                 }
             });
+            if (_panel != null)
+            {
+                _panel.ContentType = ContentType.TEXT_AND_IMAGE;
+            }
         }
         void CheckTurret(IMyLargeTurretBase t)
         {
@@ -178,74 +183,95 @@ namespace IngameScript
             if (t.HasTarget)
             {
                 info = t.GetTargetedEntity();
-                AddOrUpdateTGT(info);
+                PassTarget(info);
                 t.ResetTargetingToDefault();
-                t.Range = 800;
                 t.EnableIdleRotation = false;
             }
         }
         public override void Update(UpdateFrequency u)
         {
             Debug = "";
+            ScannedIDs.Clear();
             // i THINK this is a laggy thing
-            int n = Math.Min(Turrets.Count, tPtr + tStep);
+            int n = Math.Min(AllTurrets.Count, tPtr + tStep);
             for (; tPtr < n; tPtr++)
-                CheckTurret(Turrets[tPtr]);
+                CheckTurret(AllTurrets[tPtr]);
 
-            for (int i = 0; i < LockingTurrets.Count; i++)
-                CheckTurret(LockingTurrets[i]);
+            for (int i = 0; i < Artillery.Count; i++)
+                CheckTurret(Artillery[i]);
 
-            if (n == Turrets.Count)
+            foreach (var m in Masts.Values)
+                m.Update();
+
+            if (n == AllTurrets.Count)
             {
                 tPtr = 0;
             }
-            if (Targets.Count > 0)
+
+            if (_panel != null)
             {
-                foreach (var m in Masts.Values)
-                    m.Update();
+                int count = 0;
+                string s = "";
+                bool newline = false;
+                _panel.ContentType = ContentType.TEXT_AND_IMAGE;
+                _panel.ContentType = ContentType.SCRIPT;
+                _camerasDebug.Clear();
+                foreach (var mast in Masts.Values)
+                    mast.DumpAllCameras(ref _camerasDebug);
+                foreach (var c in _camerasDebug)
+                {
+                    ++count;
+                    var nam = c.CustomName.Remove(0, 4);
+                    var a = nam.ToCharArray();
+                    var ct = count.ToString("00");
+                    a[6] = nam[7];
+                    a[7] = ct[0];
+                    a[8] = ct[1];
+                    nam = new string(a);
+                    if (nam.Contains("MAIN"))
+                        nam = nam.Substring(0, nam.Length - 5);
 
-                foreach (var l in Lidars)
-                    l.TryScanUpdate(this, true);
-
-                foreach (var id in Targets.Keys)
-                    if (Targets[id].Elapsed(Manager.Runtime) >= Lib.maxTimeTGT)
-                        removeIDs.Add(id);
-
-                for (int i = 0; i < removeIDs.Count; i++)
-                    if (Targets.ContainsKey(removeIDs[i]))
-                        Targets.Remove(removeIDs[i]);
-
-                removeIDs.Clear();
+                    if (nam[nam.Length - 1] == 'C')
+                        s += $"{nam}  {c.AvailableScanRange:G1}m";
+                    else
+                        s += $"{nam} {c.AvailableScanRange:G1}m";
+                    s += newline ? "\n" : "    ";
+                    newline = !newline;
+                }
+                var f = _panel.DrawFrame();
+                var cnr = new Vector2(256, 256);
+                f.Add(new MySprite(data: "SquareHollow", position: cnr, size: 2 * cnr, color: Lib.Green));
+                f.Add(new MySprite(data: "SquareSimple", position: cnr, size: new Vector2(16, 512), color: Lib.Green));
+                f.Add(new MySprite(SpriteType.TEXT, s.ToUpper(), new Vector2(28, 16), null, Lib.Green, "VCR", TextAlignment.LEFT, 0.275f));
+                f.Dispose();
             }
-            foreach (var tgt in TargetsScratchpad)
-            {
-                var i = tgt.Key;
-                if (Targets.ContainsKey(i) && (Manager.Targets[i].Elapsed(Manager.Runtime) <= Lib.maxTimeTGT))
-                    continue;
-                Targets[i] = TargetsScratchpad[i];
-            }
 
+            
         }
 
-        public void AddOrUpdateTGT(MyDetectedEntityInfo info)
+        public bool PassTarget(MyDetectedEntityInfo info, bool m = false)
         {
-            var r = info.Relationship;
-            if (r == MyRelationsBetweenPlayerAndBlock.Owner || r == MyRelationsBetweenPlayerAndBlock.Friends)
-                return;
+            ScanResult fake;
+            return PassTarget(info, out fake, m);
+        }
+        public bool PassTarget(MyDetectedEntityInfo info, out ScanResult r, bool m = false)
+        {
+            r = ScanResult.Failed;
+            if (info.IsEmpty()) 
+                return false;
+            if (Targets.Blacklist.Contains(info.EntityId)) 
+                return false;
+            var rel = info.Relationship;
+            if (rel == MyRelationsBetweenPlayerAndBlock.Owner || rel == MyRelationsBetweenPlayerAndBlock.Friends)
+                return false;
             if (info.Type != MyDetectedEntityType.SmallGrid && info.Type != MyDetectedEntityType.LargeGrid)
-                return;
-            var i = info.EntityId;
-            if (info.IsEmpty()) return;
-            if (ownGrids.Contains(i)) return;
-            var d = (Manager.Center - info.Position).Length();
-            if (Targets.ContainsKey(info.EntityId))
-            {
-                if ((Manager.Runtime - Targets[i].Timestamp <= Lib.maxTimeTGT))
-                    return;
-                else TargetsScratchpad[i] = null;
-            }
-            else targetIDs.Add(info.EntityId);
-            TargetsScratchpad[i] = new Target(info, Manager.Runtime, ID, d);          
+                return false;
+            if (info.BoundingBox.Size.Length() < 1.5)
+                return false;
+             r = Targets.AddOrUpdate(ref info, ID);
+            if (!m)
+                ScannedIDs.Add(info.EntityId);
+            return true;
         }
 
     }

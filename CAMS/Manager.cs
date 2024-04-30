@@ -18,15 +18,41 @@ namespace IngameScript
         public virtual string Debug { get; protected set; }
         public IMyShipController Reference => Manager.Controller;
         public Dictionary<string, Action<MyCommandLine>> Commands = new Dictionary<string, Action<MyCommandLine>>();
+       // public Dictionary<string, RotorTurret> Turrets = new Dictionary<string, RotorTurret>();
         public CombatManager Manager;
-        public Dictionary<long, Target> Targets => Manager.Targets; // IEnumerator sneed
+        protected IMyProgrammableBlock Me => Manager.Program.Me;
+        protected HashSet<string> Handoff = new HashSet<string>();
+        public TargetProvider Targets => Manager.Targets; // IEnumerator sneed
         public readonly UpdateFrequency Frequency;
         public CompBase(string n, UpdateFrequency u)
         {
             Name = n;
             Frequency = u;
         }
-        public abstract void Setup(CombatManager m, ref iniWrap p);
+        public T Cast<T>()
+        where T : CompBase
+        {
+            return (T)this;
+        }
+
+        //public bool TransferControl(string n)
+        //{
+        //    if (Turrets[n].tEID != -1 || Handoff.Contains(n))
+        //        return false;
+
+        //    Handoff.Add(n);
+        //    Turrets[n].Stop();
+        //    return true;
+        //}
+
+        //public bool TakeControl(string n, string o)
+        //{
+        //    if (Handoff.Contains(n))
+        //        Handoff.Remove(n);
+        //    return Manager.Components[o].TransferControl(n);
+        //}
+
+        public abstract void Setup(CombatManager m);
         public abstract void Update(UpdateFrequency u);
     }
 
@@ -35,36 +61,34 @@ namespace IngameScript
         public MyGridProgram Program;
         public IMyGridTerminalSystem Terminal;
         public IMyShipController Controller;
-        IMyTextSurface Display, sysA, sysB;
+        IMyTextSurface _main, _sysA, _sysB;
         public DebugAPI Debug;
         public bool Based;
-        bool systemsDisplays;
-        string activeScr = Lib.tr;
+        bool _sysDisplays;
+        string _activeScr = Lib.tr;
         public Vector3D Center => Controller.WorldMatrix.Translation;
         public Vector3D Gravity;
-        public Dictionary<long, Target> Targets = new Dictionary<long, Target>();
+        public TargetProvider Targets;
         public Dictionary<string, Screen> Screens = new Dictionary<string, Screen>();
         public Dictionary<string, CompBase> Components = new Dictionary<string, CompBase>();
-        public Random Random = new Random();
-        public WCAPI API;
-        private MyCommandLine cmd = new MyCommandLine();
+        public Random RNG = new Random();
+        MyCommandLine _cmd = new MyCommandLine();
 
-        double RuntimeMS = 0, totalRt, WorstRun, AverageRun;
-        long Frame = 0, WorstFrame, Ticks = 0;
-        public double Runtime => RuntimeMS;
-        public long RuntimeTicks => Ticks;
-
-
+        double _runtime = 0, _totalRT, _worstRT, _avgRT;
+        long _frame = 0, _worstFR;
+        public double Runtime => _runtime;
+        public long F => _frame;
 
         public void Start()
         {
+            _activeScr = "masts";
             Targets.Clear();
-            var p = new iniWrap();
             var r = new MyIniParseResult();
+            using (var p = new iniWrap())
             if (p.CustomData(Program.Me, out r))
             {
                 Based = p.Bool(Lib.hdr, "vcr");
-                systemsDisplays = p.Bool(Lib.hdr, "systems", true);
+                _sysDisplays = p.Bool(Lib.hdr, "systems", true);
                 Program.GridTerminalSystem.GetBlocksOfType<IMyShipController>(null, (b) =>
                 {
                     if (b.CubeGrid.EntityId == Program.Me.CubeGrid.EntityId && b.CustomName.Contains("Helm"))
@@ -76,102 +100,105 @@ namespace IngameScript
                     var c = Controller as IMyTextSurfaceProvider;
                     if (c!= null)
                     {
-                        Display = c.GetSurface(0);
-                        Display.ContentType = VRage.Game.GUI.TextPanel.ContentType.SCRIPT;
+                        _main = c.GetSurface(0);
+                        _main.ContentType = VRage.Game.GUI.TextPanel.ContentType.SCRIPT;
                     }
                     Program.GridTerminalSystem.GetBlocksOfType<IMyShipController>(null, (b) =>
                     {
                         var s = b as IMyTextSurfaceProvider;
                         if (s == null) return false;
-                        if (b.CustomName.Contains(Lib.sA)) sysA = s.GetSurface(0);
-                        else if (b.CustomName.Contains(Lib.sB)) sysB = s.GetSurface(0);
+                        if (b.CustomName.Contains(Lib.sA)) _sysA = s.GetSurface(0);
+                        else if (b.CustomName.Contains(Lib.sB)) _sysB = s.GetSurface(0);
                         return true;
                     });
                 }
                 foreach (var c in Components)
-                    c.Value.Setup(this, ref p);
-                Screens[activeScr].Active = true;
+                    c.Value.Setup(this);
+                Screens[_activeScr].Active = true;
             }
             else throw new Exception($"\n{r.Error} at line {r.LineNo} of {Program.Me} custom data.");
 
         }
 
-        private void UpdateTimes()
+        void UpdateTimes()
         {
-            Frame++;
-            var r = Program.Runtime.TimeSinceLastRun;
-            RuntimeMS += r.TotalMilliseconds;
-            Ticks += r.Ticks;
+            _frame++;
+            _runtime += Program.Runtime.TimeSinceLastRun.TotalMilliseconds;
         }
 
         public CombatManager(MyGridProgram p)
         {
             Program = p;
             Terminal = Program.GridTerminalSystem;
+            Targets = new TargetProvider(this);
         }
 
         public void Update(string arg, UpdateType src)
         {
             UpdateTimes();
-            cmd.Clear();
-            if (arg != "" && cmd.TryParse(arg))
+            _cmd.Clear();
+            if (arg != "" && _cmd.TryParse(arg))
             {
-                if (Components.ContainsKey(cmd.Argument(0)) && Components[cmd.Argument(0)].Commands.ContainsKey(cmd.Argument(1)))
-                    Components[cmd.Argument(0)].Commands[cmd.Argument(1)].Invoke(cmd);
-                else if (cmd.Argument(0) == "screen" && Screens.ContainsKey(cmd.Argument(1)))
+                if (Components.ContainsKey(_cmd.Argument(0)) && Components[_cmd.Argument(0)].Commands.ContainsKey(_cmd.Argument(1)))
+                    Components[_cmd.Argument(0)].Commands[_cmd.Argument(1)].Invoke(_cmd);
+                else if (_cmd.Argument(0) == "screen" && Screens.ContainsKey(_cmd.Argument(1)))
                 {
-                    activeScr = cmd.Argument(1);
-                    Screens[activeScr].Active = true;
+                    _activeScr = _cmd.Argument(1);
+                    Screens[_activeScr].Active = true;
                 }
                 else
                 {
-                    var scr = Screens[activeScr];
-                    if (cmd.Argument(0) == "up")
-                        scr.Up();
-                    else if (cmd.Argument(0) == "down")
-                        scr.Down();
-                    else if (cmd.Argument(0) == "select")
-                        scr.Select.Invoke(scr);
-                    else if (cmd.Argument(0) == "back")
-                        scr.Back.Invoke(scr);
+                    var s = Screens[_activeScr];
+                    if (_cmd.Argument(0) == "up")
+                        s.Up();
+                    else if (_cmd.Argument(0) == "down")
+                        s.Down();
+                    else if (_cmd.Argument(0) == "select")
+                        s.Select.Invoke(s);
+                    else if (_cmd.Argument(0) == "back")
+                        s.Back.Invoke(s);
                 }
             }
-            var u = Lib.UpdateConverter(src);
             var rt = Program.Runtime.LastRunTimeMs;
-            if (WorstRun < rt) 
+            if (_worstRT < rt) 
             {
-                WorstRun = rt; 
-                WorstFrame = Frame; 
+                _worstRT = rt; 
+                _worstFR = _frame; 
             }
-            totalRt += rt;
-            Program.Runtime.UpdateFrequency |= u;
+            var u = Lib.UpdateConverter(src);
             if ((u & UpdateFrequency.Update10) != 0)
             {
-                AverageRun = totalRt / Frame;  
+                _avgRT = _totalRT / _frame;
                 Debug.RemoveDraw();
                 Gravity = Controller.GetNaturalGravity();
             }
             UpdateFrequency tgtFreq = UpdateFrequency.Update1;
+            
             foreach (var comp in Components.Values)
             {
                 comp.Update(tgtFreq);
                 tgtFreq |= comp.Frequency;
             }
-            Screens[activeScr].Draw(Display, u);
-            if (systemsDisplays)
+            Targets.Update(u);
+            _totalRT += rt;
+            Program.Runtime.UpdateFrequency |= u;
+
+            Screens[_activeScr].Draw(_main, u);
+            if (_sysDisplays)
             {
-                Screens[Lib.sA].Draw(sysA, u);
-                Screens[Lib.sB].Draw(sysB, u);
+                Screens[Lib.sA].Draw(_sysA, u);
+                Screens[Lib.sB].Draw(_sysB, u);
             }
+
             Program.Runtime.UpdateFrequency = tgtFreq;
             string r = "[[COMBAT MANAGER]]\n\n";
-            //foreach (var tgt in Targets.Values)
-            //    r += $"{tgt.eIDString}\nDIST {tgt.Distance}, ELAPSED {tgt.Elapsed(Runtime)}\n";
+            foreach (var tgt in Targets.AllTargets())
+                r += $"{tgt.eIDString}\nDIST {tgt.Distance:0000}, ELAPSED {tgt.Elapsed(Runtime):###0}\n";
             //foreach (var c in Components.Values)
             //    Debug.PrintHUD(c.Debug);
             //Debug.PrintHUD(Components[Lib.tr].Debug);
-            r += $"RUNS - {Frame}\nRUNTIME - {rt} ms\nAVG - {AverageRun.ToString("0.####")} ms\nWORST - {WorstRun} ms, F{WorstFrame}\n";
-            //r = Inventory.DebugString;
+            r += $"RUNS - {_frame}\nRUNTIME - {rt} ms\nAVG - {_avgRT:0.####} ms\nWORST - {_worstRT} ms, F{_worstFR}\n";
+            r += Components[Lib.sn].Debug;
             Program.Echo(r);
         }
     }

@@ -17,21 +17,41 @@ namespace IngameScript
             v = "VCR",
             vb = "VCRBold",
             sA = "SYS-A",
-            sB = "SYS-B";
-
-        public static readonly double maxTimeTGT = 37; //ms
-        static Dictionary<string, ITerminalProperty> _terminalPropertyDict = new Dictionary<string, ITerminalProperty>();
+            sB = "SYS-B",
+            wpns = "Weapons";
+        public static UpdateFrequency
+            u1 = UpdateFrequency.Update1,
+            u10 = UpdateFrequency.Update10,
+            u100 = UpdateFrequency.Update100;
+        public static readonly double
+            tick = 16.6666; //ms
         public static Color Green = new Color(100, 250, 100), bG = new Color(7, 16, 7);
         public static UpdateFrequency UpdateConverter(UpdateType src)
         {
             var updateFrequency = UpdateFrequency.None; //0000
-            if ((src & UpdateType.Update1) != 0) updateFrequency |= UpdateFrequency.Update1; //0001
-            if ((src & UpdateType.Update10) != 0) updateFrequency |= UpdateFrequency.Update10; //0010
-            if ((src & UpdateType.Update100) != 0) updateFrequency |= UpdateFrequency.Update100;//0100
+            if ((src & UpdateType.Update1) != 0) updateFrequency |= u1; //0001
+            if ((src & UpdateType.Update10) != 0) updateFrequency |= u10; //0010
+            if ((src & UpdateType.Update100) != 0) updateFrequency |= u100;//0100
             return updateFrequency;
         }
 
-        public static Vector3D GetAttackPoint(Vector3D relVel, Vector3D relPos, double projSpd)
+        // DDS - corrects angle to account for wrap
+        public static void PiLim(ref double d)
+        {
+            // restricts d to [0, 2π]
+            if (d < 0)
+            { 
+                if (d <= -MathHelperD.TwoPi) d += MathHelperD.FourPi;
+                else d += MathHelperD.TwoPi;
+            }
+            else if (d >= MathHelperD.TwoPi)
+            {
+                if (d >= MathHelperD.FourPi) d -= MathHelperD.FourPi;
+                else d -= MathHelperD.TwoPi;
+            }
+        }
+
+        public static Vector3D Intercept(ref Vector3D relVel, ref Vector3D relPos, Vector3D accel, double projSpd)
         {
             if (relVel == Vector3D.Zero) return relPos;
 
@@ -59,7 +79,7 @@ namespace IngameScript
 
             if (t == max) return Vector3D.Zero;
 
-            return relPos + relVel * t;
+            return relPos + relVel * t + accel * 0.5 * t * t;
         }
         public static double AngleBetween(Vector3D a, Vector3D b)
         {
@@ -67,20 +87,6 @@ namespace IngameScript
                 return 0;
             else
                 return Math.Acos(MathHelper.Clamp(a.Dot(b) / Math.Sqrt(a.LengthSquared() * b.LengthSquared()), -1, 1));
-        }
-
-        public static void SetValue<T>(IMyTerminalBlock block, string propertyName, T value)
-        {
-            ITerminalProperty prop;
-            if (_terminalPropertyDict.TryGetValue(propertyName, out prop))
-            {
-                prop.Cast<T>().SetValue(block, value);
-                return;
-            }
-
-            prop = block.GetProperty(propertyName);
-            _terminalPropertyDict[propertyName] = prop;
-            prop.Cast<T>().SetValue(block, value);
         }
 
         public static int Next(ref int p, int max)

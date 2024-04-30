@@ -28,7 +28,7 @@ namespace IngameScript
             Manager = new CombatManager(this);
             Manager.Debug = new DebugAPI(this, true);
             Manager.Components.Add(Lib.sn, new ScanComp(Lib.sn));
-            Manager.Components.Add(Lib.tr, new TurretComp(Lib.tr));
+            //Manager.Components.Add(Lib.tr, new TurretComp(Lib.tr));
             Runtime.UpdateFrequency |= UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;
             Manager.Start();
         }

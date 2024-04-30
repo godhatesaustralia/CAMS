@@ -1,4 +1,5 @@
 ﻿using Sandbox.ModAPI.Ingame;
+using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -8,132 +9,207 @@ using VRageMath;
 
 namespace IngameScript
 {
-
-    public class LidarArray // list group of c all with the same orientation
+    // all lidar here designed for top-mounted cameras - some special constraints
+    public class LidarArray 
     {
-        public IMyCameraBlock Camera => Cameras[0];
-        private List<IMyCameraBlock> Cameras;
+        public IMyCameraBlock Camera => _cameras[0];
+        public IMyCameraBlock[] AllCameras => _cameras;
+        public LidarArray _prev;
+        SortedSet<IMyCameraBlock> _camerasByRange = new SortedSet<IMyCameraBlock>(new RangeComparer());
+        IMyCameraBlock[] _cameras;
         public readonly string tag;
-        const float scat = 0.2f;
-        public int scans, index;
-        public double avgDist;
-        public int ct => Cameras.Count;
-        public LidarArray(List<IMyCameraBlock> c = null, string t = "", int i = -1)
+        const float SCAT = 0.2f;
+        public int Scans = 0;
+        bool _isMast;
+        public IMyCameraBlock _pRef;
+        public int ct => _camerasByRange.Count;
+        public LidarArray(List<IMyCameraBlock> c, string t = "", bool m = false)
         {
-            Cameras = c ?? new List<IMyCameraBlock>();
+            if (c != null)
+            {
+                _cameras = new IMyCameraBlock[c.Count];
+                for (int j = 0; j < c.Count; j++)
+                    _cameras[j] = c[j];
+            }
             tag = t;
-            index = i;
-            foreach (var c2 in Cameras)
+            _isMast = m;
+            foreach (var c2 in _cameras)
                 c2.EnableRaycast = true;
         }
 
-        public Vector3D ArrayDir => Camera.WorldMatrix.Forward.Normalized();
-        public void TryScanUpdate(ScanComp h, bool scatter = false)
+        class RangeComparer : IComparer<IMyCameraBlock>
         {
-            scans = 0;
-            foreach (var t in h.Targets.Values)
+            public int Compare(IMyCameraBlock x, IMyCameraBlock y)
             {
-                if (scans > h.Targets.Count) return;
-                avgDist = 0;
-                if (h.Manager.Runtime - t.Timestamp < Lib.maxTimeTGT)
-                    continue;
-                for (int i = 0; i < Cameras.Count; i++)
-                {
-                    avgDist += Cameras[i].AvailableScanRange;
-                    if (!Cameras[i].IsWorking)
-                        continue;
-                    if (!Cameras[i].CanScan(t.Distance))
-                        continue;
-                    var pos = t.PositionUpdate(h.Manager.Runtime);
-                    pos += scatter ? Lib.RandomOffset(ref h.Manager.Random, scat * t.Radius) : Vector3D.Zero;
-                    if (!Camera.CanScan(pos))
-                        continue;
-                    scans++;
-                    h.SetDebug($"\n{scans}. {Cameras[i].CustomName}");
-                    //h.Manager.Debug.DrawLine(Cameras[i].WorldMatrix.Translation, t.Position, Lib.Green, 0.03f);
-                    h.AddOrUpdateTGT(Cameras[i].Raycast(pos));
-                }
-                avgDist /= Cameras.Count;
+                if (x.Closed) return (y.Closed ? 0 : 1);
+                else if (y.Closed) return -1;
+                else return x.AvailableScanRange > y.AvailableScanRange ? -1 : (x.AvailableScanRange < y.AvailableScanRange ? 1 : (x.EntityId > y.EntityId ? -1 : (x.EntityId < y.EntityId ? 1 : 0)));
             }
         }
-    }
-    // tags = {"[A]", "[B]", "[C]", "[D]"}
-    public class LidarTurret : TurretBase
-    {
-        public IMyCameraBlock MainCamera;
-        public List<LidarArray> Lidars = new List<LidarArray>();
-        private readonly string[] tags;
-        private string mainName;
-        ScanComp Scanner;
 
-        // metrics
-        public int[] scans;
-        public double[] avgDists;
-
-        public LidarTurret(ScanComp s, IMyMotorStator azi, string[] t = null)
-            : base(azi, null)
+        public ScanResult ScanUpdate(ScanComp h, Target t, bool offset = false)
         {
-            Scanner = s;
-            tags = t;
+            var r = ScanResult.Failed;
+            int i = Scans = 0;
+            if (h.ScannedIDs.Contains(t.EID))
+                return r;
+            _camerasByRange.Clear();
+            for (; i < _cameras.Length; i++)
+                _camerasByRange.Add(_cameras[i]);
+
+            foreach (var c in _camerasByRange)
+            {
+                if (!t.IsExpired(h.Time + Lib.tick) && t.Distance < h.BVR)
+                    offset = true;
+                if (c.Closed)
+                {
+                    _camerasByRange.Remove(c);
+                    continue;
+                }
+                if (!c.IsWorking)
+                    continue;
+                if (!c.CanScan(t.Distance))
+                    continue;
+                var pos = t.AdjustedPosition(h.Manager.Runtime);        
+                pos += offset ? Lib.RandomOffset(ref h.Manager.RNG, SCAT * t.Radius) : Vector3D.Zero;
+                if (!c.CanScan(pos))
+                    continue;
+                if (_isMast)
+                {
+                    var dir = c.WorldMatrix.Translation - pos;
+                    dir.Normalize();
+                    // to do - this not working
+
+                }
+                if (h.PassTarget(c.Raycast(pos), out r))
+                {
+                    Scans++;
+                    foreach (var cprev in _prev.AllCameras)
+                        h.Manager.Debug.DrawAABB(cprev.WorldAABB, Lib.Green);
+                    return r;
+                }
+            }
+            return r;
+        }
+    }
+    // _tags = {"[A]", "[B]", "[C]", "[D]"}
+    public class LidarMast
+    {
+        IMyMotorStator _azimuth, _elevation;
+        IMyTurretControlBlock _ctc;
+        public IMyCameraBlock MainCamera;
+        public string Name;
+        public List<LidarArray> Lidars = new List<LidarArray>();
+        readonly string[] _tags;
+        string _mainName;
+        ScanComp _scan;
+        bool _activeCTC => _ctc?.IsUnderControl ?? false;
+        bool _override = false;
+        public int[] Scans;
+
+        public void DumpAllCameras(ref List<IMyCameraBlock> l)
+        {
+            foreach (var lidar in Lidars)
+                foreach (var cam in lidar.AllCameras)
+                    l.Add(cam);
+        }
+
+        public LidarMast(ScanComp s, IMyMotorStator azi, string[] t = null)
+        {
+            _azimuth = azi;
+            _scan = s;
+            _tags = t;
         }
 
         public void Setup(ref CombatManager m)
         {
-            var p = GetParts(ref m);
-            if (Elevation != null)
+            bool hasCTC = false;
+            using (var p = new iniWrap())
+            {
+                if (p.CustomData(_azimuth))
+                {
+                    Name = p.String(Lib.hdr, "Name");
+                    hasCTC = p.Bool(Lib.hdr, "CTC");
+                }
+            }
+
+            long azTop = _azimuth.TopGrid.EntityId;
+            m.Terminal.GetBlocksOfType<IMyMotorStator>(null, b =>
+            {
+                if (b.CubeGrid.EntityId == azTop)
+                    _elevation = b;
+                return false;
+            });
+            long? elTop = _elevation?.TopGrid.EntityId;
+            if (hasCTC)
+                m.Terminal.GetBlocksOfType<IMyTurretControlBlock>(null, b =>
+                {
+                    if (b.CubeGrid.EntityId == azTop || b.CubeGrid.EntityId == elTop)
+                        _ctc = b;
+                    return false;
+                });
+            if (_elevation != null)
             {
                 int i = 0;
-                var list = new List<IMyCameraBlock>();
-                for (; i < tags.Length; i++)
+                if (_tags != null)
                 {
-                    list.Clear();
-                    m.Terminal.GetBlocksOfType(list, (cam) =>
+                    for (; i < _tags.Length; i++)
                     {
-                        bool b = cam.CubeGrid.EntityId == Elevation?.TopGrid.EntityId;
+                        var list = new List<IMyCameraBlock>();
+                        m.Terminal.GetBlocksOfType(list, (cam) =>
+                    {
+                        bool b = cam.CubeGrid.EntityId == elTop;
                         if (b && cam.CustomName.ToUpper().Contains("MAIN"))
                         {
                             MainCamera = cam;
                             MainCamera.EnableRaycast = true;
-                            mainName = cam.CustomName;
+                            _mainName = cam.CustomName;
                         }
-                        return b && cam.CustomName.Contains(tags[i]);
+                        return b && cam.CustomName.Contains(_tags[i]);
                     });
-                    Lidars.Add(new LidarArray(list, tags[i], i));
+                        Lidars.Add(new LidarArray(list, _tags[i], true));
+                    }
+                    for (i = 0; i < _tags.Length; i++)
+                    {
+                        Lidars[i]._pRef = i != 0 ? Lidars[i - 1].Camera : Lidars[3].Camera;
+                        Lidars[i]._prev = i != 0 ? Lidars[i - 1] : Lidars[3]; // temp
+                    }
                 }
-                scans = new int[Lidars.Count];
-                avgDists = new double[Lidars.Count];
+                Scans = new int[Lidars.Count];
             }
         }
 
         public void Designate()
         {
-            if (!ActiveCTC || !MainCamera.CanScan(Scanner.maxRaycast))
+            if (!_activeCTC || !MainCamera.CanScan(_scan.maxRaycast))
                 return;
-            Scanner.AddOrUpdateTGT(MainCamera.Raycast(Scanner.maxRaycast));
+            if (MainCamera.IsActive)
+            {
+                _scan.PassTarget(MainCamera.Raycast(_scan.maxRaycast), true);
+            }
         }
 
         public void Update()
         {
-            if (ActiveCTC || Scanner.Targets.Count == 0) return;
-            Azimuth.TargetVelocityRPM = 30;
-            Elevation.TargetVelocityRPM = 60;
-            foreach (var t in Scanner.Targets.Values)
-            {
-                for (int i = 0; i < Lidars.Count; i++)
-                {
-                    //var mat = Lidars[i].Camera.WorldMatrix;
-                    //var vect2TGT = mat.Translation - t.Position;
-                    //bool b = mat.Forward.Dot(vect2TGT) > 0.707;
-                    //if (b) // max limit = 45 deg
-                        Lidars[i].TryScanUpdate(Scanner);
-                    scans[i] = Lidars[i].scans;
-                    avgDists[i] = Lidars[i].avgDist;
+            int i = 0;
+            if (_activeCTC) return;
+            _azimuth.TargetVelocityRPM = 30;
+            _elevation.TargetVelocityRPM = 60;
 
-                    //Scanner.Manager.Debug.PrintHUD($"{Name}, {ldr.tag}, {b}", seconds: 0.01f);
-                }
-            }
-            for (int i = 0; i < Lidars.Count; i++)
-                avgDists[i] = Scanner.maxRaycast;
+            foreach (var t in _scan.Targets.AllTargets())
+                if (!_scan.ScannedIDs.Contains(t.EID))
+                    for (; i < Lidars.Count; i++)
+                    {
+
+                        var icpt = t.AdjustedPosition(_scan.Manager.Runtime) - MainCamera.WorldMatrix.Translation;
+                        icpt.Normalize();
+                        if (icpt.Dot(_azimuth.WorldMatrix.Down) > 0.138)
+                                continue;
+                        if (Lidars[i].ScanUpdate(_scan, t) != ScanResult.Failed)                   
+                            Scans[i] = Lidars[i].Scans;
+                        Scans[i] = 0;
+                    }
         }
     }
+
 }
