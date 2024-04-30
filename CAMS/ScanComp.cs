@@ -13,11 +13,11 @@ namespace IngameScript
 {
     public class ScanComp : CompBase
     {
-        public long ID => Manager.Program.Me.CubeGrid.EntityId;
+        public long ID => Main.Me.CubeGrid.EntityId;
         public readonly int BVR = 1900;
 
         string[] masts, tags; //= { "[A]", "[B]", "[C]", "[D]" };
-        public double Time => Manager.Runtime;
+        public double Time => Main.RuntimeMS;
         public List<LidarArray> Lidars = new List<LidarArray>();
         public Dictionary<string, LidarMast> Masts = new Dictionary<string, LidarMast>();
         public HashSet<long> ScannedIDs = new HashSet<long>();
@@ -27,7 +27,7 @@ namespace IngameScript
         int tPtr, tStep;
         //DEBUG
         IMyTextPanel _panel;
-        public ScanComp(string n) : base(n, UpdateFrequency.Update10 | UpdateFrequency.Update100)
+        public ScanComp(string n) : base(n, UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100)
         {
             AllTurrets = new List<IMyLargeTurretBase>();
             Artillery = new List<IMyLargeTurretBase>();
@@ -64,26 +64,26 @@ namespace IngameScript
             s.SetData(grps, 1);
             return l.Name;
         }
-        public override void Setup(CombatManager m)
+        public override void Setup(Program m)
         {
             Clear();
-            Manager = m;
+            Main = m;
             var lct = "LargeCalibreTurret";
             using (var p = new iniWrap())
                 if (p.CustomData(Me))
                 {
-                    tStep = p.Int(Lib.hdr, "tStep", 4);
-                    maxRaycast = p.Double(Lib.hdr, "maxRaycast", 5000);
-                    var tagstr = p.String(Lib.hdr, "lidarTags", "[A]\n[B]\n[C]\n[D]");
+                    tStep = p.Int(Lib.HDR, "tStep", 4);
+                    maxRaycast = p.Double(Lib.HDR, "maxRaycast", 5000);
+                    var tagstr = p.String(Lib.HDR, "lidarTags", "[A]\n[B]\n[C]\n[D]");
                     var a = tagstr.Split('\n');
                     for (int i = 0; i < a.Length; i++)
                         a[i] = a[i].Trim('|');
-                    tags = new string[]{ "[A]", "[B]", "[C]", "[D]" };
-                    Manager.Terminal.GetBlocksOfType(AllTurrets, b => b.BlockDefinition.SubtypeName != lct && (b.CubeGrid.EntityId == ID) && !(b is IMyLargeInteriorTurret));
-                    Manager.Terminal.GetBlocksOfType(Artillery, b => b.BlockDefinition.SubtypeName == lct && (b.CubeGrid.EntityId == ID));
-                    Manager.Terminal.GetBlocksOfType<IMyMotorStator>(null, mtr =>
+                    tags = a;
+                   m.Terminal.GetBlocksOfType(AllTurrets, b => b.BlockDefinition.SubtypeName != lct && (b.CubeGrid.EntityId == ID) && !(b is IMyLargeInteriorTurret));
+                    m.Terminal.GetBlocksOfType(Artillery, b => b.BlockDefinition.SubtypeName == lct && (b.CubeGrid.EntityId == ID));
+                    m.Terminal.GetBlocksOfType<IMyMotorStator>(null, mtr =>
                     {
-                        if (mtr.CustomName.Contains(Lib.array) && mtr.CubeGrid.EntityId == ID)
+                        if (mtr.CustomName.Contains(Lib.ARY) && mtr.CubeGrid.EntityId == ID)
                         {
                             var tur = new LidarMast(this, mtr, tags);
                             tur.Setup(ref m);
@@ -92,7 +92,7 @@ namespace IngameScript
                         }
                         return true;
                     });
-                    Manager.Terminal.GetBlocksOfType<IMyTextPanel>(null, b =>
+                    m.Terminal.GetBlocksOfType<IMyTextPanel>(null, b =>
                     {
                         if (b.CustomName.Contains("BCR Info LCD CIC-FWD"))
                             _panel = b as IMyTextPanel;
@@ -100,13 +100,13 @@ namespace IngameScript
                     });
                     masts = Masts.Keys.ToArray();
                 }
-            //Manager.Screens.Add("targets", new Screen(() => _targetIDs.Count, new MySprite[]
+            //m.Screens.Add("targets", new Screen(() => _targetIDs.Count, new MySprite[]
             //{
-            //  new MySprite(SpriteType.TEXT, "", new Vector2(20, 112), null, Lib.Green, Lib.vb, 0, 0.925f),// 1. TUR NAME
-            //  new MySprite(SpriteType.TEXT, "", new Vector2(20, 160), null, Lib.Green, Lib.vb, 0, 1.825f),// 2. ANGLE HDR
-            //  new MySprite(SpriteType.TEXT, "", new Vector2(132, 164), null, Lib.Green, Lib.vb, 0, 0.9125f),// 3. ANGLE DATA
-            //  new MySprite(SpriteType.TEXT, "", new Vector2(488, 160), null, Lib.Green, Lib.vb, (TextAlignment)1, 1.825f),// 4. RPM
-            //  new MySprite(SpriteType.TEXT, "", new Vector2(20, 348), null, Lib.Green, Lib.vb, 0, 0.925f)// 5. WPNS
+            //  new MySprite(SpriteType.TEXT, "", new Vector2(20, 112), null, Lib.GRN, Lib.VB, 0, 0.925f),// 1. TUR NAME
+            //  new MySprite(SpriteType.TEXT, "", new Vector2(20, 160), null, Lib.GRN, Lib.VB, 0, 1.825f),// 2. ANGLE HDR
+            //  new MySprite(SpriteType.TEXT, "", new Vector2(132, 164), null, Lib.GRN, Lib.VB, 0, 0.9125f),// 3. ANGLE DATA
+            //  new MySprite(SpriteType.TEXT, "", new Vector2(488, 160), null, Lib.GRN, Lib.VB, (TextAlignment)1, 1.825f),// 4. RPM
+            //  new MySprite(SpriteType.TEXT, "", new Vector2(20, 348), null, Lib.GRN, Lib.VB, 0, 0.925f)// 5. WPNS
             //  }, (s) =>
             //  {
             //      var t = _targetIDs[s.ptr];
@@ -116,44 +116,47 @@ namespace IngameScript
             //      s.SetData("WEAPONS " + (t.isShoot ? "ENGAGING" : "INACTIVE"), 4);
             //  }));
             var al = TextAlignment.LEFT;
-            Manager.Screens.Add("masts", new Screen(() => masts.Length, new MySprite[]
+            var sqvpos = new Vector2(356, 222); // standard rect pos
+            var sqvsz = new Vector2(128, 28); // standard rect size
+            var sqoff = new Vector2(0, 40); // standard rect offset
+            m.Screens.Add("masts", new Screen(() => masts.Length, new MySprite[]
             {
-               new MySprite(SpriteType.TEXT, "", new Vector2(24, 112), null, Lib.Green, Lib.vb, 0, 1.75f),// 1. TUR NAME
-                new MySprite(SpriteType.TEXT, "", new Vector2(24, 200), null, Lib.Green, Lib.vb, 0, 0.8195f),
-                new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(356, 222) ,new Vector2(128, 28), Lib.Green, "", al),
-                new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(356, 262) ,new Vector2(128, 28), Lib.Green, "", al),
-                new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(356, 302) ,new Vector2(128, 28), Lib.Green, "", al),
-                new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(356, 342) ,new Vector2(128, 28), Lib.Green, "", al),
+                new MySprite(Lib.TXT, "", new Vector2(24, 112), null, Lib.GRN, Lib.VB, 0, 1.75f),// 1. TUR NAME
+                new MySprite(Lib.TXT, "", new Vector2(24, 200), null, Lib.GRN, Lib.VB, 0, 0.8195f),
+                new MySprite(Lib.SHP, Lib.SQS, sqvpos, sqvsz, Lib.GRN, "", al),
+                new MySprite(Lib.SHP, Lib.SQS, sqvpos + sqoff, sqvsz, Lib.GRN, "", al),
+                new MySprite(Lib.SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, Lib.GRN, "", al),
+                new MySprite(Lib.SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, Lib.GRN, "", al),
             }, (s) =>
             {       
                 s.SetData($"{mastUpdate(ref s)} {s.ptr + 1}/{masts.Length}", 0);
-            }, 128f, UpdateFrequency.Update10));
+            }, 128f, Lib.u10));
 
-            Manager.Screens.Add(Lib.sA, new Screen(() => masts.Length, new MySprite[]
+            m.Screens.Add(Lib.SYA, new Screen(() => masts.Length, new MySprite[]
 {
-               new MySprite(SpriteType.TEXT, "", new Vector2(24, 112), null, Lib.Green, Lib.vb, 0, 1.75f),// 1. TUR NAME
-                new MySprite(SpriteType.TEXT, "", new Vector2(24, 200), null, Lib.Green, Lib.vb, 0, 0.8195f),
-                new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(356, 222) ,new Vector2(128, 28), Lib.Green, "", al),
-                new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(356, 262) ,new Vector2(128, 28), Lib.Green, "", al),
-                new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(356, 302) ,new Vector2(128, 28), Lib.Green, "", al),
-                new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(356, 342) ,new Vector2(128, 28), Lib.Green, "", al),
+               new MySprite(Lib.TXT, "", new Vector2(24, 112), null, Lib.GRN, Lib.VB, 0, 1.75f),// 1. TUR NAME
+                new MySprite(Lib.TXT, "", new Vector2(24, 200), null, Lib.GRN, Lib.VB, 0, 0.8195f),
+                new MySprite(Lib.SHP, Lib.SQS, sqvpos, sqvsz, Lib.GRN, "", al),
+                new MySprite(Lib.SHP, Lib.SQS, sqvpos + sqoff, sqvsz, Lib.GRN, "", al),
+                new MySprite(Lib.SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, Lib.GRN, "", al),
+                new MySprite(Lib.SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, Lib.GRN, "", al),
             }, (s) =>
             {
                 s.SetData($"{mastUpdate(ref s, 0)} LDR", 0);
-            }, 128f, UpdateFrequency.Update1));
+            }, 128f, Lib.u10));
             if (Masts.Count == 2)
-            Manager.Screens.Add(Lib.sB, new Screen(() => masts.Length, new MySprite[]
+            m.Screens.Add(Lib.SYB, new Screen(() => masts.Length, new MySprite[]
             {
-               new MySprite(SpriteType.TEXT, "", new Vector2(24, 112), null, Lib.Green, Lib.vb, 0, 1.75f),// 1. TUR NAME
-                new MySprite(SpriteType.TEXT, "", new Vector2(24, 200), null, Lib.Green, Lib.vb, 0, 0.8195f),
-                new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(356, 222) ,new Vector2(128, 28), Lib.Green, "", al),
-                new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(356, 262) ,new Vector2(128, 28), Lib.Green, "", al),
-                new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(356, 302) ,new Vector2(128, 28), Lib.Green, "", al),
-                new MySprite(SpriteType.TEXTURE, "SquareSimple", new Vector2(356, 342) ,new Vector2(128, 28), Lib.Green, "", al),
+               new MySprite(Lib.TXT, "", new Vector2(24, 112), null, Lib.GRN, Lib.VB, 0, 1.75f),// 1. TUR NAME
+                new MySprite(Lib.TXT, "", new Vector2(24, 200), null, Lib.GRN, Lib.VB, 0, 0.8195f),
+                new MySprite(Lib.SHP, Lib.SQS, sqvpos, sqvsz, Lib.GRN, "", al),
+                new MySprite(Lib.SHP, Lib.SQS, sqvpos + sqoff, sqvsz, Lib.GRN, "", al),
+                new MySprite(Lib.SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, Lib.GRN, "", al),
+                new MySprite(Lib.SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, Lib.GRN, "", al),
             }, (s) =>
             {
                 s.SetData($"{mastUpdate(ref s, 1)} LDR", 0);
-            }, 128f, UpdateFrequency.Update1));
+            }, 128f, Lib.u10));
             Commands.Add("designate", (b) =>
             {
                 if (Masts.ContainsKey(b.Argument(2)))
@@ -192,22 +195,24 @@ namespace IngameScript
         {
             Debug = "";
             ScannedIDs.Clear();
-            // i THINK this is a laggy thing
-            int n = Math.Min(AllTurrets.Count, tPtr + tStep);
-            for (; tPtr < n; tPtr++)
-                CheckTurret(AllTurrets[tPtr]);
-
-            for (int i = 0; i < Artillery.Count; i++)
-                CheckTurret(Artillery[i]);
-
-            foreach (var m in Masts.Values)
-                m.Update();
-
-            if (n == AllTurrets.Count)
+            if (Main.F % 5 == 0)
             {
-                tPtr = 0;
-            }
+                foreach (var m in Masts.Values)
+                    m.Update();
 
+                int n = Math.Min(AllTurrets.Count, tPtr + tStep);
+                for (; tPtr < n; tPtr++)
+                    CheckTurret(AllTurrets[tPtr]);
+
+                for (int i = 0; i < Artillery.Count; i++)
+                    CheckTurret(Artillery[i]);
+
+                if (n == AllTurrets.Count)
+                {
+                    tPtr = 0;
+                }
+            }
+            // ---------------------------------------[DEBUG]-------------------------------------------------
             if (_panel != null)
             {
                 int count = 0;
@@ -218,6 +223,7 @@ namespace IngameScript
                 _camerasDebug.Clear();
                 foreach (var mast in Masts.Values)
                     mast.DumpAllCameras(ref _camerasDebug);
+                _camerasDebug.Sort(temp);
                 foreach (var c in _camerasDebug)
                 {
                     ++count;
@@ -240,14 +246,16 @@ namespace IngameScript
                 }
                 var f = _panel.DrawFrame();
                 var cnr = new Vector2(256, 256);
-                f.Add(new MySprite(data: "SquareHollow", position: cnr, size: 2 * cnr, color: Lib.Green));
-                f.Add(new MySprite(data: "SquareSimple", position: cnr, size: new Vector2(16, 512), color: Lib.Green));
-                f.Add(new MySprite(SpriteType.TEXT, s.ToUpper(), new Vector2(28, 16), null, Lib.Green, "VCR", TextAlignment.LEFT, 0.275f));
+                f.Add(new MySprite(data: "SquareHollow", position: cnr, size: 2 * cnr, color: Lib.GRN));
+                f.Add(new MySprite(data: "SquareSimple", position: cnr, size: new Vector2(16, 512), color: Lib.GRN));
+                f.Add(new MySprite(SpriteType.TEXT, s.ToUpper(), new Vector2(28, 16), null, Lib.GRN, "VCR", TextAlignment.LEFT, 0.275f));
                 f.Dispose();
             }
+            // ---------------------------------------[DEBUG]-------------------------------------------------
 
-            
         }
+        RangeComparer temp = new RangeComparer();
+
 
         public bool PassTarget(MyDetectedEntityInfo info, bool m = false)
         {

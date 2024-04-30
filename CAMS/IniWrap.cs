@@ -128,16 +128,16 @@ namespace IngameScript
         //    string s = myIni.Get(aSct, aKey).ToString();
         //    if (s == "")
         //        return false;
-        //    var v = s.Split(',');
+        //    var V = s.Split(',');
         //    //return false;
         //    try
         //    {
-        //        x = float.Parse(v[0].Trim('('));
-        //        y = float.Parse(v[1].Trim(')'));
+        //        x = float.Parse(V[0].Trim('('));
+        //        y = float.Parse(V[1].Trim(')'));
         //    }
         //    catch (Exception)
         //    {
-        //        throw new Exception($"\nError reading {aKey} floats for {aSct} in {n}: \n{v[0]} and {v[1]}");
+        //        throw new Exception($"\nError reading {aKey} floats for {aSct} in {n}: \n{V[0]} and {V[1]}");
         //    }
         //    return true;
         //}

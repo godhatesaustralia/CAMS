@@ -2,6 +2,7 @@
 using Sandbox.ModAPI.Interfaces;
 using System;
 using System.Collections.Generic;
+using VRage.Game.GUI.TextPanel;
 using VRageMath;
 
 namespace IngameScript
@@ -10,22 +11,28 @@ namespace IngameScript
     public static class Lib
     {
         public static string
-            hdr = "CAMS",
-            array = "ARY",
-            tr = "turrets",
-            sn = "scanner",
-            v = "VCR",
-            vb = "VCRBold",
-            sA = "SYS-A",
-            sB = "SYS-B",
-            wpns = "Weapons";
+            HDR = "CAMS",
+            ARY = "ARY",
+            TR = "turrets",
+            SN = "scanner",
+            V = "VCR",
+            VB = "VCRBold",
+            SYA = "SYS-A",
+            SYB = "SYS-B",
+            SQS = "SquareSimple",
+            SQH = "SquareHollow",
+            WPN = "Weapons";
         public static UpdateFrequency
             u1 = UpdateFrequency.Update1,
             u10 = UpdateFrequency.Update10,
             u100 = UpdateFrequency.Update100;
+        public static SpriteType
+            TXT = SpriteType.TEXT,
+            SHP = SpriteType.TEXTURE,
+            CLP = SpriteType.CLIP_RECT;
         public static readonly double
             tick = 16.6666; //ms
-        public static Color Green = new Color(100, 250, 100), bG = new Color(7, 16, 7);
+        public static Color GRN = new Color(100, 250, 100), RED =  new Color(240, 50, 50), bG = new Color(7, 16, 7);
         public static UpdateFrequency UpdateConverter(UpdateType src)
         {
             var updateFrequency = UpdateFrequency.None; //0000

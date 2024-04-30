@@ -114,17 +114,17 @@ namespace IngameScript
 
     public class TargetProvider
     {
-        CombatManager _host;
+        Program _host;
         public int Count => _targetsMaster.Count;
         Dictionary<long, Target> _targetsMaster = new Dictionary<long, Target>();
         SortedSet<Target> _targetsByTimestamp;
         List<long> _targetEIDs = new List<long>();
         public HashSet<long> Blacklist = new HashSet<long>();
-        public TargetProvider(CombatManager m)
+        public TargetProvider(Program p)
         {
-            _host = m;
-            Blacklist.Add(m.Program.Me.CubeGrid.EntityId);
-            m.Terminal.GetBlocksOfType<IMyMotorStator>(null, (b) =>
+            _host = p;
+            Blacklist.Add(p.Me.CubeGrid.EntityId);
+            p.Terminal.GetBlocksOfType<IMyMotorStator>(null, (b) =>
             {
                 if (b.TopGrid == null) return false;
                 var i = b.TopGrid.EntityId;
@@ -153,18 +153,18 @@ namespace IngameScript
             {
                 t = _targetsMaster[id];
                 if (i.HitPosition != null)
-                    t.Hits.Add(new HitPoint(i.HitPosition.Value, _host.Runtime));
+                    t.Hits.Add(new HitPoint(i.HitPosition.Value, _host.RuntimeMS));
 
-                if (!t.IsExpired(_host.Runtime + 1200))
+                if (!t.IsExpired(_host.RuntimeMS + 1200))
                     return ScanResult.Hit;
 
                 t.Hits.Clear();
-                t.Update(ref i, _host.Center, _host.Runtime);
+                t.Update(ref i, _host.Center, _host.RuntimeMS);
                 return ScanResult.Update;
             }
             else
             {
-                _targetsMaster[id] = new Target(i, _host.Runtime, src, (_host.Center - i.Position).Length());
+                _targetsMaster[id] = new Target(i, _host.RuntimeMS, src, (_host.Center - i.Position).Length());
                 _targetsByTimestamp.Add(_targetsMaster[id]);
                 return ScanResult.Added;
             }
@@ -206,7 +206,7 @@ namespace IngameScript
             if (Count == 0)
                 return;
             for (int i = Count - 1; i >= 0; i--)
-                if (_targetsMaster[_targetEIDs[i]].IsExpired(_host.Runtime))
+                if (_targetsMaster[_targetEIDs[i]].IsExpired(_host.RuntimeMS))
                     RemoveID(_targetEIDs[i]);
             _targetEIDs.Clear();
         }

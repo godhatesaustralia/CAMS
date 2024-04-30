@@ -24,10 +24,10 @@ namespace IngameScript
             graphLength = g;
             update = u;
         }
-        public void SetData(string d, int i)
-        {
-            sprites[i].Data = d;
-        }
+        public void SetData(string d, int i) => sprites[i].Data = d;
+
+
+        public void SetColor(Color c, int i) => sprites[i].Color = c;
 
         public void SetLength(float f, int i)
         {
@@ -56,7 +56,7 @@ namespace IngameScript
             GetData(this);
             var f = s?.DrawFrame();
             if (!f.HasValue) return;
-            f.Value.Add(new MySprite(data: "SquareHollow", position: new Vector2(256, 256), size: new Vector2(520, 308), color: Lib.Green));
+            f.Value.Add(new MySprite(data: "SquareHollow", position: new Vector2(256, 256), size: new Vector2(520, 308), color: Lib.GRN));
             for (int i = 0; i < sprites.Length; i++)
                 f.Value.Add(sprites[i]);
             f.Value.Dispose();

@@ -22,15 +22,13 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        CombatManager Manager;
         public Program()
         {
-            Manager = new CombatManager(this);
-            Manager.Debug = new DebugAPI(this, true);
-            Manager.Components.Add(Lib.sn, new ScanComp(Lib.sn));
-            //Manager.Components.Add(Lib.tr, new TurretComp(Lib.tr));
+            Targets = new TargetProvider(this);
+            Debug = new DebugAPI(this, true);
+            Components.Add(Lib.SN, new ScanComp(Lib.SN));
             Runtime.UpdateFrequency |= UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;
-            Manager.Start();
+            Start();
         }
 
         public void Save()
@@ -45,8 +43,81 @@ namespace IngameScript
 
         public void Main(string argument, UpdateType updateSource)
         {
-  
-            Manager.Update(argument, updateSource);
+            _frame++;
+            _runtime += Runtime.TimeSinceLastRun.TotalMilliseconds;
+
+            _cmd.Clear();
+            if (argument != "" && _cmd.TryParse(argument))
+            {
+                if (Components.ContainsKey(_cmd.Argument(0)) && Components[_cmd.Argument(0)].Commands.ContainsKey(_cmd.Argument(1)))
+                    Components[_cmd.Argument(0)].Commands[_cmd.Argument(1)].Invoke(_cmd);
+                else if (_cmd.Argument(0) == "screen" && Screens.ContainsKey(_cmd.Argument(1)))
+                {
+                    _activeScr = _cmd.Argument(1);
+                    Screens[_activeScr].Active = true;
+                }
+                else
+                {
+                    var s = Screens[_activeScr];
+                    if (_cmd.Argument(0) == "up")
+                        s.Up();
+                    else if (_cmd.Argument(0) == "down")
+                        s.Down();
+                    else if (_cmd.Argument(0) == "select")
+                        s.Select.Invoke(s);
+                    else if (_cmd.Argument(0) == "back")
+                        s.Back.Invoke(s);
+                }
+            }
+            var rt = Runtime.LastRunTimeMs;
+            if (_worstRT < rt)
+            {
+                _worstRT = rt;
+                _worstFR = _frame;
+            }
+            var u = Lib.UpdateConverter(updateSource);
+            if (_runtimes.Count == _rtMax)
+                _runtimes.Dequeue();
+            _runtimes.Enqueue(rt);
+            if ((u & UpdateFrequency.Update10) != 0)
+            {
+                _avgRT = 0;
+                foreach (var qr in _runtimes)
+                    _avgRT += qr;
+                _avgRT /= _rtMax;
+                Debug.RemoveDraw();
+                Gravity = Controller.GetNaturalGravity();
+            }
+            UpdateFrequency tgtFreq = UpdateFrequency.Update1;
+
+            foreach (var comp in Components.Values)
+            {
+                if ((comp.Frequency & u) != 0)
+                    comp.Update(tgtFreq);
+                tgtFreq |= comp.Frequency;
+            }
+            Targets.Update(u);
+            _totalRT += rt;
+            Runtime.UpdateFrequency |= u;
+
+            Screens[_activeScr].Draw(_main, u);
+            if (_sysDisplays)
+            {
+                Screens[Lib.SYA].Draw(_sysA, u);
+                Screens[Lib.SYB].Draw(_sysB, u);
+            }
+
+            Runtime.UpdateFrequency = tgtFreq;
+            string r = "[[COMBAT MANAGER]]\n\n";
+            foreach (var tgt in Targets.AllTargets())
+                r += $"{tgt.eIDString}\nDIST {tgt.Distance:0000}, ELAPSED {tgt.Elapsed(RuntimeMS):###0}\n";
+            //foreach (var c in Components.Values)
+            //    Debug.PrintHUD(c.Debug);
+            //Debug.PrintHUD(Components[Lib.TR].Debug);
+            r += $"RUNS - {_frame}\nRUNTIME - {rt} ms\nAVG - {_avgRT:0.####} ms\nWORST - {_worstRT} ms, F{_worstFR}\n";
+            r += Components[Lib.SN].Debug;
+            Echo(r);
+
         }
     }
 }
