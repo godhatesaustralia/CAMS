@@ -31,7 +31,9 @@ namespace IngameScript
             SHP = SpriteType.TEXTURE,
             CLP = SpriteType.CLIP_RECT;
         public static readonly double
-            tick = 16.6666; //ms
+            tick = 16.6666,//ms
+            tickSec = 0.016666; // sec
+        public static readonly int TPS = 60; // ticks/s
         public static Color GRN = new Color(100, 250, 100), RED =  new Color(240, 50, 50), bG = new Color(7, 16, 7);
         public static UpdateFrequency UpdateConverter(UpdateType src)
         {
@@ -57,6 +59,8 @@ namespace IngameScript
                 else d -= MathHelperD.TwoPi;
             }
         }
+
+
 
         public static Vector3D Intercept(ref Vector3D relVel, ref Vector3D relPos, Vector3D accel, double projSpd)
         {
@@ -110,6 +114,14 @@ namespace IngameScript
             if (Vector3D.IsZero(b))
                 return Vector3D.Zero;
             return a.Dot(b) / b.LengthSquared() * b;
+        }
+
+        public static Vector3D Rejection(Vector3D a, Vector3D b) //reject a on b
+        {
+            if (Vector3D.IsZero(a) || Vector3D.IsZero(b))
+                return Vector3D.Zero;
+
+            return a - a.Dot(b) / b.LengthSquared() * b;
         }
         public static Vector3D RandomOffset(ref Random r, double scat)
         {

@@ -25,15 +25,15 @@ namespace IngameScript
     {
         public IMyCameraBlock First => _cameras[0];
         public IMyCameraBlock[] AllCameras => _cameras;
-        public LidarArray _prev;
         SortedSet<IMyCameraBlock> _camerasByRange = new SortedSet<IMyCameraBlock>(new RangeComparer());
         IMyCameraBlock[] _cameras;
+        ScanResult _lastScan = ScanResult.Hit;
         public readonly string tag;
         const float SCAT = 0.2f;
         public int Scans = 0;
-        bool _isMast;
-        public IMyCameraBlock _pRef;
+        bool _isMast, _useRand = false;
         public int ct => _camerasByRange.Count;
+        const int BVR = 1900;
         public LidarArray(List<IMyCameraBlock> c, string t = "", bool m = false)
         {
             if (c != null)
@@ -48,11 +48,31 @@ namespace IngameScript
                 c2.EnableRaycast = true;
         }
 
-        public ScanResult ScanUpdate(ScanComp h, Target t, MatrixD el, bool offset = false)
+        Vector3D RaycastLead(ref Target t, Vector3D srcPos, ref CompBase h, double ofs = 5) // ofs is spread factor. whip left as 5 default
+        {
+            var dT = t.Elapsed(h.F);
+            var tPos = t.Position;
+            tPos += t.Velocity * dT;
+            var tDir = (tPos - srcPos).Normalized();
+            if ((_lastScan | ScanResult.Failed) == 0)
+            {
+                _useRand = !_useRand;
+                if (_useRand)
+                {
+                    var p1 = Vector3D.CalculatePerpendicularVector(tDir);
+                    var p2 = p1.Cross(tDir);
+                    p2.Normalize();
+                    return (h.GaussRNG() * p1 + h.GaussRNG() * p2) * dT * ofs;
+                }
+            }
+            return tPos + tDir * 2 * t.Radius;
+        }
+
+        public ScanResult ScanUpdate(CompBase h, Target t, MatrixD el, bool spread = false)
         {
             var r = ScanResult.Failed;
             int i = Scans = 0;
-            if (h.ScannedIDs.Contains(t.EID))
+            if (h.Targets.ScannedIDs.Contains(t.EID))
                 return r;
             _camerasByRange.Clear();
             for (; i < _cameras.Length; i++)
@@ -60,8 +80,8 @@ namespace IngameScript
 
             foreach (var c in _camerasByRange)
             {
-                if (!t.IsExpired(h.Time + Lib.tick) && t.Distance < h.BVR)
-                    offset = true;
+                if (!t.IsExpired(h.F + 1) && t.Distance < BVR)
+                    spread = true;
                 if (c.Closed)
                 {
                     _camerasByRange.Remove(c);
@@ -71,9 +91,9 @@ namespace IngameScript
                     continue;
                 if (!c.CanScan(t.Distance))
                     continue;
-                var pos = t.AdjustedPosition(h.Time);
-                pos += offset ? Lib.RandomOffset(ref h.Main.RNG, SCAT * t.Radius) : Vector3D.Zero;
-                if (!c.CanScan(pos))
+                var pos = RaycastLead(ref t, c.WorldMatrix.Translation, ref h);
+                //pos += spread ? Lib.RandomOffset(ref h.Main.RNG, SCAT * t.Radius) : Vector3D.Zero;
+                if (!c.CanScan(pos) || pos == Vector3D.Zero)
                     continue;
                 if (_isMast)
                 {
@@ -83,31 +103,22 @@ namespace IngameScript
                         continue;
                 }
                 // ---------------------------------------[DEBUG]-------------------------------------------------
-                //var info = c.Raycast(pos);
-                //if (h.Targets.Blacklist.Contains(info.EntityId))
+                //if (h.PassTarget(c.Raycast(pos), out r))
                 //{
-                //    var dir = c.WorldMatrix.Translation - pos;
-                //    dir.Normalize();
-                //    h.Manager.Debug.DrawLine(c.WorldMatrix.Translation + 0.15 * c.WorldMatrix.Down + 0.15 * c.WorldMatrix.Forward, info.HitPosition.Value, Lib.RED, 0.01f);
-                //    h.Manager.Debug.DrawLine(el.Translation, el.Translation + 4 * el.Up, Color.White, 0.1f);
-                //    h.Manager.Debug.DrawSphere(new BoundingSphereD(c.WorldMatrix.Translation + 0.15 * c.WorldMatrix.Down + 0.15 * c.WorldMatrix.Forward, 0.02), Color.White);
-                //    h.Manager.Debug.DrawMatrix(c.WorldMatrix, 0.2f);
-                //    h.Manager.Debug.DrawSphere(new BoundingSphereD(info.HitPosition.Value, 0.05), Lib.RED);
-                //    h.Manager.Debug.DrawSphere(new BoundingSphereD(el.Translation, 0.25), Color.White);
-                //}
-                //else if (!info.IsEmpty())
-                //    h.Manager.Debug.DrawLine(c.WorldMatrix.Translation + 0.15 * c.WorldMatrix.Down + 0.15 * c.WorldMatrix.Forward, info.Position, Lib.GRN, 0.0225f);
-                //if (h.PassTarget(info, out r))
-                //{
+                //    h.Main.Debug.DrawLine(c.WorldMatrix.Translation + 0.15 * c.WorldMatrix.Down + 0.15 * c.WorldMatrix.Forward, pos, Lib.GRN, 0.225f);
                 //    Scans++;
+                //    _lastScan = r;
                 //    break;
                 //}
+                //h.Main.Debug.DrawLine(c.WorldMatrix.Translation + 0.15 * c.WorldMatrix.Down + 0.15 * c.WorldMatrix.Forward, pos, Lib.RED, 0.225f);
                 // ---------------------------------------[DEBUG]-------------------------------------------------
                 if (h.PassTarget(c.Raycast(pos), out r))
                 {
                     Scans++;
+                    _lastScan = r;
                     break;
                 }
+                _lastScan = r;
             }
             return r;
         }
@@ -124,7 +135,7 @@ namespace IngameScript
         //string _mainName;
         ScanComp _scan;
         bool _activeCTC => _ctc?.IsUnderControl ?? false;
-        double maxAzDot, maxCamDot;
+        double _maxAzD, _maxCamD;
         public int[] Scans;
 
         public void DumpAllCameras(ref List<IMyCameraBlock> l)
@@ -150,8 +161,8 @@ namespace IngameScript
                 {
                     Name = p.String(Lib.HDR, "Name");
                     hasCTC = p.Bool(Lib.HDR, "CTC");
-                    maxAzDot = p.Double(Lib.HDR, "limRayAzDown", 0.134);
-                    maxCamDot = p.Double(Lib.HDR, "limRayCamDown", 0.64);
+                    _maxAzD = p.Double(Lib.HDR, "limRayAzDown", 0.134);
+                    _maxCamD = p.Double(Lib.HDR, "limRayCamDown", 0.64);
                 }
             }
 
@@ -171,11 +182,10 @@ namespace IngameScript
                     return false;
                 });
             if (_elevation != null)
-            {
-                int i = 0;
+            {           
                 if (_tags != null)
                 {
-                    for (; i < _tags.Length; i++)
+                    foreach (var tg in _tags)
                     {
                         var list = new List<IMyCameraBlock>();
                         m.Terminal.GetBlocksOfType(list, (cam) =>
@@ -187,14 +197,9 @@ namespace IngameScript
                                 Main.EnableRaycast = true;
                                 //_mainName = cam.CustomName;
                             }
-                            return b && cam.CustomName.Contains(_tags[i]);
+                            return b && cam.CustomName.Contains(tg);
                         });
-                        Lidars.Add(new LidarArray(list, _tags[i], true));
-                    }
-                    for (i = 0; i < _tags.Length; i++)
-                    {
-                        Lidars[i]._pRef = i != 0 ? Lidars[i - 1].First : Lidars[3].First;
-                        Lidars[i]._prev = i != 0 ? Lidars[i - 1] : Lidars[3]; // temp
+                        Lidars.Add(new LidarArray(list, tg, true));
                     }
                 }
                 Scans = new int[Lidars.Count];
@@ -215,18 +220,18 @@ namespace IngameScript
         {
             if (_activeCTC)
                 return;
-            _azimuth.TargetVelocityRPM = 30;
-            _elevation.TargetVelocityRPM = 60;
+            _azimuth.TargetVelocityRPM = 29;
+            _elevation.TargetVelocityRPM = 53;
 
             foreach (var t in _scan.Targets.AllTargets())
-                if (!_scan.ScannedIDs.Contains(t.EID))
+                if (!_scan.Targets.ScannedIDs.Contains(t.EID))
                     for (int i = 0; i < Lidars.Count; i++)
                     {
-                        var icpt = t.AdjustedPosition(_scan.Time) - Main.WorldMatrix.Translation;
+                        var icpt = t.Position + t.Elapsed(_scan.F) * t.Velocity - Main.WorldMatrix.Translation;
                         icpt.Normalize();
-                        if (icpt.Dot(_azimuth.WorldMatrix.Down) > maxAzDot)
+                        if (icpt.Dot(_azimuth.WorldMatrix.Down) > _maxAzD)
                             continue;
-                        if (icpt.Dot(Lidars[i].First.WorldMatrix.Backward) > 0 || icpt.Dot(Lidars[i].First.WorldMatrix.Down) > maxCamDot)
+                        if (icpt.Dot(Lidars[i].First.WorldMatrix.Backward) > 0 || icpt.Dot(Lidars[i].First.WorldMatrix.Down) > _maxCamD)
                             continue;
                         if (Lidars[i].ScanUpdate(_scan, t, _elevation.WorldMatrix) != ScanResult.Failed)
                             Scans[i] = Lidars[i].Scans;

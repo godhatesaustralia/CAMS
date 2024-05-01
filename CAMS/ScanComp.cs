@@ -13,14 +13,11 @@ namespace IngameScript
 {
     public class ScanComp : CompBase
     {
-        public long ID => Main.Me.CubeGrid.EntityId;
-        public readonly int BVR = 1900;
-
         string[] masts, tags; //= { "[A]", "[B]", "[C]", "[D]" };
-        public double Time => Main.RuntimeMS;
+
         public List<LidarArray> Lidars = new List<LidarArray>();
         public Dictionary<string, LidarMast> Masts = new Dictionary<string, LidarMast>();
-        public HashSet<long> ScannedIDs = new HashSet<long>();
+
         public List<IMyLargeTurretBase> AllTurrets, Artillery;
         List<IMyCameraBlock> _camerasDebug = new List<IMyCameraBlock>();
         public double maxRaycast;
@@ -70,7 +67,7 @@ namespace IngameScript
             Main = m;
             var lct = "LargeCalibreTurret";
             using (var p = new iniWrap())
-                if (p.CustomData(Me))
+                if (p.CustomData(Main.Me))
                 {
                     tStep = p.Int(Lib.HDR, "tStep", 4);
                     maxRaycast = p.Double(Lib.HDR, "maxRaycast", 5000);
@@ -194,9 +191,8 @@ namespace IngameScript
         public override void Update(UpdateFrequency u)
         {
             Debug = "";
-            ScannedIDs.Clear();
+            
             if (Main.F % 5 == 0)
-            {
                 foreach (var m in Masts.Values)
                     m.Update();
 
@@ -211,7 +207,7 @@ namespace IngameScript
                 {
                     tPtr = 0;
                 }
-            }
+            
             // ---------------------------------------[DEBUG]-------------------------------------------------
             if (_panel != null)
             {
@@ -255,32 +251,6 @@ namespace IngameScript
 
         }
         RangeComparer temp = new RangeComparer();
-
-
-        public bool PassTarget(MyDetectedEntityInfo info, bool m = false)
-        {
-            ScanResult fake;
-            return PassTarget(info, out fake, m);
-        }
-        public bool PassTarget(MyDetectedEntityInfo info, out ScanResult r, bool m = false)
-        {
-            r = ScanResult.Failed;
-            if (info.IsEmpty()) 
-                return false;
-            if (Targets.Blacklist.Contains(info.EntityId)) 
-                return false;
-            var rel = info.Relationship;
-            if (rel == MyRelationsBetweenPlayerAndBlock.Owner || rel == MyRelationsBetweenPlayerAndBlock.Friends)
-                return false;
-            if (info.Type != MyDetectedEntityType.SmallGrid && info.Type != MyDetectedEntityType.LargeGrid)
-                return false;
-            if (info.BoundingBox.Size.Length() < 1.5)
-                return false;
-             r = Targets.AddOrUpdate(ref info, ID);
-            if (!m)
-                ScannedIDs.Add(info.EntityId);
-            return true;
-        }
 
     }
 }
