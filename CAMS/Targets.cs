@@ -190,15 +190,7 @@ namespace IngameScript
             if ((u & Lib.u100) != 0)
                 RemoveExpired();
         }
-
-        public bool TryGetID(long id, out Target t)
-        {
-            t = null;
-            if (!_targetsMaster.ContainsKey(id))
-                return false;
-            t = _targetsMaster[id];
-            return true;
-        }
+        public bool isNew(long id) => _targetsMaster.ContainsKey(id) && !ScannedIDs.Contains(id);
 
         void RemoveExpired() // THIS GOES AFTER EVERYTHIGN ELSE
         {

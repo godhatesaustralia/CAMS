@@ -24,7 +24,7 @@ namespace IngameScript
         int tPtr, tStep;
         //DEBUG
         IMyTextPanel _panel;
-        public ScanComp(string n) : base(n, UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100)
+        public ScanComp(string n) : base(n, Lib.u1 | Lib.u10 | Lib.u100)
         {
             AllTurrets = new List<IMyLargeTurretBase>();
             Artillery = new List<IMyLargeTurretBase>();
@@ -53,8 +53,8 @@ namespace IngameScript
             var l = Masts[masts[p]];
             for (; i < l.Lidars.Count; i++)
             {
-                grps += $"GRP {l.Lidars[i].tag} {l.Lidars[i].Scans}/{l.Lidars[i].ct}\n";
-                cams += l.Lidars[i].ct;
+                grps += $"GRP {l.Lidars[i].tag} {l.Lidars[i].Scans}/{l.Lidars[i]._ct}\n";
+                cams += l.Lidars[i]._ct;
                 scns += l.Lidars[i].Scans;
             }
             grps += $"TTL CAMS {cams} SCNS " + (scns < 10 ? $" {scns}" : $"{scns}");
@@ -70,7 +70,7 @@ namespace IngameScript
                 if (p.CustomData(Main.Me))
                 {
                     tStep = p.Int(Lib.HDR, "tStep", 4);
-                    maxRaycast = p.Double(Lib.HDR, "maxRaycast", 5000);
+                    maxRaycast = p.Double(Lib.HDR, "maxRaycast", 8E3);
                     var tagstr = p.String(Lib.HDR, "lidarTags", "[A]\n[B]\n[C]\n[D]");
                     var a = tagstr.Split('\n');
                     for (int i = 0; i < a.Length; i++)

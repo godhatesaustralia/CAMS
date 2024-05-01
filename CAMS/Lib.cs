@@ -33,7 +33,6 @@ namespace IngameScript
         public static readonly double
             tick = 16.6666,//ms
             tickSec = 0.016666; // sec
-        public static readonly int TPS = 60; // ticks/s
         public static Color GRN = new Color(100, 250, 100), RED =  new Color(240, 50, 50), bG = new Color(7, 16, 7);
         public static UpdateFrequency UpdateConverter(UpdateType src)
         {
@@ -43,24 +42,6 @@ namespace IngameScript
             if ((src & UpdateType.Update100) != 0) updateFrequency |= u100;//0100
             return updateFrequency;
         }
-
-        // DDS - corrects angle to account for wrap
-        public static void PiLim(ref double d)
-        {
-            // restricts d to [0, 2π]
-            if (d < 0)
-            { 
-                if (d <= -MathHelperD.TwoPi) d += MathHelperD.FourPi;
-                else d += MathHelperD.TwoPi;
-            }
-            else if (d >= MathHelperD.TwoPi)
-            {
-                if (d >= MathHelperD.FourPi) d -= MathHelperD.FourPi;
-                else d -= MathHelperD.TwoPi;
-            }
-        }
-
-
 
         public static Vector3D Intercept(ref Vector3D relVel, ref Vector3D relPos, Vector3D accel, double projSpd)
         {
