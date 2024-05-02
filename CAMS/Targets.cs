@@ -140,16 +140,6 @@ namespace IngameScript
             });
         }
 
-        class TargetComparer : IComparer<Target> // modified dds comparer to use timestamp (dbl)
-        {
-            public int Compare(Target x, Target y)
-            {
-                if (x == null) return (y == null ? 0 : 1);
-                else if (y == null) return -1;
-                else return (x.Frame < y.Frame ? -1 : (x.Frame > y. Frame ? 1 : (x.EID < y.EID ? -1 : (x.EID > y.EID ? 1 : 0))));
-            }
-        }
-
         public ScanResult AddOrUpdate(ref MyDetectedEntityInfo i, long src)
         {
             var id = i.EntityId;

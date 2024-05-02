@@ -37,8 +37,8 @@ namespace IngameScript
                 return false;
             if (Targets.Blacklist.Contains(info.EntityId))
                 return false;
-            var rel = info.Relationship;
-            if (rel == MyRelationsBetweenPlayerAndBlock.Owner || rel == MyRelationsBetweenPlayerAndBlock.Friends)
+            int rel = (int)info.Relationship;
+            if (rel == 1|| rel == 5) // owner or friends
                 return false;
             if (info.Type != MyDetectedEntityType.SmallGrid && info.Type != MyDetectedEntityType.LargeGrid)
                 return false;

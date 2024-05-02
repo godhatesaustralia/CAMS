@@ -33,7 +33,7 @@ namespace IngameScript
         public static readonly double
             tick = 16.6666,//ms
             tickSec = 0.016666; // sec
-        public static Color GRN = new Color(100, 250, 100), RED =  new Color(240, 50, 50), bG = new Color(7, 16, 7);
+        public static Color GRN = new Color(100, 250, 100), RED =  new Color(240, 50, 50), BG = new Color(7, 16, 7), DRG = new Color(50, 125, 50);
         public static UpdateFrequency UpdateConverter(UpdateType src)
         {
             var updateFrequency = UpdateFrequency.None; //0000

@@ -49,16 +49,17 @@ namespace IngameScript
         // |[D]
         string mastUpdate(ref Screen s, int? ptr = null)
         {
-            string grps = ""; int i = 0, scns = 0, cams = 0, p = ptr ?? s.ptr;
+            string grps = ""; int i = 0, p = ptr ?? s.ptr;
             var l = Masts[masts[p]];
             for (; i < l.Lidars.Count; i++)
             {
-                grps += $"GRP {l.Lidars[i].tag} {l.Lidars[i].Scans}/{l.Lidars[i]._ct}\n";
-                cams += l.Lidars[i]._ct;
-                scns += l.Lidars[i].Scans;
+                var scan = l.Lidars[i].scanAVG != 0 ? $"{l.Lidars[i].scanAVG:G1}M\n" : "READY\n";
+                grps += $"SCAN {l.Lidars[i].tag[1]} " + scan;
             }
-            grps += $"TTL CAMS {cams} SCNS " + (scns < 10 ? $" {scns}" : $"{scns}");
+            grps += $"TARGETS {Targets.Count:00} CTRL " + (!l.Manual ? "OFF" : "MAN");
             s.SetData(grps, 1);
+            for (i = 0; i < l.Lidars.Count; ++i)
+                s.SetColor(l.Lidars[i].Scans > 0 ? Lib.GRN : Lib.DRG, i + 2);
             return l.Name;
         }
         public override void Setup(Program m)
@@ -89,29 +90,15 @@ namespace IngameScript
                         }
                         return true;
                     });
-                    m.Terminal.GetBlocksOfType<IMyTextPanel>(null, b =>
-                    {
-                        if (b.CustomName.Contains("BCR Info LCD CIC-FWD"))
-                            _panel = b as IMyTextPanel;
-                        return false;
-                    });
+                    //m.Terminal.GetBlocksOfType<IMyTextPanel>(null, b =>
+                    //{
+                    //    if (b.CustomName.Contains("BCR Info LCD CIC-FWD"))
+                    //        _panel = b as IMyTextPanel;
+                    //    return false;
+                    //});
                     masts = Masts.Keys.ToArray();
                 }
-            //m.Screens.Add("targets", new Screen(() => _targetIDs.Count, new MySprite[]
-            //{
-            //  new MySprite(SpriteType.TEXT, "", new Vector2(20, 112), null, Lib.GRN, Lib.VB, 0, 0.925f),// 1. TUR NAME
-            //  new MySprite(SpriteType.TEXT, "", new Vector2(20, 160), null, Lib.GRN, Lib.VB, 0, 1.825f),// 2. ANGLE HDR
-            //  new MySprite(SpriteType.TEXT, "", new Vector2(132, 164), null, Lib.GRN, Lib.VB, 0, 0.9125f),// 3. ANGLE DATA
-            //  new MySprite(SpriteType.TEXT, "", new Vector2(488, 160), null, Lib.GRN, Lib.VB, (TextAlignment)1, 1.825f),// 4. RPM
-            //  new MySprite(SpriteType.TEXT, "", new Vector2(20, 348), null, Lib.GRN, Lib.VB, 0, 0.925f)// 5. WPNS
-            //  }, (s) =>
-            //  {
-            //      var t = _targetIDs[s.ptr];
-            //      s.SetData($"T {t.ToString("X")}", 0);
-            //      s.SetData($"TGT {MathHelper.ToDegrees(t.aziTgt)}°\nCUR {t.aziDeg}°\nTGT {MathHelper.ToDegrees(t.elTgt)}°\nCUR {t.elDeg}°", 2);
-            //      s.SetData($"{t.Azimuth.TargetVelocityRPM}\n{t.Elevation.TargetVelocityRPM}", 3);
-            //      s.SetData("WEAPONS " + (t.isShoot ? "ENGAGING" : "INACTIVE"), 4);
-            //  }));
+
             var al = TextAlignment.LEFT;
             var sqvpos = new Vector2(356, 222); // standard rect pos
             var sqvsz = new Vector2(128, 28); // standard rect size
@@ -124,10 +111,7 @@ namespace IngameScript
                 new MySprite(Lib.SHP, Lib.SQS, sqvpos + sqoff, sqvsz, Lib.GRN, "", al),
                 new MySprite(Lib.SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, Lib.GRN, "", al),
                 new MySprite(Lib.SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, Lib.GRN, "", al),
-            }, (s) =>
-            {       
-                s.SetData($"{mastUpdate(ref s)} {s.ptr + 1}/{masts.Length}", 0);
-            }, 128f, Lib.u10));
+            }, s => s.SetData($"{mastUpdate(ref s)} {s.ptr + 1}/{masts.Length}", 0), 128f, Lib.u10));
 
             m.Screens.Add(Lib.SYA, new Screen(() => masts.Length, new MySprite[]
 {
@@ -137,10 +121,7 @@ namespace IngameScript
                 new MySprite(Lib.SHP, Lib.SQS, sqvpos + sqoff, sqvsz, Lib.GRN, "", al),
                 new MySprite(Lib.SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, Lib.GRN, "", al),
                 new MySprite(Lib.SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, Lib.GRN, "", al),
-            }, (s) =>
-            {
-                s.SetData($"{mastUpdate(ref s, 0)} LDR", 0);
-            }, 128f, Lib.u10));
+            }, s => s.SetData($"{mastUpdate(ref s, 0)} LDR", 0), 128f, Lib.u10));
             if (Masts.Count == 2)
             m.Screens.Add(Lib.SYB, new Screen(() => masts.Length, new MySprite[]
             {
@@ -150,16 +131,18 @@ namespace IngameScript
                 new MySprite(Lib.SHP, Lib.SQS, sqvpos + sqoff, sqvsz, Lib.GRN, "", al),
                 new MySprite(Lib.SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, Lib.GRN, "", al),
                 new MySprite(Lib.SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, Lib.GRN, "", al),
-            }, (s) =>
-            {
-                s.SetData($"{mastUpdate(ref s, 1)} LDR", 0);
-            }, 128f, Lib.u10));
-            Commands.Add("designate", (b) =>
+            }, s => s.SetData($"{mastUpdate(ref s, 1)} LDR", 0), 128f, Lib.u10));
+            Commands.Add("designate", b =>
             {
                 if (Masts.ContainsKey(b.Argument(2)))
                     Masts[b.Argument(2)].Designate();
             });
-            Commands.Add("tureset", (b) =>
+            Commands.Add("manual", b =>
+            {
+                if (Masts.ContainsKey(b.Argument(2)))
+                    Masts[b.Argument(2)].Retvrn();
+            });
+            Commands.Add("tureset", b =>
             {
                 foreach (var t in AllTurrets)
                 {
@@ -209,48 +192,48 @@ namespace IngameScript
                 }
             
             // ---------------------------------------[DEBUG]-------------------------------------------------
-            if (_panel != null)
-            {
-                int count = 0;
-                string s = "";
-                bool newline = false;
-                _panel.ContentType = ContentType.TEXT_AND_IMAGE;
-                _panel.ContentType = ContentType.SCRIPT;
-                _camerasDebug.Clear();
-                foreach (var mast in Masts.Values)
-                    mast.DumpAllCameras(ref _camerasDebug);
-                _camerasDebug.Sort(temp);
-                foreach (var c in _camerasDebug)
-                {
-                    ++count;
-                    var nam = c.CustomName.Remove(0, 4);
-                    var a = nam.ToCharArray();
-                    var ct = count.ToString("00");
-                    a[6] = nam[7];
-                    a[7] = ct[0];
-                    a[8] = ct[1];
-                    nam = new string(a);
-                    if (nam.Contains("MAIN"))
-                        nam = nam.Substring(0, nam.Length - 5);
+            //if (_panel != null)
+            //{
+            //    int count = 0;
+            //    string s = "";
+            //    bool newline = false;
+            //    _panel.ContentType = ContentType.TEXT_AND_IMAGE;
+            //    _panel.ContentType = ContentType.SCRIPT;
+            //    _camerasDebug.Clear();
+            //    foreach (var mast in Masts.Values)
+            //        mast.DumpAllCameras(ref _camerasDebug);
+            //    _camerasDebug.Sort(temp);
+            //    foreach (var c in _camerasDebug)
+            //    {
+            //        ++count;
+            //        var nam = c.CustomName.Remove(0, 4);
+            //        var a = nam.ToCharArray();
+            //        var ct = count.ToString("00");
+            //        a[6] = nam[7];
+            //        a[7] = ct[0];
+            //        a[8] = ct[1];
+            //        nam = new string(a);
+            //        if (nam.Contains("MAIN"))
+            //            nam = nam.Substring(0, nam.Length - 5);
 
-                    if (nam[nam.Length - 1] == 'C')
-                        s += $"{nam}  {c.AvailableScanRange:G1}m";
-                    else
-                        s += $"{nam} {c.AvailableScanRange:G1}m";
-                    s += newline ? "\n" : "    ";
-                    newline = !newline;
-                }
-                var f = _panel.DrawFrame();
-                var cnr = new Vector2(256, 256);
-                f.Add(new MySprite(data: "SquareHollow", position: cnr, size: 2 * cnr, color: Lib.GRN));
-                f.Add(new MySprite(data: "SquareSimple", position: cnr, size: new Vector2(16, 512), color: Lib.GRN));
-                f.Add(new MySprite(SpriteType.TEXT, s.ToUpper(), new Vector2(28, 16), null, Lib.GRN, "VCR", TextAlignment.LEFT, 0.275f));
-                f.Dispose();
-            }
+            //        if (nam[nam.Length - 1] == 'C')
+            //            s += $"{nam}  {c.AvailableScanRange:G1}m";
+            //        else
+            //            s += $"{nam} {c.AvailableScanRange:G1}m";
+            //        s += newline ? "\n" : "    ";
+            //        newline = !newline;
+            //    }
+            //    var f = _panel.DrawFrame();
+            //    var cnr = new Vector2(256, 256);
+            //    f.Add(new MySprite(data: "SquareHollow", position: cnr, size: 2 * cnr, color: Lib.GRN));
+            //    f.Add(new MySprite(data: "SquareSimple", position: cnr, size: new Vector2(16, 512), color: Lib.GRN));
+            //    f.Add(new MySprite(SpriteType.TEXT, s.ToUpper(), new Vector2(28, 16), null, Lib.GRN, "VCR", TextAlignment.LEFT, 0.275f));
+            //    f.Dispose();
+            //}
             // ---------------------------------------[DEBUG]-------------------------------------------------
 
         }
-        RangeComparer temp = new RangeComparer();
+        //RangeComparer temp = new RangeComparer();
 
     }
 }

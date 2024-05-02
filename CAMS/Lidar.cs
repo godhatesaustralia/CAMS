@@ -29,6 +29,7 @@ namespace IngameScript
         IMyCameraBlock[] _cameras;
         ScanResult _lastScan = ScanResult.Hit;
         public readonly string tag;
+        public double scanAVG;
         const float SCAT = 0.2f;
         public int Scans = 0;
         bool _isMast, _useRand = false;
@@ -74,10 +75,14 @@ namespace IngameScript
             int i = Scans = 0;
             if (h.Targets.ScannedIDs.Contains(t.EID))
                 return r;
-
             _camerasByRange.Clear();
+            scanAVG = 0;
             for (; i < _cameras.Length; i++)
+            {
+                scanAVG += _cameras[i].AvailableScanRange;
                 _camerasByRange.Add(_cameras[i]);
+            }
+            scanAVG /= _ct;
 
             foreach (var c in _camerasByRange)
             {
@@ -129,8 +134,10 @@ namespace IngameScript
         //string _mainName;
         ScanComp _scan;
         bool _activeCTC => _ctc?.IsUnderControl ?? false;
+        public bool Manual => _stopSpin || _activeCTC;
         double _maxAzD, _maxCamD;
-        bool _stopped = false;
+        float _azR, _elR, _max = float.MaxValue, _min = float.MinValue; // rest angles - it's my code, i can name stuff as terribly as i want!!!!
+        bool _stopSpin = false;
         public int[] Scans;
 
         public void DumpAllCameras(ref List<IMyCameraBlock> l)
@@ -154,13 +161,18 @@ namespace IngameScript
             {
                 if (p.CustomData(_azimuth))
                 {
+                    var rad = (float)(Math.PI / 180);
                     Name = p.String(Lib.HDR, "Name");
                     hasCTC = p.Bool(Lib.HDR, "CTC");
+
                     _maxAzD = p.Double(Lib.HDR, "limRayAzDown", 0.134);
                     _maxCamD = p.Double(Lib.HDR, "limRayCamDown", 0.64);
+                    _azR = rad * p.Float(Lib.HDR, "azR", 360);
+                    _elR = rad *  p.Float(Lib.HDR, "elR", 360);
                 }
             }
-
+            _azimuth.UpperLimitRad = _max;
+            _azimuth.LowerLimitRad = _min;
             long azTop = _azimuth.TopGrid.EntityId;
             m.Terminal.GetBlocksOfType<IMyMotorStator>(null, b =>
             {
@@ -197,9 +209,19 @@ namespace IngameScript
                         Lidars.Add(new LidarArray(list, tg, true));
                     }
                 }
+                _elevation.LowerLimitRad = _min;
+                _elevation.UpperLimitRad = _max;
                 Scans = new int[Lidars.Count];
             }
         }
+
+        public void Retvrn()
+        {
+            _azimuth.UpperLimitRad = _azR;
+            _elevation.UpperLimitRad = _elR;
+            _stopSpin = true;
+        }
+
 
         public void Designate()
         {
@@ -214,11 +236,24 @@ namespace IngameScript
         public void Update()
         {
             if (_activeCTC)
-                return;
-            if (!_stopped)
+            {
+                _azimuth.UpperLimitRad = _elevation.UpperLimitRad = _max;    
+                _stopSpin = false;
+            }
+            else if (!_stopSpin)
             {
                 _azimuth.TargetVelocityRPM = 29;
                 _elevation.TargetVelocityRPM = 53;
+            }
+            else
+            {
+                bool 
+                    ar = Math.Abs(_azimuth.Angle - _azR) < 0.05, 
+                    er = Math.Abs(_elevation.Angle - _elR) < 0.05;
+                if (ar)
+                    _azimuth.TargetVelocityRPM = 0;
+                if (er)
+                    _elevation.TargetVelocityRPM = 0;
             }
 
             foreach (var t in _scan.Targets.AllTargets())

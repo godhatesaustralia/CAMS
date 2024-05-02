@@ -52,7 +52,7 @@ namespace IngameScript
         public virtual void Draw(IMyTextSurface s, UpdateFrequency u)
         {
             if ((u & update) == 0) return;
-            s.ScriptBackgroundColor = Lib.bG;
+            s.ScriptBackgroundColor = Lib.BG;
             GetData(this);
             var f = s?.DrawFrame();
             if (!f.HasValue) return;
