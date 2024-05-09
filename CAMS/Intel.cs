@@ -97,7 +97,7 @@ namespace IngameScript
 
         }
 
-            void FillMatrix(ref Matrix3x3 mat, ref Vector3D col0, ref Vector3D col1, ref Vector3D col2)
+        void FillMatrix(ref Matrix3x3 mat, ref Vector3D col0, ref Vector3D col1, ref Vector3D col2)
         {
             mat.M11 = (float)col0.X;
             mat.M21 = (float)col0.Y;

@@ -98,12 +98,12 @@ namespace IngameScript
                     //});
                     masts = Masts.Keys.ToArray();
                 }
-
+            Vector2
+                sqvpos = new Vector2(356, 222), // standard rect pos
+                sqvsz = new Vector2(128, 28), // standard rect size
+                sqoff = new Vector2(0, 40); // standard rect offset
             var al = TextAlignment.LEFT;
-            var sqvpos = new Vector2(356, 222); // standard rect pos
-            var sqvsz = new Vector2(128, 28); // standard rect size
-            var sqoff = new Vector2(0, 40); // standard rect offset
-            m.Screens.Add("masts", new Screen(() => masts.Length, new MySprite[]
+            var sprites = new MySprite[]
             {
                 new MySprite(Lib.TXT, "", new Vector2(24, 112), null, Lib.GRN, Lib.VB, 0, 1.75f),// 1. TUR NAME
                 new MySprite(Lib.TXT, "", new Vector2(24, 200), null, Lib.GRN, Lib.VB, 0, 0.8195f),
@@ -111,27 +111,16 @@ namespace IngameScript
                 new MySprite(Lib.SHP, Lib.SQS, sqvpos + sqoff, sqvsz, Lib.GRN, "", al),
                 new MySprite(Lib.SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, Lib.GRN, "", al),
                 new MySprite(Lib.SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, Lib.GRN, "", al),
-            }, s => s.SetData($"{mastUpdate(ref s)} {s.ptr + 1}/{masts.Length}", 0), 128f, Lib.u10));
-
-            m.Screens.Add(Lib.SYA, new Screen(() => masts.Length, new MySprite[]
-{
-               new MySprite(Lib.TXT, "", new Vector2(24, 112), null, Lib.GRN, Lib.VB, 0, 1.75f),// 1. TUR NAME
-                new MySprite(Lib.TXT, "", new Vector2(24, 200), null, Lib.GRN, Lib.VB, 0, 0.8195f),
-                new MySprite(Lib.SHP, Lib.SQS, sqvpos, sqvsz, Lib.GRN, "", al),
-                new MySprite(Lib.SHP, Lib.SQS, sqvpos + sqoff, sqvsz, Lib.GRN, "", al),
-                new MySprite(Lib.SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, Lib.GRN, "", al),
-                new MySprite(Lib.SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, Lib.GRN, "", al),
-            }, s => s.SetData($"{mastUpdate(ref s, 0)} LDR", 0), 128f, Lib.u10));
+            };
+           
+            m.Screens.Add("masts", new Screen(() => masts.Length, sprites, s => s.SetData($"{mastUpdate(ref s)} {s.ptr + 1}/{masts.Length}", 0), 128f));
+            
             if (Masts.Count == 2)
-            m.Screens.Add(Lib.SYB, new Screen(() => masts.Length, new MySprite[]
             {
-               new MySprite(Lib.TXT, "", new Vector2(24, 112), null, Lib.GRN, Lib.VB, 0, 1.75f),// 1. TUR NAME
-                new MySprite(Lib.TXT, "", new Vector2(24, 200), null, Lib.GRN, Lib.VB, 0, 0.8195f),
-                new MySprite(Lib.SHP, Lib.SQS, sqvpos, sqvsz, Lib.GRN, "", al),
-                new MySprite(Lib.SHP, Lib.SQS, sqvpos + sqoff, sqvsz, Lib.GRN, "", al),
-                new MySprite(Lib.SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, Lib.GRN, "", al),
-                new MySprite(Lib.SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, Lib.GRN, "", al),
-            }, s => s.SetData($"{mastUpdate(ref s, 1)} LDR", 0), 128f, Lib.u10));
+                m.Screens.Add(Lib.SYA, new Screen(() => masts.Length, sprites, s => s.SetData($"{mastUpdate(ref s, 0)} LDR", 0), 128f));
+                m.Screens.Add(Lib.SYB, new Screen(() => masts.Length, sprites, s => s.SetData($"{mastUpdate(ref s, 1)} LDR", 0), 128f));
+            }
+            
             Commands.Add("designate", b =>
             {
                 if (Masts.ContainsKey(b.Argument(2)))
@@ -155,10 +144,10 @@ namespace IngameScript
                     t.Elevation = 0;
                 }
             });
-            if (_panel != null)
-            {
-                _panel.ContentType = ContentType.TEXT_AND_IMAGE;
-            }
+            //if (_panel != null)
+            //{
+            //    _panel.ContentType = ContentType.TEXT_AND_IMAGE;
+            //}
         }
         void CheckTurret(IMyLargeTurretBase t)
         {

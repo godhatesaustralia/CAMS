@@ -18,6 +18,7 @@ namespace IngameScript
         public long ID => Main.Me.CubeGrid.EntityId;
         public virtual string Debug { get; protected set; }
         public IMyShipController Reference => Main.Controller;
+        public Vector3D Velocity => Main.Controller.GetShipVelocities().LinearVelocity;
         public Dictionary<string, Action<MyCommandLine>> Commands = new Dictionary<string, Action<MyCommandLine>>();
         public Program Main;
         public double NextDbl() => 2 * Main.RNG.NextDouble() - 1; // from lamp
@@ -37,10 +38,10 @@ namespace IngameScript
                 return false;
             if (Targets.Blacklist.Contains(info.EntityId))
                 return false;
-            int rel = (int)info.Relationship;
+            int rel = (int)info.Relationship, t = (int)info.Type;
             if (rel == 1|| rel == 5) // owner or friends
                 return false;
-            if (info.Type != MyDetectedEntityType.SmallGrid && info.Type != MyDetectedEntityType.LargeGrid)
+            if (t != 2 && t != 3) // small grid and large grid respectively
                 return false;
             if (info.BoundingBox.Size.Length() < 1.5)
                 return false;
@@ -77,6 +78,7 @@ namespace IngameScript
         bool _sysDisplays;
         string _activeScr = Lib.TR;
         public Vector3D Center => Controller.WorldMatrix.Translation;
+        public Vector3D Velocity => Controller.GetShipVelocities().LinearVelocity;
         public Vector3D Gravity;
         public TargetProvider Targets;
         public Dictionary<string, Screen> Screens = new Dictionary<string, Screen>();
@@ -93,7 +95,7 @@ namespace IngameScript
 
         void Start()
         {
-            _activeScr = "masts";
+            _activeScr = "targets";
             Targets.Clear();
             var r = new MyIniParseResult();
             using (var p = new iniWrap())

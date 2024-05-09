@@ -4,10 +4,10 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{C72BDF4A-A166-4AA3-AAF4-7E14F31D1E9B}</ProjectGuid>
+    <ProjectGuid>{F723661C-C1FB-47EF-88A9-8996A7890A69}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <RootNamespace>IngameScript</RootNamespace>
-    <AssemblyName>CAMS</AssemblyName>
+    <AssemblyName>WHAM-C</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -38,15 +38,6 @@
   <Import Project="MDK/MDK.options.props" />
   <Import Project="MDK/MDK.paths.props" Condition="exists('MDK/MDK.paths.props')" />
   <ItemGroup>
-    <Compile Include="Display.cs" />
-    <Compile Include="Intel.cs" />
-    <Compile Include="Lidar.cs" />
-    <Compile Include="PID.cs" />
-    <Compile Include="ScanComp.cs" />
-    <Compile Include="Targets.cs" />
-    <Compile Include="IniWrap.cs" />
-    <Compile Include="Lib.cs" />
-    <Compile Include="Core.cs" />
     <Compile Include="MDK\Bootstrapper.cs" />
     <AdditionalFiles Include="MDK\MDK.options.props">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
@@ -58,8 +49,6 @@
     <AdditionalFiles Include="Instructions.readme" />
     <AdditionalFiles Include="thumb.png" />
     <AdditionalFiles Include="MDK\whitelist.cache" />
-    <Compile Include="Turret.cs" />
-    <Compile Include="Weapons.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="AfterBuild">

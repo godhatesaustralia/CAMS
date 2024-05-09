@@ -15,7 +15,7 @@ namespace IngameScript
         public Action<Screen> GetData = null, Select = null, Back = null;
         readonly float graphLength;
         UpdateFrequency update;
-        public Screen(Func<int> m, MySprite[] spr = null, Action<Screen> a = null, float g = 0, UpdateFrequency u = UpdateFrequency.Update1)
+        public Screen(Func<int> m, MySprite[] spr = null, Action<Screen> a = null, float g = 0, UpdateFrequency u = UpdateFrequency.Update10)
         {
             ptr = 0;
             pMax = m;
@@ -32,7 +32,7 @@ namespace IngameScript
         public void SetLength(float f, int i)
         {
             var s = sprites[i];
-            if (s.Type != SpriteType.TEXTURE) return;
+            if (s.Type != Lib.SHP) return;
             var a = sprites[i].Size = new Vector2(graphLength * f, s.Size.Value.Y);
         }
         public void Up()
@@ -56,7 +56,7 @@ namespace IngameScript
             GetData(this);
             var f = s?.DrawFrame();
             if (!f.HasValue) return;
-            f.Value.Add(new MySprite(data: "SquareHollow", position: new Vector2(256, 256), size: new Vector2(520, 308), color: Lib.GRN));
+            f.Value.Add(new MySprite(data: Lib.SQH, position: new Vector2(256, 256), size: new Vector2(520, 308), color: Lib.GRN));
             for (int i = 0; i < sprites.Length; i++)
                 f.Value.Add(sprites[i]);
             f.Value.Dispose();

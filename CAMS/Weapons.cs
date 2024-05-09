@@ -7,22 +7,22 @@ namespace IngameScript
     // vanilla, who cares
     public class TurretWeapons
     {
-        List<IMyUserControllableGun> _fireGroup = new List<IMyUserControllableGun>();
+        List<IMyUserControllableGun> _guns = new List<IMyUserControllableGun>();
         public int
-               salvoTicks = 0, // 0 or lower means no salvoing
                salvoTickCounter = 0,
                offsetTicks = 0,
                offsetTimer = 0;
+        readonly int salvoTicks = 0; // 0 or lower means no salvoing
         int ptr = -1;
-        public Vector3D AimReference
+        public Vector3D AimRef
         {
             get
             {
                 Vector3D r = Vector3D.Zero;
-                if (_fireGroup.Count == 0) return r;
-                foreach (var g in _fireGroup)
+                if (_guns.Count == 0) return r;
+                foreach (var g in _guns)
                     r += g.WorldMatrix.Translation;
-                r /= _fireGroup.Count;
+                r /= _guns.Count;
                 return r;
             }
         }
@@ -30,26 +30,26 @@ namespace IngameScript
         public TurretWeapons(int s, List<IMyUserControllableGun> g)
         {
             salvoTicks = s;
-            _fireGroup = g;
+            _guns = g;
         }
 
-        public void OpenFire()
+        public void Fire()
         {
             offsetTicks = 20;
             ++offsetTimer;
         }
-        public void HoldFire() => offsetTicks = -1;
+        public void Hold() => offsetTicks = -1;
 
         public bool Active
         {
             get
             {
-                if (_fireGroup.Count == 0) return false;
+                if (_guns.Count == 0) return false;
                 var anyWeaponOn = false;
 
-                for (int i = 0; i < _fireGroup.Count; i++)
+                for (int i = 0; i < _guns.Count; i++)
                 {
-                    if (_fireGroup[i].Enabled)
+                    if (_guns[i].Enabled)
                     {
                         anyWeaponOn = true;
                         break;
@@ -66,36 +66,33 @@ namespace IngameScript
             salvoTickCounter -= ticks;
             offsetTicks -= ticks;
 
-            if (_fireGroup.Count == 0) return;
-            while (_fireGroup[0].Closed)
+            if (_guns.Count == 0) return;
+            while (_guns[0].Closed)
             {
-                _fireGroup.RemoveAtFast(0);
-                if (_fireGroup.Count == 0) return;
+                _guns.RemoveAtFast(0);
+                if (_guns.Count == 0) return;
             }
 
-            //if (offsetTicks > 0)
-            //{
-            //    if (salvoTicks <= 0)
-            //    {
-            //        for (int i = 0; i < _fireGroup.Count; i++)
-            //            _fireGroup[i]
-            //    }
-            //    else
-            //    {
-            //        if (salvoTickCounter < 0)
-            //        {
-            //            var gun = _fireGroup[Lib.Next(ref ptr, _fireGroup.Count)];
-            //            Lib.SetValue(gun, "Shoot", true);
-            //            salvoTickCounter = salvoTicks;
-            //        }
-            //    }
-            //}
-            //else
-            //{
-            //    for (int i = 0; i < _fireGroup.Count; i++)
-            //        _fireGroup.ForEach(gun => { Lib.SetValue(gun, "Shoot", false); });
-            //    }
-            //}
+            if (offsetTicks > 0)
+            {
+                if (salvoTicks <= 0)
+                {
+                    for (int i = 0; i < _guns.Count; i++)
+                        _guns[i].Shoot = true;
+                }
+                else
+                {
+                    if (salvoTickCounter < 0)
+                    {
+                        _guns[Lib.Next(ref ptr, _guns.Count)].Shoot = true;
+                        salvoTickCounter = salvoTicks;
+                    }
+                }
+            }
+            else
+                for (int i = 0; i < _guns.Count; i++)
+                    _guns[i].Shoot = false;
+
         }
     }
 }

@@ -17,6 +17,7 @@ namespace IngameScript
             SN = "scanner",
             V = "VCR",
             VB = "VCRBold",
+            WH = "WHITE",
             SYA = "SYS-A",
             SYB = "SYS-B",
             SQS = "SquareSimple",
@@ -43,36 +44,6 @@ namespace IngameScript
             return updateFrequency;
         }
 
-        public static Vector3D Intercept(ref Vector3D relVel, ref Vector3D relPos, Vector3D accel, double projSpd)
-        {
-            if (relVel == Vector3D.Zero) return relPos;
-
-            var P0 = relPos;
-            var V0 = relVel;
-
-            double
-                s1 = projSpd,
-                a = V0.Dot(V0) - (s1 * s1),
-                b = 2 * P0.Dot(V0),
-                c = P0.Dot(P0),
-
-                det = (b * b) - (4 * a * c),
-                max = double.MaxValue;
-
-            if (det < 0 || a == 0) return Vector3D.Zero;
-
-            var t1 = (-b + Math.Sqrt(det)) / (2 * a);
-            var t2 = (-b - Math.Sqrt(det)) / (2 * a);
-
-            if (t1 <= 0) t1 = max;
-            if (t2 <= 0) t2 = max;
-
-            var t = Math.Min(t1, t2);
-
-            if (t == max) return Vector3D.Zero;
-
-            return relPos + relVel * t + accel * 0.5 * t * t;
-        }
         public static double AngleBetween(Vector3D a, Vector3D b)
         {
             if (Vector3D.IsZero(a) || Vector3D.IsZero(b))

@@ -3,21 +3,11 @@ using System;
 using System.Collections.Generic;
 using VRage;
 using VRage.Game;
+using VRage.Game.GUI.TextPanel;
 using VRageMath;
 
 namespace IngameScript
 {
-    public struct HitPoint // stolen
-    {
-        public Vector3D Position;
-        public long Frame;
-        public HitPoint(Vector3D p = default(Vector3D), long f = -1)
-        {
-            Position = p;
-            Frame = f;
-        }
-    }
-
     public enum ScanResult
     {
         Failed,
@@ -38,7 +28,6 @@ namespace IngameScript
         public readonly MyDetectedEntityType Type;
         public readonly MyRelationsBetweenPlayerAndBlock IFF; // wham
         bool _isEngaged = false;
-        public HashSet<HitPoint> Hits = new HashSet<HitPoint>();
         #endregion
         public string eIDString => EID.ToString("X").Remove(0, 6);
 
@@ -50,9 +39,7 @@ namespace IngameScript
             Type = i.Type;
             IFF = i.Relationship;
             Position = i.Position;
-            var p = i.HitPosition;
-            if (p != null)
-                Hits.Add(new HitPoint(p.Value, f));
+            // var p = i.HitPosition;
             Velocity = i.Velocity;
             Radius = i.BoundingBox.Size.Length();
             Distance = dist;
@@ -80,8 +67,6 @@ namespace IngameScript
             Velocity = i.Velocity;
             Accel = Vector3D.Zero;
             var a = (Velocity - LastVelocity) * dT;
-            if (i.HitPosition.HasValue)
-                Hits.Add(new HitPoint(i.HitPosition.Value, f));
             // decide whether to keep this later
              if (a.LengthSquared() > 1)
                 Accel = (Accel * 0.25) + (a * 0.75);
@@ -91,18 +76,6 @@ namespace IngameScript
 
         public bool IsExpired(long now) => Elapsed(now) >= MAX_LIFETIME;
         
-
-        public Vector3D GetOffsetOrPosition()
-        {
-            if (Hits.Count == 0)
-                return Position;
-            else
-            {
-                var h = Hits.FirstElement();
-                Hits.Remove(h);
-                return h.Position;
-            }
-        }
 
         public double Elapsed(long f) => Lib.tickSec * Math.Max(f - Frame, 1);
 
@@ -122,15 +95,15 @@ namespace IngameScript
         Program _host;
         public int Count => _targetsMaster.Count;
         Dictionary<long, Target> _targetsMaster = new Dictionary<long, Target>();
-        List<long> _targetEIDs = new List<long>();
-        List<HitPoint> _expiredHits = new List<HitPoint>();
+        List<long> _targetEIDs = new List<long>(), _scrnEIDs = new List<long>();
+        const double rad = 180 / Math.PI;
         public HashSet<long> ScannedIDs = new HashSet<long>();
         public HashSet<long> Blacklist = new HashSet<long>();
         public TargetProvider(Program m)
         {
             _host = m;
             Blacklist.Add(m.Me.CubeGrid.EntityId);
-            m.Terminal.GetBlocksOfType<IMyMotorStator>(null, (b) =>
+            m.Terminal.GetBlocksOfType<IMyMotorStator>(null, b =>
             {
                 if (b.TopGrid == null) return false;
                 var i = b.TopGrid.EntityId;
@@ -138,6 +111,23 @@ namespace IngameScript
                     Blacklist.Add(i);
                 return true;
             });
+            m.Screens.Add("targets", new Screen(() => Count, new MySprite[]
+            {
+                new MySprite(Lib.TXT, "", new Vector2(24, 112), null, Lib.GRN, Lib.VB, 0, 1.75f),
+                new MySprite(Lib.TXT, "", new Vector2(24, 200), null, Lib.GRN, Lib.VB, 0, 0.8195f),
+                //new MySprite(Lib.TXT, "", new Vector2(24, 112), null, Lib.GRN, Lib.WH, 0, 2f),
+                //new MySprite(Lib.TXT, "", new Vector2(24, 200), null, Lib.GRN, Lib.WH, 0, 1.5f)
+            }, s =>
+            {
+                string ty = "NULL";
+                var t = _targetsMaster[_scrnEIDs[s.ptr]];
+                s.SetData($"{t.eIDString}", 0);
+                if ((int)t.Type == 2) ty = "LARGE";
+                else if ((int)t.Type == 3) ty = "SMALL";
+                s.SetData($"DIST {t.Distance / 1000:#0.#} KM\nVL {t.Velocity.Length():000} M/S\nSZ {ty}", 1);
+            }
+                
+                ));
         }
 
         public ScanResult AddOrUpdate(ref MyDetectedEntityInfo i, long src)
@@ -147,21 +137,13 @@ namespace IngameScript
             if (_targetsMaster.ContainsKey(id))
             {
                 t = _targetsMaster[id];
-                if (t.Hits.Count > 0)
-                {
-                    _expiredHits.Clear();
-                    foreach (var h in t.Hits)
-                        if ((_host.F - h.Frame) * Lib.tickSec >= Target.MAX_LIFETIME)
-                            _expiredHits.Add(h);
-                    foreach (var h in _expiredHits)
-                        t.Hits.Remove(h);
-                }
                 t.Update(ref i, _host.Center, _host.F);
                 return ScanResult.Update;
             }
             else
             {
                 _targetsMaster[id] = new Target(i, _host.F, src, (_host.Center - i.Position).Length());
+                _scrnEIDs.Add(id);
                 return ScanResult.Added;
             }
         }
@@ -199,6 +181,7 @@ namespace IngameScript
             {
                 ScannedIDs.Remove(eid);
                 _targetsMaster.Remove(eid);
+                _scrnEIDs.Remove(eid);
             }
         }
 
@@ -207,6 +190,7 @@ namespace IngameScript
             _targetEIDs.Clear();
             _targetsMaster.Clear();
             ScannedIDs.Clear();
+            _scrnEIDs.Clear();
         }
     }
 }
