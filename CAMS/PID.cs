@@ -60,8 +60,8 @@ namespace IngameScript
             _lastError = error;
 
             //Construct output
-            this.Value = _kP * error + _kI * _errorSum + _kD * errorDerivative;
-            return this.Value;
+            Value = _kP * error + _kI * _errorSum + _kD * errorDerivative;
+            return Value;
         }
 
         public double Control(double error, double timeStep)

@@ -1,4 +1,5 @@
-﻿using Sandbox.ModAPI.Ingame;
+﻿
+using Sandbox.ModAPI.Ingame;
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
@@ -132,7 +133,7 @@ namespace IngameScript
         public List<LidarArray> Lidars = new List<LidarArray>();
         readonly string[] _tags;
         //string _mainName;
-        ScanComp _scan;
+        Scanner _scan;
         bool _activeCTC => _ctc?.IsUnderControl ?? false;
         public bool Manual => _stopSpin || _activeCTC;
         double _maxAzD, _maxCamD;
@@ -147,7 +148,7 @@ namespace IngameScript
                     l.Add(cam);
         }
 
-        public LidarMast(ScanComp s, IMyMotorStator azi, string[] t = null)
+        public LidarMast(Scanner s, IMyMotorStator azi, string[] t = null)
         {
             _azimuth = azi;
             _scan = s;
@@ -162,29 +163,35 @@ namespace IngameScript
                 if (p.CustomData(_azimuth))
                 {
                     var rad = (float)(Math.PI / 180);
-                    Name = p.String(Lib.HDR, "Name");
-                    hasCTC = p.Bool(Lib.HDR, "CTC");
+                    Name = p.String(Lib.HDR, "name", "ARY");
+                    hasCTC = p.Bool(Lib.HDR, "ctc");
 
                     _maxAzD = p.Double(Lib.HDR, "limRayAzDown", 0.134);
                     _maxCamD = p.Double(Lib.HDR, "limRayCamDown", 0.64);
                     _azR = rad * p.Float(Lib.HDR, "azR", 360);
-                    _elR = rad *  p.Float(Lib.HDR, "elR", 360);
+                    _elR = rad * p.Float(Lib.HDR, "elR", 360);
                 }
             }
             _azimuth.UpperLimitRad = _max;
             _azimuth.LowerLimitRad = _min;
-            long azTop = _azimuth.TopGrid.EntityId;
+            var azTop = _azimuth.TopGrid;
             m.Terminal.GetBlocksOfType<IMyMotorStator>(null, b =>
             {
-                if (b.CubeGrid.EntityId == azTop)
+                if (b.CustomName.Contains(Name))
+                    _elevation = b;
+                if (b.CubeGrid == azTop)
                     _elevation = b;
                 return false;
             });
-            long? elTop = _elevation?.TopGrid.EntityId;
+            var elTop = _elevation?.TopGrid;
             if (hasCTC)
                 m.Terminal.GetBlocksOfType<IMyTurretControlBlock>(null, b =>
                 {
-                    if (b.CubeGrid.EntityId == azTop || b.CubeGrid.EntityId == elTop)
+                    if (b.CustomName.Contains(Name))
+                        _ctc = b;
+                    if (b.CubeGrid == azTop)
+                        _ctc = b;
+                    else if (elTop != null && b.CubeGrid == elTop)
                         _ctc = b;
                     return false;
                 });
@@ -197,7 +204,7 @@ namespace IngameScript
                         var list = new List<IMyCameraBlock>();
                         m.Terminal.GetBlocksOfType(list, (cam) =>
                         {
-                            bool b = cam.CubeGrid.EntityId == elTop;
+                            bool b = cam.CubeGrid == elTop;
                             if (b && cam.CustomName.ToUpper().Contains("MAIN"))
                             {
                                 Main = cam;
@@ -237,8 +244,13 @@ namespace IngameScript
         {
             if (_activeCTC)
             {
-                _azimuth.UpperLimitRad = _elevation.UpperLimitRad = _max;    
-                _stopSpin = false;
+                if (_stopSpin)
+                {
+                    _azimuth.LowerLimitRad = _elevation.LowerLimitRad = _min;
+                    _azimuth.UpperLimitRad = _elevation.UpperLimitRad = _max;
+                    _stopSpin = false;
+                }
+                return;
             }
             else if (!_stopSpin)
             {

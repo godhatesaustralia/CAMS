@@ -26,7 +26,7 @@ namespace IngameScript
         {
             Targets = new TargetProvider(this);
             Debug = new DebugAPI(this, true);
-            Components.Add(Lib.SN, new ScanComp(Lib.SN));
+            Components.Add(Lib.SN, new Scanner(Lib.SN));
             Runtime.UpdateFrequency |= UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;
             Start();
         }
@@ -45,7 +45,7 @@ namespace IngameScript
         {
             _frame++;
             _totalRT += Runtime.TimeSinceLastRun.TotalMilliseconds;
-
+                
             _cmd.Clear();
             if (argument != "" && _cmd.TryParse(argument))
             {

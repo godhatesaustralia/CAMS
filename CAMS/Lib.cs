@@ -33,7 +33,11 @@ namespace IngameScript
             CLP = SpriteType.CLIP_RECT;
         public static readonly double
             tick = 16.6666,//ms
-            tickSec = 0.016666; // sec
+            tickSec = 0.016666, // sec
+            Pi = MathHelperD.TwoPi,
+            halfPi = MathHelperD.PiOver2,
+            Pi2 = MathHelper.TwoPi,
+            radPerTick = 30 / Pi2;
         public static Color GRN = new Color(100, 250, 100), RED =  new Color(240, 50, 50), BG = new Color(7, 16, 7), DRG = new Color(50, 125, 50);
         public static UpdateFrequency UpdateConverter(UpdateType src)
         {
@@ -80,8 +84,6 @@ namespace IngameScript
             return new Vector3D(((r.NextDouble() * 2) - 1), ((r.NextDouble() * 2) - 1), ((r.NextDouble() * 2) - 1)) * scat;
         }
     }
-
-
 
     public class DebugAPI
     {

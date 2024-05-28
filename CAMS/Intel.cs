@@ -1,7 +1,7 @@
 ﻿using Sandbox.ModAPI.Ingame;
-using System;
 using System.Collections.Generic;
 using VRage;
+using VRage.Game.GUI.TextPanel;
 using VRageMath;
 
 namespace IngameScript
@@ -12,10 +12,11 @@ namespace IngameScript
         IMyBroadcastListener
             _FLT, _TGT;
         IMyRadioAntenna _antenna, _backup;
-        Dictionary<int, long> _ekvPBs, _mslPBs;
+        SortedList<string,SortedList<string, long>> _missiles = new SortedList<string, SortedList<string, long>>();  // format: group tag => missile name + pos => 
         Dictionary<long, double> _rtOffsets = new Dictionary<long, double>();
         bool _fixedRange, _useNetwork, _useBackup = false;
-        string _mslTag;
+        string _mslTag, _cat;
+        string[] _grpTags;
         long _key = -1;
         // deliberately omitting remote fire
         const string
@@ -30,8 +31,7 @@ namespace IngameScript
 
         public Intel(string n) : base(n, Lib.u10 | Lib.u100)
         {
-            _ekvPBs = new Dictionary<int, long>();
-            _mslPBs = new Dictionary<int, long>();
+            
         }
 
         public override void Setup(Program m)
@@ -42,9 +42,12 @@ namespace IngameScript
             using (var p = new iniWrap())
                 if (p.CustomData(Main.Me))
                 {
-                    _fixedRange = p.Bool(Lib.HDR, "fixedAntennaRange", true);
-                    _useNetwork = p.Bool(Lib.HDR, "network", false);
-                    _mslTag = p.String(Lib.HDR, "MSL", "WHAM");
+                    var h = Lib.HDR;
+                    _fixedRange = p.Bool(h, "fixedAntennaRange", true);
+                    _useNetwork = p.Bool(h, "network", false);
+                    _mslTag = p.String(h, "grpTag", "WHAM");
+                    _grpTags = p.String(h, "mslTypes", "MSL\nEKV").Split('\n');
+                    
                 }
             Main.Terminal.GetBlocksOfType<IMyRadioAntenna>(null, a =>
             {
@@ -54,12 +57,38 @@ namespace IngameScript
                     _backup = a;
                 return true;
             });
-            Main.Terminal.GetBlocksOfType<IMyProgrammableBlock>(null, b =>
+            var l = new SortedList<string, long>();
+            foreach (var t in _grpTags)
             {
-                //if (b.CubeGrid.EntityId != ID && b.CustomName.Contains(_mslTag))
-                //    _mslComputers.Add(b.EntityId);
-                return true;
+                l.Clear();
+                Main.Terminal.GetBlocksOfType<IMyProgrammableBlock>(null, b =>
+                {
+                    if (b.CustomName.Contains(t))
+                    {
+                        var n = b.CustomName.Split();
+                        for (int i = 0; i < n.Length; i++)
+                            if (n[i].Contains(t))
+                                l.Add(n[i], b.EntityId);
+                    }
+                    return true;
+                });
+                if (l.Count > 0)
+                    _missiles.Add(t, l);
+            }
+            var sprites = new MySprite[]
+           {
+                new MySprite(Lib.TXT, "", new Vector2(24, 112), null, Lib.GRN, Lib.VB, 0, 1.75f),// 1. TUR NAME
+                new MySprite(Lib.TXT, "", new Vector2(24, 200), null, Lib.GRN, Lib.VB, 0, 0.8195f),
+           };
+            Commands.Add("group", b =>
+            {
+                if (_missiles.ContainsKey(b.Argument(2)))
+                    _cat = b.Argument(2);
             });
+            //m.Screens.Add("missiles", new ListScreen(() => _missiles[_cat].Count, 4, sprites, s =>
+            //{
+                
+            //}));
         }
 
         public override void Update(UpdateFrequency u)

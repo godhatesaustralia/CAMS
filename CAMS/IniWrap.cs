@@ -29,7 +29,6 @@ namespace IngameScript
             if (IniParsers.Count < IniCount)
                 IniParsers.Add(new MyIni());
             myIni = IniParsers[IniCount - 1];
-
             myIni.Clear();
         }
 

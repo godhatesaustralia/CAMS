@@ -42,7 +42,7 @@
     <Compile Include="Intel.cs" />
     <Compile Include="Lidar.cs" />
     <Compile Include="PID.cs" />
-    <Compile Include="ScanComp.cs" />
+    <Compile Include="Scanner.cs" />
     <Compile Include="Targets.cs" />
     <Compile Include="IniWrap.cs" />
     <Compile Include="Lib.cs" />

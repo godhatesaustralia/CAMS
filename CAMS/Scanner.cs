@@ -11,7 +11,7 @@ using VRageMath;
 
 namespace IngameScript
 {
-    public class ScanComp : CompBase
+    public class Scanner : CompBase
     {
         string[] masts, tags; //= { "[A]", "[B]", "[C]", "[D]" };
 
@@ -24,7 +24,7 @@ namespace IngameScript
         int tPtr, tStep;
         //DEBUG
         IMyTextPanel _panel;
-        public ScanComp(string n) : base(n, Lib.u1 | Lib.u10 | Lib.u100)
+        public Scanner(string n) : base(n, Lib.u1 | Lib.u10 | Lib.u100)
         {
             AllTurrets = new List<IMyLargeTurretBase>();
             Artillery = new List<IMyLargeTurretBase>();
@@ -149,22 +149,24 @@ namespace IngameScript
             //    _panel.ContentType = ContentType.TEXT_AND_IMAGE;
             //}
         }
-        void CheckTurret(IMyLargeTurretBase t)
+        void CheckTurret(IMyLargeTurretBase t, bool arty = false)
         {
             MyDetectedEntityInfo info;
             if (t.HasTarget)
             {
                 info = t.GetTargetedEntity();
-                PassTarget(info);
-                t.ResetTargetingToDefault();
-                t.EnableIdleRotation = false;
+                if (PassTarget(info) && arty && (int)info.Type == 2) // if small, retarget
+                {
+                    t.ResetTargetingToDefault();
+                    t.EnableIdleRotation = false;
+                }
             }
         }
         public override void Update(UpdateFrequency u)
         {
             Debug = "";
             
-            if (Main.F % 5 == 0)
+            if (Main.F % 5 == 0) // guar
                 foreach (var m in Masts.Values)
                     m.Update();
 
@@ -173,7 +175,7 @@ namespace IngameScript
                     CheckTurret(AllTurrets[tPtr]);
 
                 for (int i = 0; i < Artillery.Count; i++)
-                    CheckTurret(Artillery[i]);
+                    CheckTurret(Artillery[i], true);
 
                 if (n == AllTurrets.Count)
                 {

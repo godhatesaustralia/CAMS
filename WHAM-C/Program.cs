@@ -82,88 +82,7 @@ namespace IngameScript
             _precisionMode = false,
             _retask = false;
 
-        #region Meme Mode Stuff
-        enum AntennaNameMode { Meme, Empty, MissileName, MissileStatus };
-
-        int _memeIndex;
-        string[] _antennaMemeMessages = new string[]
-        {
-    "All your base are belong to us",
-    "Pucker up buttercup",
-    "You are screwed",
-    "Are you my mommy?",
-    "You feeling lucky?",
-    "Herpes",
-    "Pootis",
-    "From Whip with love!",
-    "Run!",
-    "General Distress",
-    "Unknown Signal",
-    "Here comes the pain",
-    "Bend over",
-    "Private Shipment",
-    "Argentavis",
-    "Cargo Hauler",
-    "Art thou feeling it now Mr. Krabs?",
-    "It's commin' right for us!",
-    "Nothing personal kid...",
-    "*Fortnite dancing in public*",
-    "*Dabbing intensifies*",
-    "*Heavy breathing*",
-    "A surprise to be sure, but a welcome one",
-    "Hello there",
-    "General Kenobi",
-    "You underestimate my power",
-    "I am the SENATE!",
-    "Did you ever hear the tragedy of Darth Plagueis The Wise?",
-    "I thought not. It's not a story the Jedi would tell you.",
-    "It's a Sith legend.",
-    "Darth Plagueis was a Dark Lord of the Sith...",
-    "...so powerful and so wise he could use the Force...",
-    "...to influence the midichlorians to create life...",
-    "*Evil head turn*",
-    "He had such a knowledge of the dark side...",
-    "...that he could even keep the ones he cared about from dying.",
-    "The dark side of the Force is a pathway to many abilities...",
-    "...some consider to be unnatural.",
-    "He became so powerful, the only thing he was afraid of...",
-    "...was losing his power, which eventually, of course, he did.",
-    "Unfortunately, he taught his apprentice everything he knew...",
-    "...then his apprentice killed him in his sleep.",
-    "Ironic.",
-    "He could save others from death, but not himself.",
-    "Another happy landing!",
-    "*Internalized Oppression*",
-    "Area is not secure!",
-    "Perfectly balanced, as all things should be",
-    "It's super effective!",
-    "Ah yes, an old friend of mine is here",
-    "Anything else you'd like to order?",
-    "Hi! Welcome to Chili's!",
-    "Platinum",
-    "Gold",
-    "Dinner is served!",
-    "UwU",
-    "* Arrow to the knee *",
-    "Atmospheric Lander",
-    "Just like mother used to make!",
-    "Big Chungus",
-    "Hecking Bamboozolled",
-    "Time to take out the trash",
-    "BUT WAIT!! THERE'S MORE!!",
-    "Is this the Krusty Krab?",
-    "No this is PATRICK!!!",
-    "I'm about to end this whole man's career..",
-    "Do you get to the Cloud District very often?",
-    "It's over Anakin!",
-    "I have the high ground!",
-    "You underestimate my POWER!",
-    "You were the chosen one!",
-    "It was said you would destroy the sith not join them...",
-    "...Bring balance to the force, not leave it in darkness!",
-    "We've been trying to reach you about your car's extended warranty",
-        };
-        #endregion
+        enum AntennaNameMode { Empty, MissileName, MissileStatus };
         Random RNGesus = new Random();
         BatesDistributionRandom _bellCurveRandom = new BatesDistributionRandom(3);
 
@@ -203,12 +122,11 @@ namespace IngameScript
             _camerasDown = new DynamicCircularBuffer<IMyCameraBlock>();
 
         ImmutableArray<MyTuple<byte, long, Vector3D, double>>.Builder _messageBuilder = ImmutableArray.CreateBuilder<MyTuple<byte, long, Vector3D, double>>();
-        List<MyTuple<Vector3D, long>> _remoteFireRequests = new List<MyTuple<Vector3D, long>>();
 
         HashSet<long> _savedKeycodes = new HashSet<long>();
 
         IMyShipController _missileReference = null;
-
+        IMyTerminalBlock _referenceParent = null;
         enum PostSetupAction { None = 0, Fire = 1, FireRequestResponse = 2 };
         PostSetupAction _postSetupAction = PostSetupAction.None;
 
@@ -282,6 +200,8 @@ namespace IngameScript
         ConfigBool _autoConfigure = new ConfigBool(IniSectionNames, "Auto-configure missile name", true);
         ConfigString _missileTag = new ConfigString(IniSectionNames, "Missile tag", "MSL");
         ConfigString _missilePos = new ConfigString(IniSectionNames, "Missile position", "CC");
+        ConfigString _referenceParentName = new ConfigString(IniSectionNames, "Launch positional spread reference" +
+            " name");
         ConfigString _fireControlGroupNameTag = new ConfigString(IniSectionNames, "Fire control group name", "Fire Control");
         ConfigString _detachThrustTag = new ConfigString(IniSectionNames, "Detach thruster name tag", "Detach");
 
@@ -321,9 +241,7 @@ namespace IngameScript
         ConfigBool _raycastIgnoreFriends = new ConfigBool(IniSectionRaycast, "Ignore friendlies", false);
         ConfigBool _raycastIgnorePlanetSurface = new ConfigBool(IniSectionRaycast, "Ignore planets", true);
         ConfigBool _ignoreIdForDetonation = new ConfigBool(IniSectionRaycast, "Ignore target ID for detonation", false);
-
-        ConfigBool _allowRemoteFire = new ConfigBool(IniSectionMisc, "Allow remote firing", false);
-        ConfigEnum<AntennaNameMode> _antennaMode = new ConfigEnum<AntennaNameMode>(IniSectionMisc, "Antenna name mode", AntennaNameMode.Meme, " Valid antenna name modes: Meme, Empty, MissileName, MissileStatus");
+        ConfigEnum<AntennaNameMode> _antennaMode = new ConfigEnum<AntennaNameMode>(IniSectionMisc, "Antenna name mode", AntennaNameMode.Empty, " Valid antenna name modes: Empty, MissileName, MissileStatus");
 
         IConfigValue[] _config;
 
@@ -334,6 +252,7 @@ namespace IngameScript
         _autoConfigure,
         _missileTag,
         _missilePos,
+        _referenceParentName,
         _fireControlGroupNameTag,
         _detachThrustTag,
 
@@ -374,7 +293,6 @@ namespace IngameScript
         _raycastIgnorePlanetSurface,
         _ignoreIdForDetonation,
 
-        _allowRemoteFire,
         _antennaMode,
             };
         }
@@ -386,8 +304,6 @@ namespace IngameScript
         Program()
         {
             SetupConfig();
-
-            _memeIndex = RNGesus.Next(_antennaMemeMessages.Length);
 
             _unicastListener = IGC.UnicastListener;
             _unicastListener.SetMessageCallback(IgcTagUnicast);
@@ -547,13 +463,6 @@ namespace IngameScript
                 c.ReadFromIni(_myIni);
             }
 
-            // For backwards compat
-            bool antennaMemeMode;
-            if (_myIni.Get(IniSectionMisc, IniCompatMemeMode).TryGetBoolean(out antennaMemeMode))
-            {
-                _antennaMode.Value = antennaMemeMode ? AntennaNameMode.Meme : AntennaNameMode.Empty;
-            }
-
             _setupBuilder.Append("Loaded missile config!\n");
         }
 
@@ -580,32 +489,6 @@ namespace IngameScript
         #endregion
 
         #region Argument Handling and IGC Processing
-        void ProcessRemoteFireRequests()
-        {
-            Runtime.UpdateFrequency |= UpdateFrequency.Update10;
-            // On 10, send
-            float antennaRange = 1f;
-            foreach (MyTuple<Vector3D, long> request in _remoteFireRequests)
-            {
-                Vector3D requestPos = request.Item1;
-                float dSq = (float)Vector3D.DistanceSquared(requestPos, Me.GetPosition());
-                if (dSq > antennaRange)
-                {
-                    antennaRange = dSq;
-                }
-            }
-            antennaRange = (float)Math.Sqrt(antennaRange) + 100f;
-
-            foreach (var a in _antennas)
-            {
-                if (a.Closed)
-                    continue;
-                a.Radius = (float)antennaRange;
-                a.EnableBroadcasting = true;
-                a.Enabled = true;
-                break;
-            }
-        }
 
         void IgcMessageHandling(bool shouldFire)
         {
@@ -683,7 +566,7 @@ namespace IngameScript
                     if (!(messageData is MyTuple<Vector3, Vector3, Vector3, Vector3, long>))
                         continue;
 
-                    var payload = (MyTuple<Vector3, Vector3, Vector3, Vector3, long>)messageData;
+                    var payload = (MyTuple<Vector3, Vector3, Vector3, Vector3, long, bool>)messageData;
                     long keycode = payload.Item5;
                     if (!_savedKeycodes.Contains(keycode))
                         continue;
@@ -933,25 +816,31 @@ namespace IngameScript
             _broadcasters.Clear();
             _foundLampAntennas = false;
             var fcsGroup = GridTerminalSystem.GetBlockGroupWithName(_fireControlGroupNameTag);
+            _referenceParent = GridTerminalSystem.GetBlockWithName(_referenceParentName);
             if (fcsGroup != null)
             {
                 fcsGroup.GetBlocksOfType(_broadcasters);
                 if (_broadcasters.Count == 0)
                 {
-                    if (_allowRemoteFire)
-                    {
-                        _setupBuilder.Append($"> WARN: No antennas in group named '{_fireControlGroupNameTag}', but remote fire is active.\n");
-                    }
-                    else if (!reload)
+                    if (!reload)
                     {
                         _preSetupFailed = true;
                         _setupBuilder.Append($">> ERR: No antennas in group named '{_fireControlGroupNameTag}'! This missile MUST be attached to a configured firing ship to fire!\n");
+                        _setupBuilder.Append($">> ERR: Reference parent not found, check name section in custom data.\n");
                     }
                 }
                 else
                 {
+                    double lastDist = double.MaxValue;
                     foreach (IMyRadioAntenna a in _broadcasters)
                     {
+                        // get closest antenna
+                        var dist = (Me.WorldMatrix.Translation - a.WorldMatrix.Translation).Length();
+                        if (dist < lastDist)
+                        {
+                            lastDist = dist;
+                            _referenceParent = a;
+                        }
                         //x.IsSameConstructAs(Me))? Check if missile has connectors before this?
                         _savedKeycodes.Add(a.EntityId);
                         if (AtInstructionLimit()) { yield return SetupStatus.Running; }
@@ -960,10 +849,7 @@ namespace IngameScript
                     _foundLampAntennas = true;
                 }
             }
-            else if (_allowRemoteFire)
-            {
-                _setupBuilder.Append($"> WARN: No group named '{_fireControlGroupNameTag}' found, but remote fire is active.\n");
-            }
+
             else if (!reload)
             {
                 _preSetupFailed = true;
@@ -1032,10 +918,6 @@ namespace IngameScript
                         _shouldFire = true;
                         RegisterBroadcastListeners();
                         Runtime.UpdateFrequency = UpdateFrequency.Update1;
-                    }
-                    if ((_postSetupAction & PostSetupAction.FireRequestResponse) != 0)
-                    {
-                        ProcessRemoteFireRequests();
                     }
 
                     Echo(_setupBuilder.ToString());
@@ -1157,7 +1039,7 @@ namespace IngameScript
             {
                 antenna.Radius = 1f;
                 antenna.EnableBroadcasting = false;
-                antenna.Enabled = _allowRemoteFire && !_foundLampAntennas;
+                antenna.Enabled = !_foundLampAntennas;
             }
             else if (AddToListIfType(block, _warheads, out warhead))
             {
@@ -1608,7 +1490,7 @@ namespace IngameScript
             Vector3D accelCmd = _selectedGuidance.Update(missilePos, missileVel, missileAcceleration, adjustedTargetPos, _targetVel, gravityVec);
             return accelCmd * missileAcceleration;
         }
-
+        // accel command = where it want to go i think?
         void Control(MatrixD missileMatrix, Vector3D accelCmd, Vector3D gravityVec, Vector3D velocityVec, double mass)
         {
             if (_missileStage == 4)
@@ -1705,8 +1587,6 @@ namespace IngameScript
         {
             switch (_antennaMode.Value)
             {
-                case AntennaNameMode.Meme:
-                    return _antennaMemeMessages[_memeIndex];
                 case AntennaNameMode.MissileName:
                     return _missileNameTag;
                 case AntennaNameMode.MissileStatus:

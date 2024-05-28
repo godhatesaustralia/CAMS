@@ -119,6 +119,11 @@ namespace IngameScript
                 //new MySprite(Lib.TXT, "", new Vector2(24, 200), null, Lib.GRN, Lib.WH, 0, 1.5f)
             }, s =>
             {
+                if (_targetsMaster.Count == 0)
+                {
+                    s.SetData("NO TARGET", 0);
+                    return;
+                }
                 string ty = "NULL";
                 var t = _targetsMaster[_scrnEIDs[s.ptr]];
                 s.SetData($"{t.eIDString}", 0);
