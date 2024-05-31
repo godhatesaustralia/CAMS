@@ -27,7 +27,7 @@ namespace IngameScript
                 _eMn, 
                 _eRest, 
                 _eRPM; // absolute max and min azi/el for basic check
-            protected double _range, _speed;
+            protected double _range, _speed, _tol; // last is aim tolerance
             public IMyTurretControlBlock _ctc;
             protected PID _aPID, _ePID;
             protected TurretWeapons _weapons;
@@ -77,11 +77,13 @@ namespace IngameScript
                         _eRPM = p.Float(h, "elRPM", 20);
                         _range = p.Double(h, "range", 800);
                         _speed = p.Double(h, "speed", 400);
+                        _tol = p.Double(h, "tolerance", 1E-5);
 
                         var list = new List<IMyUserControllableGun>();
                         m.Terminal.GetBlocksOfType(list, b => b.CubeGrid.EntityId == g2);
                         _weapons = new TurretWeapons(p.Int(h, "salvo", -1), list);
-                    }          
+                    }
+                    else throw new Exception($"\nFailed to create turret using azimuth rotor {_azimuth.CustomName}.");
             }
             // aim is an internal copy of CURRENT(!) target position
             // because in some cases (PDLR assistive targeting) we will only want to point at
@@ -90,13 +92,13 @@ namespace IngameScript
             {
                 // thanks alysius <4
                 Vector3D
-                    rP = aim - _weapons.AimRef,
+                    rP = aim - _weapons.AimPos,
                     rV = tgt.Velocity - _m.Velocity;
                 double
                     a = _speed * _speed - rV.LengthSquared(),
                     b = -2 * rV.Dot(rP),
                     d = (b * b) - (4 * a * -rP.LengthSquared());
-                if (d < 0) return false; // bad determinant for quadratic formula
+                if (d < 0) return false; // this indicates bad determinant for quadratic formula
                 d = Math.Sqrt(d);
                 double 
                     t1 = (-b + d) / (2 * a),
@@ -108,11 +110,14 @@ namespace IngameScript
             }
 
             // credit to https://forum.keenswh.com/threads/tutorial-how-to-do-vector-transformations-with-world-matricies.7399827/
-            protected bool AimAtTarget(ref Vector3D aim, bool inRange = true)
+            // and! his turret ai slaving script.
+            // return value indicates whether turret is on target.
+            protected bool AimAtTarget(ref Vector3D aim)
             {
+                
                 if (tEID == -1)
                     return false; // maybe(?)
-                double tgtAzi, tgtEl, tgtAzi2, checkEl, azi, el, aRPM, eRPM, aRate, eRate, errTime;
+                double tgtAzi, tgtEl, tgtAzi2, checkEl, azi, el, aRPM, eRPM, aRate, eRate;//, errTime;
                 aim.Normalize();
 
                 var localToTGT = Vector3D.TransformNormal(aim, MatrixD.Transpose(aziMat));
@@ -136,25 +141,24 @@ namespace IngameScript
                     : tgtAzi;
                 aRPM = _aPID.Control(azi);
                 eRPM = _ePID.Control(el);
-                errTime = (_m.F - lastUpdate) * Lib.tickSec;
-                GetHeadingError(_azimuth, ref _lastAzi, out aRate);
-                GetHeadingError(_elevation, ref _lastEl, out eRate);
+                CalcHdgError(_azimuth, ref _lastAzi, out aRate);
+                CalcHdgError(_elevation, ref _lastEl, out eRate);
 
-
+                _azimuth.TargetVelocityRPM = (float)(aRPM+ aRate);
+                _elevation.TargetVelocityRPM = (float)(eRPM + eRate);
 
                 lastUpdate = _m.F;
-                return true;
+                return _weapons.AimDir.Dot(aim - _weapons.AimPos) < _tol;
             }
 
-
             // combination of whip's functions, i quite honestly don't know anything about this
-            void GetHeadingError(IMyMotorStator r, ref MatrixD p, out double a)
+            void CalcHdgError(IMyMotorStator r, ref MatrixD p, out double a)
             {
                 Vector3D 
                     fwd = r.WorldMatrix.Forward,
                     up = p.Up, pFwd = p.Forward,
                     flatFwd = Lib.Rejection(pFwd, up);
-                a = Lib.AngleBetween(flatFwd, fwd) * Math.Sign(flatFwd.Dot(p.Left));
+                a = Lib.AngleBetween(flatFwd, fwd) * Math.Sign(flatFwd.Dot(p.Left)) / ((_m.F - lastUpdate) * Lib.tickSec);
                 p = r.WorldMatrix;
             }
 
@@ -166,6 +170,14 @@ namespace IngameScript
                 flat.Y = 0;
                 p *= Vector3D.IsZero(flat) ? Lib.halfPi : Lib.AngleBetween(dir, flat);
             }
+
+            #region abstract methods
+
+            public abstract bool SelectTarget();
+
+            public abstract void Update();
+
+            #endregion
 
         }
 
@@ -183,6 +195,20 @@ namespace IngameScript
                 }
 
             }
+
+            #region implementation
+
+            public override bool SelectTarget()
+            {
+                return false;
+            }
+
+            public override void Update()
+            {
+
+            }
+
+            #endregion
         }
     }
 }

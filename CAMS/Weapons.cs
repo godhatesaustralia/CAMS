@@ -14,14 +14,27 @@ namespace IngameScript
                offsetTimer = 0;
         readonly int salvoTicks = 0; // 0 or lower means no salvoing
         int ptr = -1;
-        public Vector3D AimRef
+        public Vector3D AimPos
         {
             get
             {
-                Vector3D r = Vector3D.Zero;
+                var r = Vector3D.Zero;
                 if (_guns.Count == 0) return r;
                 foreach (var g in _guns)
                     r += g.WorldMatrix.Translation;
+                r /= _guns.Count;
+                return r;
+            }
+        }
+
+        public Vector3D AimDir
+        {
+            get
+            {
+                var r = Vector3D.Zero;
+                if (_guns.Count == 0) return r;
+                foreach (var g in _guns)
+                    r += g.WorldMatrix.Forward;
                 r /= _guns.Count;
                 return r;
             }

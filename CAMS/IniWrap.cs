@@ -48,16 +48,16 @@ namespace IngameScript
             return output;
         }
 
-        public bool hasSection(string aSct)
-        {
-            return myIni.ContainsSection(aSct);
-        }
+        //public bool hasSection(string aSct)
+        //{
+        //    return myIni.ContainsSection(aSct);
+        //}
 
-        public bool hasKey(string aSct, string aKy)
-        {
-            aKy = keymod(aSct, aKy);
-            return myIni.ContainsKey(aSct, aKy);
-        }
+        //public bool hasKey(string aSct, string aKy)
+        //{
+        //    aKy = keymod(aSct, aKy);
+        //    return myIni.ContainsKey(aSct, aKy);
+        //}
 
         public float Float(string aSct, string aKy, float def = 1)
         {
@@ -177,10 +177,6 @@ namespace IngameScript
         {
             k = !myIni.ContainsKey(s, k.ToLower()) ? k : k.ToLower();
             return k;
-        }
-        public bool StringContains(string aSct, string t)
-        {
-            return aSct.Contains(t);
         }
 
         public override string ToString() => myIni.ToString();

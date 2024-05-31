@@ -19,7 +19,7 @@ namespace IngameScript
         public Dictionary<string, LidarMast> Masts = new Dictionary<string, LidarMast>();
 
         public List<IMyLargeTurretBase> AllTurrets, Artillery;
-        List<IMyCameraBlock> _camerasDebug = new List<IMyCameraBlock>();
+        //List<IMyCameraBlock> _camerasDebug = new List<IMyCameraBlock>();
         public double maxRaycast;
         int tPtr, tStep;
         //DEBUG
