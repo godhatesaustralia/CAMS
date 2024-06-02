@@ -103,9 +103,10 @@ namespace IngameScript
                 {
                     Based = p.Bool(Lib.HDR, "vcr");
                     _sysDisplays = p.Bool(Lib.HDR, "systems", true);
+                    var ctrl = p.String(Lib.HDR, "controller", "Helm");
                     GridTerminalSystem.GetBlocksOfType<IMyShipController>(null, (b) =>
                     {
-                        if (b.CubeGrid.EntityId == Me.CubeGrid.EntityId && b.CustomName.Contains("Helm"))
+                        if (b.CubeGrid.EntityId == Me.CubeGrid.EntityId && b.CustomName.Contains(ctrl))
                             Controller = b;
                         return true;
                     });

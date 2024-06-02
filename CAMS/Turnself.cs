@@ -3,7 +3,6 @@ using Sandbox.ModAPI.Ingame;
 using System.Collections.Generic;
 using System;
 using VRageMath;
-using System.Linq;
 using System.Runtime.Versioning;
 
 namespace IngameScript
@@ -12,44 +11,27 @@ namespace IngameScript
     {
         //static IMyGridTerminalSystem gridSystem;
         // replace with m
-        static long gridId;
 
-        static double kP = 16;
-        static double kI = 0;
-        static double kD = 32;
-        static double lowerBound = -1000;
-        static double upperBound = 1000;
-        static double decay = 0;
-        static double timeStep = 1.0 / 60;
-
-        VectorPID pid = new VectorPID(kP, kI, kD, lowerBound, upperBound, decay, timeStep);
-        GyroControl gyros;
+        static double 
+            kP = 16,
+            kI = 0,
+            kD = 32,
+            lowerBound = -1000,
+            upperBound = 1000,
+            decay = 0,
+            timeStep = 1.0 / 60;
 
         Vector3D toPoint = new Vector3D();
         bool doPoint = false;
-        IMyThrust t;
-
+        List<IMyGyro> gyros = new List<IMyGyro>();
+        PID yaw, pitch, roll;
         // implement for CompBase wip
         public override void Update(UpdateFrequency f)
         {
             // er what does this even do?
-            return;
-        }
+            // it is basically the set of stuff to run each main loop (primary function of subsyeestem
 
-        //under our glorious black sun... our beloved leader big vlad harkonenn... presiding over this spectacle of cringe, and debug
-        public override void Setup(Program m)
-        {
-            //intialize gyros 
-            //initialize guns..?
-            //grab remote control for GyroControl 
-
-            return;
-        }
-        //end of implement for CompBase
-        public Turnself(string n, UpdateFrequency f) : base(n, Lib.u1 | Lib.u10 | Lib.u100)
-        {
-            //guar.....
-
+            // old arg loop
             /*if (argument != "")
             {
                 if (argument == "toggle")
@@ -68,76 +50,50 @@ namespace IngameScript
             }
 
             if (doPoint)
-                gyros.FaceVectors(-Vector3D.Normalize(toPoint - Me.CubeGrid.GetPosition()), t.WorldMatrix.Up);*/ 
+                gyros.FaceVectors(-Vector3D.Normalize(toPoint - Me.CubeGrid.GetPosition()), t.WorldMatrix.Up);*/
             // leftover bullshit fix later
 
             //todo: 
             //call set up
+            return;
         }
 
-        public void turn (Vector3D forward, Vector3D up)
+        //under our glorious black sun... our beloved leader big vlad harkonenn... presiding over this spectacle of cringe, and debug
+        public override void Setup(Program m)
+        {
+            Main = m;
+            m.Terminal.GetBlocksOfType(gyros, b => b.IsSameConstructAs(m.Controller));
+            //intialize gyros 
+            //initialize guns..?
+            //grab remote control for GyroControl 
+
+            return;
+        }
+        //end of implement for CompBase
+        public Turnself(string n) : base(n, Lib.u1 | Lib.u10 | Lib.u100)
+        {
+            //guar.....
+            yaw = new PID(kP, kI, kD, lowerBound, upperBound, decay, timeStep);
+            pitch = new PID(kP, kI, kD, lowerBound, upperBound, decay, timeStep);
+            roll = new PID(kP, kI, kD, lowerBound, upperBound, decay, timeStep);
+        }
+
+        public void turn(Vector3D forward, Vector3D up)
         {
             //place holder, no idea if this is right
-            gyros.FaceVectors(forward, up);
-            return; 
+            FaceVectors(forward, up);
+            return;
             //end of place holder
-        } 
-
-
-    }
-
-    public class VectorPID
-    {
-        private PID X;
-        private PID Y;
-        private PID Z;
-
-        public VectorPID(double kP, double kI, double kD, double lowerBound, double upperBound, double decay, double timeStep)
-        {
-            X = new PID(kP, kI, kD, lowerBound, upperBound, decay, timeStep);
-            Y = new PID(kP, kI, kD, lowerBound, upperBound, decay, timeStep);
-            Z = new PID(kP, kI, kD, lowerBound, upperBound, decay, timeStep);
-        }
-        
-        /*public VectorPID(double kP, double kI, double kD, double integralDecayRatio, double timeStep)
-        {
-            X = new PID(kP, kI, kD, integralDecayRatio, timeStep);
-            Y = new PID(kP, kI, kD, integralDecayRatio, timeStep);
-            Z = new PID(kP, kI, kD, integralDecayRatio, timeStep);
-        }*/
-
-        public Vector3D Control(Vector3D error)
-        {
-            return new Vector3D(X.Control(error.X), Y.Control(error.Y), Z.Control(error.Z));
         }
 
-        public void Reset()
+        public void FaceVectors(Vector3D forward, Vector3D up)
         {
-            X.Reset();
-            Y.Reset();
-            Z.Reset();
+            // In (pitch, yaw, roll)
+            Vector3D
+                error = -GetAngles(Reference.WorldMatrix, forward, up),
+                angles = new Vector3D(Control(ref error));
+            ApplyOverride(Reference.WorldMatrix, ref angles);
         }
-    }
-
-    public class GyroControl
-    {
-        private List<IMyGyro> gyros;
-        IMyTerminalBlock rc;
-
-        public GyroControl(Program m, IMyTerminalBlock rc, double kP, double kI, double kD, double lowerBound, double upperBound, double timeStep)
-        {
-            this.rc = rc;
-
-            //gyros = GetBlocks<IMyGyro>();
-            gyros = new List<IMyGyro>();
-            m.GridTerminalSystem.GetBlocksOfType(gyros);
-
-            anglePID = new VectorPID(kP, kI, kD, lowerBound, upperBound, timeStep);
-
-            Reset();
-        }
-        // In (pitch, yaw, roll)
-        VectorPID anglePID;
 
         public void Reset()
         {
@@ -151,7 +107,10 @@ namespace IngameScript
                 }
                 g.GyroOverride = false;
             }
-            anglePID.Reset();
+
+            yaw.Reset();
+            pitch.Reset();
+            roll.Reset();
         }
 
         public void Disable()
@@ -165,26 +124,32 @@ namespace IngameScript
             }
         }
 
+        Vector3D Control(ref Vector3D err) => new Vector3D(yaw.Control(err.X), pitch.Control(err.Y), roll.Control(err.Z));
+
         Vector3D GetAngles(MatrixD current, Vector3D forward, Vector3D up)
         {
-            Vector3D error = new Vector3D();
+            var error = new Vector3D();
             if (forward != Vector3D.Zero)
             {
-                Quaternion quat = Quaternion.CreateFromForwardUp(current.Forward, current.Up);
-                Quaternion invQuat = Quaternion.Inverse(quat);
-                Vector3D RCReferenceFrameVector = Vector3D.Transform(forward, invQuat); //Target Vector In Terms Of RC Block
+                Quaternion 
+                    quat = Quaternion.CreateFromForwardUp(current.Forward, current.Up),
+                    invQuat = Quaternion.Inverse(quat);
+                var ReferenceFrameVector = Vector3D.Transform(forward, invQuat); //Target Vector In Terms Of RC Block
 
                 //Convert To Local Azimuth And Elevation
-                Vector3D.GetAzimuthAndElevation(RCReferenceFrameVector, out error.Y, out error.X);
+                Vector3D.GetAzimuthAndElevation(ReferenceFrameVector, out error.Y, out error.X);
             }
 
             if (up != Vector3D.Zero)
             {
-                Vector3D temp = Vector3D.Normalize(VectorRejection(up, rc.WorldMatrix.Forward));
-                double dot = MathHelper.Clamp(Vector3D.Dot(rc.WorldMatrix.Up, temp), -1, 1);
-                double rollAngle = Math.Acos(dot);
-                double scaler = ScalerProjection(temp, rc.WorldMatrix.Right);
-                if (scaler > 0)
+                Vector3D
+                    temp = Vector3D.Normalize(Lib.Rejection(up, Reference.WorldMatrix.Forward)),
+                    rgt = Reference.WorldMatrix.Right;
+                double
+                    dot = MathHelper.Clamp(Vector3D.Dot(Reference.WorldMatrix.Up, temp), -1, 1),
+                    rollAngle = Math.Acos(dot),
+                    scalar = Lib.ScalarProjection(ref temp, ref rgt);
+                if (scalar > 0)
                     rollAngle *= -1;
                 error.Z = rollAngle;
             }
@@ -199,103 +164,22 @@ namespace IngameScript
             return error;
         }
 
-        // turn ship to align with provided vectors.
-        public void FaceVectors(Vector3D forward, Vector3D up)
+        void ApplyOverride(MatrixD current, ref Vector3D localAngles)
         {
-            // In (pitch, yaw, roll)
-            Vector3D error = -GetAngles(rc.WorldMatrix, forward, up);
-            Vector3D angles = new Vector3D(anglePID.Control(error));
-            ApplyGyroOverride(rc.WorldMatrix, angles);
-        }
-        void ApplyGyroOverride(MatrixD current, Vector3D localAngles)
-        {
-            Vector3D worldAngles = Vector3D.TransformNormal(localAngles, current);
-            foreach (IMyGyro gyro in gyros)
+            var worldAngles = Vector3D.TransformNormal(localAngles, current);
+            foreach (IMyGyro g in gyros)
             {
-                Vector3D transVect = Vector3D.TransformNormal(worldAngles, MatrixD.Transpose(gyro.WorldMatrix));  //Converts To Gyro Local
+                var transVect = Vector3D.TransformNormal(worldAngles, MatrixD.Transpose(g.WorldMatrix));  //Converts To Gyro Local
                 if (!transVect.IsValid())
                     throw new Exception("Invalid trans vector. " + transVect.ToString());
 
-                gyro.Pitch = (float)transVect.X;
-                gyro.Yaw = (float)transVect.Y;
-                gyro.Roll = (float)transVect.Z;
-                gyro.GyroOverride = true;
+                g.Pitch = (float)transVect.X;
+                g.Yaw = (float)transVect.Y;
+                g.Roll = (float)transVect.Z;
+                g.GyroOverride = true;
             }
         }
 
-        /// <summary>
-        /// Projects a value onto another vector.
-        /// </summary>
-        /// <param name="guide">Must be of length 1.</param>
-        public static double ScalerProjection(Vector3D value, Vector3D guide)
-        {
-            double returnValue = Vector3D.Dot(value, guide);
-            if (double.IsNaN(returnValue))
-                return 0;
-            return returnValue;
-        }
-
-        /// <summary>
-        /// Projects a value onto another vector.
-        /// </summary>
-        /// <param name="guide">Must be of length 1.</param>
-        public static Vector3D VectorPojection(Vector3D value, Vector3D guide)
-        {
-            return ScalerProjection(value, guide) * guide;
-        }
-
-        /// <summary>
-        /// Projects a value onto another vector.
-        /// </summary>
-        /// <param name="guide">Must be of length 1.</param>
-        public static Vector3D VectorRejection(Vector3D value, Vector3D guide)
-        {
-            return value - VectorPojection(value, guide);
-        }
     }
 
-    // not using these
-    /*static T GetBlock<T>(string name, bool useSubgrids = false) where T : class, IMyTerminalBlock
-    {
-        if (useSubgrids)
-        {
-            return (T)gridSystem.GetBlockWithName(name);
-        }
-        else
-        {
-            List<T> blocks = GetBlocks<T>(false);
-            foreach (T block in blocks)
-            {
-                if (block.CustomName == name)
-                    return block;
-            }
-            return null;
-        }
-    }
-    static T GetBlock<T>(bool useSubgrids = false) where T : class, IMyTerminalBlock
-    {
-        List<T> blocks = GetBlocks<T>(useSubgrids);
-        return blocks.FirstOrDefault();
-    }
-    static List<T> GetBlocks<T>(string groupName, bool useSubgrids = false) where T : class, IMyTerminalBlock
-    {
-        if (string.IsNullOrWhiteSpace(groupName))
-            return GetBlocks<T>(useSubgrids);
-
-        IMyBlockGroup group = gridSystem.GetBlockGroupWithName(groupName);
-        List<T> blocks = new List<T>();
-        group.GetBlocksOfType(blocks);
-        if (!useSubgrids)
-            blocks.RemoveAll(block => block.CubeGrid.EntityId != gridId);
-        return blocks;
-
-    }
-    static List<T> GetBlocks<T>(bool useSubgrids = false) where T : class, IMyTerminalBlock
-    {
-        List<T> blocks = new List<T>();
-        gridSystem.GetBlocksOfType(blocks);
-        if (!useSubgrids)
-            blocks.RemoveAll(block => block.CubeGrid.EntityId != gridId);
-        return blocks;
-    }*/
 }

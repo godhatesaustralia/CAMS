@@ -2,6 +2,7 @@
 using Sandbox.ModAPI.Interfaces;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using VRage.Game.GUI.TextPanel;
 using VRageMath;
 
@@ -70,6 +71,17 @@ namespace IngameScript
             if (Vector3D.IsZero(b))
                 return Vector3D.Zero;
             return a.Dot(b) / b.LengthSquared() * b;
+        }
+
+
+        /// <summary>
+        /// Projects a value onto another vector.
+        /// </summary>
+        /// <param name="guide">Must be of length 1.</param>
+        public static double ScalarProjection(ref Vector3D value, ref Vector3D guide)
+        {
+            var returnValue = Vector3D.Dot(value, guide);
+            return double.IsNaN(returnValue) ? 0 : returnValue;
         }
 
         public static Vector3D Rejection(Vector3D a, Vector3D b) //reject a on b

@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+CAMS/MDK/MDK.paths.props
+WHAM-C/MDK/MDK.paths.props
+WHAM/MDK/MDK.paths.props
