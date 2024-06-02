@@ -14,23 +14,38 @@ namespace IngameScript
             _kI = 0,
             _kD = 0,
             _intDecayRatio = 0,
+            _lower,
+            _upper,
             _timestep = 0,
             _invTS = 0,
             _errorSum = 0,
             _lastError = 0;
-
         bool
             _first = true,
             _decay = false;
 
         public double Value { get; private set; }
 
-        // Used for everywhere else
+        // turret
         public PID(double kP, double kI, double kD, double decay, double ts)
         {
             _kP = kP;
             _kI = kI;
             _kD = kD;
+            _timestep = ts;
+            _invTS = 1 / _timestep;
+            _intDecayRatio = decay;
+            _decay = true;
+        }
+
+        // aimbot
+        public PID(double kP, double kI, double kD, double lBnd, double uBnd, double decay, double ts)
+        {
+            _kP = kP;
+            _kI = kI;
+            _kD = kD;
+            _lower = lBnd;
+            _upper = uBnd;
             _timestep = ts;
             _invTS = 1 / _timestep;
             _intDecayRatio = decay;

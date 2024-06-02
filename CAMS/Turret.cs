@@ -105,6 +105,7 @@ namespace IngameScript
                     t2 = (-b - d) / (2 * a),
                     t = t1 > 0 ? (t2 > 0 ? (t1 < t2 ? t1 : t2) : t1) : t2;
                if (double.IsNaN(t)) return false;
+
                aim = tgt.Accel.Length() < 0.1 ? aim + tgt.Velocity * t : aim + tgt.Velocity * t + 0.5 * tgt.Accel * t * t;
                return true;
             }
@@ -171,14 +172,7 @@ namespace IngameScript
                 p *= Vector3D.IsZero(flat) ? Lib.halfPi : Lib.AngleBetween(dir, flat);
             }
 
-            #region abstract methods
-
-            public abstract bool SelectTarget();
-
             public abstract void Update();
-
-            #endregion
-
         }
 
         public class PDC : TurretBase
@@ -196,19 +190,11 @@ namespace IngameScript
 
             }
 
-            #region implementation
-
-            public override bool SelectTarget()
-            {
-                return false;
-            }
-
             public override void Update()
             {
-
+             
             }
 
-            #endregion
         }
     }
 }

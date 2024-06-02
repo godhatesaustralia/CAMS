@@ -6,7 +6,6 @@ namespace IngameScript
     {
         public Defense(string n) : base(n, Lib.u1 | Lib.u10 | Lib.u100)
         {
-
         }
 
         #region implementations
