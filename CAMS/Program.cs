@@ -51,22 +51,21 @@ namespace IngameScript
             {
                 if (Components.ContainsKey(_cmd.Argument(0)) && Components[_cmd.Argument(0)].Commands.ContainsKey(_cmd.Argument(1)))
                     Components[_cmd.Argument(0)].Commands[_cmd.Argument(1)].Invoke(_cmd);
-                else if (_cmd.Argument(0) == "screen" && Screens.ContainsKey(_cmd.Argument(1)))
-                {
-                    _activeScr = _cmd.Argument(1);
-                    Screens[_activeScr].Active = true;
-                }
+                else if (_cmd.Argument(0) == "switch" && _cmd.ArgumentCount == 3 && Displays.ContainsKey(_cmd.Argument(1)))
+                    Displays[_cmd.Argument(1)].SetActive(_cmd.Argument(2));
                 else
                 {
-                    var s = Screens[_activeScr];
-                    if (_cmd.Argument(0) == "up")
-                        s.Up();
-                    else if (_cmd.Argument(0) == "down")
-                        s.Down();
-                    else if (_cmd.Argument(0) == "select")
-                        s.Select.Invoke(s);
-                    else if (_cmd.Argument(0) == "back")
-                        s.Back.Invoke(s);
+                    if (Displays.ContainsKey(_cmd.Argument(0)))
+                    {
+                        if (_cmd.Argument(1) == "up")
+                            Displays[_cmd.Argument(0)].Up();
+                        else if (_cmd.Argument(1) == "down")
+                            Displays[_cmd.Argument(0)].Down();
+                        //else if (_cmd.Argument(0) == "select")
+                        //    Displays[_cmd.Argument(0)].Select.Invoke(s);
+                        //else if (_cmd.Argument(0) == "back")
+                        //    Displays[_cmd.Argument(0)].Back.Invoke(s);
+                    }
                 }
             }
             var rt = Runtime.LastRunTimeMs;
@@ -100,13 +99,8 @@ namespace IngameScript
             Targets.Update(u);
             _totalRT += rt;
             Runtime.UpdateFrequency |= u;
-
-            Screens[_activeScr].Draw(_main, u);
-            if (_sysDisplays)
-            {
-                Screens[Lib.SYA].Draw(_sysA, u);
-                Screens[Lib.SYB].Draw(_sysB, u);
-            }
+            foreach (var s in Displays.Values)
+                s.Update(u);
 
             Runtime.UpdateFrequency = tgtFreq;
             string r = "[[COMBAT MANAGER]]\n\n";

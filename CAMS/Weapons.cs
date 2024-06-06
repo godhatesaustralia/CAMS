@@ -5,7 +5,7 @@ using VRageMath;
 namespace IngameScript
 {
     // vanilla, who cares
-    public class TurretWeapons
+    public class Weapons
     {
         List<IMyUserControllableGun> _guns = new List<IMyUserControllableGun>();
         public int
@@ -40,7 +40,7 @@ namespace IngameScript
             }
         }
 
-        public TurretWeapons(int s, List<IMyUserControllableGun> g)
+        public Weapons(int s, List<IMyUserControllableGun> g)
         {
             salvoTicks = s;
             _guns = g;

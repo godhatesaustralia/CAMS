@@ -85,7 +85,7 @@ namespace IngameScript
                 if (_missiles.ContainsKey(b.Argument(2)))
                     _cat = b.Argument(2);
             });
-            //m.Screens.Add("missiles", new ListScreen(() => _missiles[_cat].Count, 4, sprites, s =>
+            //m.CtrlScreens.Add("missiles", new ListScreen(() => _missiles[_cat].Count, 4, sprites, s =>
             //{
                 
             //}));

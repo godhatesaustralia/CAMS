@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using VRage;
 using VRage.Game;
 using VRage.Game.ModAPI.Ingame.Utilities;
@@ -39,7 +40,7 @@ namespace IngameScript
             if (Targets.Blacklist.Contains(info.EntityId))
                 return false;
             int rel = (int)info.Relationship, t = (int)info.Type;
-            if (rel == 1|| rel == 5) // owner or friends
+            if (rel == 1 || rel == 5) // owner or friends
                 return false;
             if (t != 2 && t != 3) // small grid and large grid respectively
                 return false;
@@ -52,7 +53,7 @@ namespace IngameScript
         }
 
         public TargetProvider Targets => Main.Targets; // IEnumerator sneed
-        public readonly UpdateFrequency Frequency;
+        public UpdateFrequency Frequency;
         public CompBase(string n, UpdateFrequency u)
         {
             Name = n;
@@ -67,21 +68,23 @@ namespace IngameScript
         public abstract void Setup(Program prog);
         public abstract void Update(UpdateFrequency u);
     }
-    
+
     public partial class Program
     {
         public IMyGridTerminalSystem Terminal => GridTerminalSystem;
         public IMyShipController Controller;
-        IMyTextSurface _main, _sysA, _sysB;
         public DebugAPI Debug;
         public bool Based;
-        bool _sysDisplays;
-        string _activeScr = Lib.TR;
+        string _tag;
         public Vector3D Center => Controller.WorldMatrix.Translation;
         public Vector3D Velocity => Controller.GetShipVelocities().LinearVelocity;
         public Vector3D Gravity;
         public TargetProvider Targets;
-        public Dictionary<string, Screen> Screens = new Dictionary<string, Screen>();
+        public Dictionary<string, Screen>
+            CtrlScreens = new Dictionary<string, Screen>(),
+            LCDScreens = new Dictionary<string, Screen>();
+        public Dictionary<string, Display> Displays = new Dictionary<string, Display>();
+
         public Dictionary<string, CompBase> Components = new Dictionary<string, CompBase>();
         public Random RNG = new Random();
         MyCommandLine _cmd = new MyCommandLine();
@@ -89,49 +92,51 @@ namespace IngameScript
         double _totalRT = 0, _worstRT, _avgRT;
         long _frame = 0, _worstF;
         const int _rtMax = 10;
-        Queue<double> _runtimes = new Queue<double>(_rtMax); 
+        Queue<double> _runtimes = new Queue<double>(_rtMax);
         public double RuntimeMS => _totalRT;
         public long F => _frame;
 
         void Start()
         {
-            _activeScr = "targets";
             Targets.Clear();
             var r = new MyIniParseResult();
+            var dspGrp = new List<IMyTerminalBlock>();
             using (var p = new iniWrap())
                 if (p.CustomData(Me, out r))
                 {
                     Based = p.Bool(Lib.HDR, "vcr");
-                    _sysDisplays = p.Bool(Lib.HDR, "systems", true);
-                    var ctrl = p.String(Lib.HDR, "controller", "Helm");
+                    _tag = p.String(Lib.HDR, "tag", Lib.HDR);
+                    string
+                        ctrl = p.String(Lib.HDR, "controller", "Helm");
                     GridTerminalSystem.GetBlocksOfType<IMyShipController>(null, (b) =>
                     {
-                        if (b.CubeGrid.EntityId == Me.CubeGrid.EntityId && b.CustomName.Contains(ctrl))
+                        if (b.CubeGrid == Me.CubeGrid && b.CustomName.Contains(ctrl))
                             Controller = b;
                         return true;
                     });
-                    if (Controller != null)
-                    {
-                        var c = Controller as IMyTextSurfaceProvider;
-                        if (c != null)
-                        {
-                            _main = c.GetSurface(0);
-                            _main.ContentType = VRage.Game.GUI.TextPanel.ContentType.SCRIPT;
-                        }
-                        GridTerminalSystem.GetBlocksOfType<IMyShipController>(null, (b) =>
-                        {
-                            var s = b as IMyTextSurfaceProvider;
-                            if (s == null) return false;
-                            if (b.CustomName.Contains(Lib.SYA)) _sysA = s.GetSurface(0);
-                            else if (b.CustomName.Contains(Lib.SYB)) _sysB = s.GetSurface(0);
-                            return true;
-                        });
-                    }
+
                     foreach (var c in Components)
                         c.Value.Setup(this);
-                    Screens[_activeScr].Active = true;
+
+                    GridTerminalSystem.GetBlockGroupWithName(_tag + ' ' + p.String(Lib.HDR, "displays", "MFD Users")).GetBlocks(dspGrp);
+                    if (dspGrp.Count > 0)
+                        foreach (var b in dspGrp)
+                        {
+                            Display d;
+                            if (b is IMyTextPanel)
+                            {
+                                d = new Display(this, b, LCDScreens.First().Key, Based);
+                                Displays.Add(d.Name, d);
+                            }
+                            else if (b is IMyTextSurfaceProvider)
+                            {
+                                d = new Display(this, b, CtrlScreens.First().Key, Based);
+                                Displays.Add(d.Name, d);
+                            }
+                        }
+
                 }
-                else throw new Exception($"\n{r.Error} at line {r.LineNo} of {Me} custom data.");
+            else throw new Exception($"\n{r.Error} at line {r.LineNo} of {Me} custom data.");
         }
 
     }

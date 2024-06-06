@@ -11,18 +11,26 @@ namespace IngameScript
     // bunch of different global fields and methjods and stuff
     public static class Lib
     {
+        #region you arent built for these public static fields son
+
         public static string
             HDR = "CAMS",
             ARY = "ARY",
+            SPR = "SPRITES",
             TR = "turrets",
+            TG = "targets",
+            MS = "masts",
             SN = "scanner",
             V = "VCR",
             VB = "VCRBold",
-            WH = "WHITE",
+            WH = "White",
+            NL = "<n>",
             SYA = "SYS-A",
             SYB = "SYS-B",
             SQS = "SquareSimple",
             SQH = "SquareHollow",
+            CHW = "CircleHollow",
+            TRI = "Triangle",
             WPN = "Weapons";
         public static UpdateFrequency
             u1 = UpdateFrequency.Update1,
@@ -32,14 +40,20 @@ namespace IngameScript
             TXT = SpriteType.TEXT,
             SHP = SpriteType.TEXTURE,
             CLP = SpriteType.CLIP_RECT;
+        public static TextAlignment
+            LFT = TextAlignment.LEFT,
+            RGT = TextAlignment.RIGHT;
         public static readonly double
             tick = 16.6666,//ms
             tickSec = 0.016666, // sec
-            Pi = MathHelperD.TwoPi,
+            Pi = Math.PI,
             halfPi = MathHelperD.PiOver2,
             Pi2 = MathHelper.TwoPi,
             radPerTick = 30 / Pi2;
-        public static Color GRN = new Color(100, 250, 100), RED =  new Color(240, 50, 50), BG = new Color(7, 16, 7), DRG = new Color(50, 125, 50);
+        public static Color GRN = new Color(100, 250, 100), RED =  new Color(240, 50, 50), BG = new Color(7, 16, 7), DRG = new Color(50, 125, 50), TGT = new Color(155, 255, 155);
+
+        #endregion
+
         public static UpdateFrequency UpdateConverter(UpdateType src)
         {
             var updateFrequency = UpdateFrequency.None; //0000
@@ -48,8 +62,25 @@ namespace IngameScript
             if ((src & UpdateType.Update100) != 0) updateFrequency |= u100;//0100
             return updateFrequency;
         }
+        //public static MySprite Sprite(SpriteType t, string d, float x, float y, Color c, int align = 2, float? rs = null, string fnt = null, float? sx = null, float? sy = null)
+        //{
+        //    var p = new Vector2(x, y);
+        //    var a = (TextAlignment)align;
+        //    return (t == Lib.TXT
+        //        ? new MySprite(t, d, p, null, c, fnt, a, rs.HasValue ? rs.Value : 1)
+        //        : new MySprite(t, d, p, sx.HasValue && sy.HasValue ? new Vector2(sx.Value, sy.Value) : new Vector2(sx ?? _dSz, sy ?? _dSz), c, null, a, rs ?? 0));
+        //}
 
+        #region math
         public static double AngleBetween(Vector3D a, Vector3D b)
+        {
+            if (Vector3D.IsZero(a) || Vector3D.IsZero(b))
+                return 0;
+            else
+                return Math.Acos(MathHelper.Clamp(a.Dot(b) / Math.Sqrt(a.LengthSquared() * b.LengthSquared()), -1, 1));
+        }
+
+        public static double AngleBetween(ref Vector3D a, ref Vector3D b)
         {
             if (Vector3D.IsZero(a) || Vector3D.IsZero(b))
                 return 0;
@@ -95,6 +126,7 @@ namespace IngameScript
         {
             return new Vector3D(((r.NextDouble() * 2) - 1), ((r.NextDouble() * 2) - 1), ((r.NextDouble() * 2) - 1)) * scat;
         }
+        #endregion
     }
 
     public class DebugAPI

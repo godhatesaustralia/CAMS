@@ -75,71 +75,25 @@ namespace IngameScript
             aKy = keymod(aSct, aKy);
             return myIni.Get(aSct, aKy).ToByte(def);
         }
-        //public SpriteType Type(string aSct, string aKy)
-        //{
-        //    aKy = keymod(aSct, aKy);
-        //    var t = myIni.Get(aSct, aKy);
-        //    string c = tld;
-        //    if (t.ToByte(3) != 3)
-        //        return (SpriteType)t.ToByte(2);
-        //    else
-        //        c = t.ToString(c).ToLower();
-        //    switch (c) // *sigh*
-        //    {
-        //        case "shape":
-        //        case "sprite":
-        //            return SpriteType.TEXTURE;
-        //        case "clip":
-        //            return SpriteType.CLIP_RECT;
-        //        case "text":
-        //        default:
-        //            return SpriteType.TEXT;
-        //    }
 
-        //}
-        //public TextAlignment Alignment(string aSct, string aKy)
-        //{
-        //    aKy = keymod(aSct, aKy);
-        //    var a = myIni.Get(aSct, aKy);
-        //    string c = tld;
-        //    if (a.ToByte(3) != 3)
-        //        return (TextAlignment)a.ToByte(2);
-        //    else
-        //        c = a.ToString(c).ToLower();
-        //    switch (c) // oh what the hell
-        //    {
-        //        case "l":
-        //        case "left":
-        //            return TextAlignment.LEFT;
-        //        case "r":
-        //        case "right":
-        //            return TextAlignment.RIGHT;
-        //        case "c":
-        //        case "center":
-        //        default:
-        //            return TextAlignment.CENTER;
-        //    }
-        //}
-
-        //public bool TryReadVector2(string aSct, string aKey, out float x, out float y, string n = "")
-        //{
-        //    x = y = 0;
-        //    string s = myIni.Get(aSct, aKey).ToString();
-        //    if (s == "")
-        //        return false;
-        //    var V = s.Split(',');
-        //    //return false;
-        //    try
-        //    {
-        //        x = float.Parse(V[0].Trim('('));
-        //        y = float.Parse(V[1].Trim(')'));
-        //    }
-        //    catch (Exception)
-        //    {
-        //        throw new Exception($"\nError reading {aKey} floats for {aSct} in {n}: \n{V[0]} and {V[1]}");
-        //    }
-        //    return true;
-        //}
+        public bool TryReadVector2(string aSct, string aKey, ref Vector2 def)
+        {
+            string s = myIni.Get(aSct, aKey).ToString();
+            if (s == "")
+                return false;
+            var V = s.Split(',');
+            //return false;
+            try
+            {
+                def.X = float.Parse(V[0].Trim('('));
+                def.Y = float.Parse(V[1].Trim(')'));
+            }
+            catch (Exception)
+            {
+                throw new Exception($"\nError reading {aKey} floats for {aSct}:\n{V[0]} and {V[1]}");
+            }
+            return true;
+        }
 
         public int Int(string aSct, string aKy, int def = 0)
         {
@@ -156,27 +110,59 @@ namespace IngameScript
             aKy = keymod(aSct, aKy);
             return myIni.Get(aSct, aKy).ToString(def);
         }
-        //public Color Color(string aSct, string aKy, string def = "")
-        //{
-        //    aKy = keymod(aSct, aKy);
-        //    byte r, g, b, a;
-        //    def = myIni.Get(aSct, aKy).ToString(def).ToLower();
-        //    if (def.Length != 8)
-        //        return VRageMath.Color.White; //safety
-        //    r = Hex(def, 0, 2);
-        //    g = Hex(def, 2, 2);
-        //    b = Hex(def, 4, 2);
-        //    a = Hex(def, 6, 2);
-        //    return new Color(r, g, b, a);
-        //}
-        //byte Hex(string input, int start, int length)
-        //{
-        //    return Convert.ToByte(input.Substring(start, length), 16);
-        //}
+        public Color Color(string aSct, string aKy, Color def)
+        {
+            byte r, g, b, a;
+            var c = myIni.Get(aSct, aKy).ToString().ToLower();
+            if (c.Length != 8)
+                return def; //safety
+            r = Hex(c);
+            g = Hex(c, 2);
+            b = Hex(c, 4);
+            a = Hex(c, 6);
+            return new Color(r, g, b, a);
+        }
+        byte Hex(string input, int start = 0, int length = 2) => Convert.ToByte(input.Substring(start, length), 16);
+
         string keymod(string s, string k)
         {
             k = !myIni.ContainsKey(s, k.ToLower()) ? k : k.ToLower();
             return k;
+        }
+        public MySprite[] Sprites(string s, string k)
+        {
+            string[] list = myIni.Get(s, k).ToString().Split('\n'), itm;
+            var r = new MySprite[list.Length];
+            for (int i = 0; i <list.Length; i++)
+            {
+                try
+                {
+                    itm = list[i].Split('$');
+                    if (itm.Length != 8 && itm.Length != 9)
+                        throw new Exception($"\ninvalid sprite key {itm}");
+                    itm[1] = itm[1].Contains(Lib.NL) ? itm[1].Replace(Lib.NL, "\n") : itm[1];
+                    var spr = new MySprite
+                    {
+                        Type = (SpriteType)byte.Parse(itm[0]),
+                        Data = itm[1],
+                        Position = new Vector2(float.Parse(itm[2]), float.Parse(itm[3])),
+                        Alignment = (TextAlignment)byte.Parse(itm[4]),
+                        RotationOrScale = float.Parse(itm[5]),
+                        Color = new Color(Hex(itm[6], 0), Hex(itm[6], 2), Hex(itm[6], 4), 255)
+                    };
+                    if (spr.Type == Lib.TXT)
+                        spr.FontId = itm[7];
+                    else
+                        spr.Size = new Vector2(float.Parse(itm[7]), float.Parse(itm[8]));
+                    r[i] = spr;
+                }
+                catch(Exception)
+                {
+                    continue;
+                }
+
+            }
+            return r;
         }
 
         public override string ToString() => myIni.ToString();

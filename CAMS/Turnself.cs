@@ -20,7 +20,7 @@ namespace IngameScript
             upperBound = 1000,
             decay = 0,
             timeStep = 1.0 / 60;
-
+        Weapons _guns;
         Vector3D toPoint = new Vector3D();
         bool doPoint = false;
         List<IMyGyro> gyros = new List<IMyGyro>();
@@ -29,7 +29,7 @@ namespace IngameScript
         public override void Update(UpdateFrequency f)
         {
             // er what does this even do?
-            // it is basically the set of stuff to run each main loop (primary function of subsyeestem
+            // it is basically the set of stuff to run each _main loop (primary function of subsyeestem
 
             // old arg loop
             /*if (argument != "")
@@ -50,7 +50,7 @@ namespace IngameScript
             }
 
             if (doPoint)
-                gyros.FaceVectors(-Vector3D.Normalize(toPoint - Me.CubeGrid.GetPosition()), t.WorldMatrix.Up);*/
+                gyros.Turn(-Vector3D.Normalize(toPoint - Me.CubeGrid.GetPosition()), t.WorldMatrix.Up);*/
             // leftover bullshit fix later
 
             //todo: 
@@ -63,6 +63,18 @@ namespace IngameScript
         {
             Main = m;
             m.Terminal.GetBlocksOfType(gyros, b => b.IsSameConstructAs(m.Controller));
+            using (var p = new iniWrap())
+                if (p.CustomData(m.Me))
+                {
+                    var grp = m.Terminal.GetBlockGroupWithName(p.String(Lib.HDR, "wpnGroup", "CAMS Aim"));
+                    if (grp != null)
+                    {
+                        var l = new List<IMyUserControllableGun>();
+                        grp.GetBlocksOfType(l);
+                        _guns = new Weapons(p.Int(Lib.HDR, "aimSalvoTicks"), l);
+                    }
+                    else Frequency = UpdateFrequency.None;
+                }
             //intialize gyros 
             //initialize guns..?
             //grab remote control for GyroControl 
@@ -78,21 +90,19 @@ namespace IngameScript
             roll = new PID(kP, kI, kD, lowerBound, upperBound, decay, timeStep);
         }
 
-        public void turn(Vector3D forward, Vector3D up)
-        {
-            //place holder, no idea if this is right
-            FaceVectors(forward, up);
-            return;
-            //end of place holder
-        }
-
-        public void FaceVectors(Vector3D forward, Vector3D up)
+        public void Turn(Vector3D forward, Vector3D up)
         {
             // In (pitch, yaw, roll)
             Vector3D
-                error = -GetAngles(Reference.WorldMatrix, forward, up),
+                error = -GetAngles(Reference.WorldMatrix, ref forward, ref up),
                 angles = new Vector3D(Control(ref error));
             ApplyOverride(Reference.WorldMatrix, ref angles);
+        }
+
+        public void FaceDirection(ref Vector3D aim)
+        {
+            var grav = Main.Gravity != Vector3D.Zero;
+            
         }
 
         public void Reset()
@@ -126,7 +136,7 @@ namespace IngameScript
 
         Vector3D Control(ref Vector3D err) => new Vector3D(yaw.Control(err.X), pitch.Control(err.Y), roll.Control(err.Z));
 
-        Vector3D GetAngles(MatrixD current, Vector3D forward, Vector3D up)
+        Vector3D GetAngles(MatrixD current, ref Vector3D forward, ref Vector3D up)
         {
             var error = new Vector3D();
             if (forward != Vector3D.Zero)

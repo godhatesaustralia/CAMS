@@ -30,7 +30,7 @@ namespace IngameScript
             protected double _range, _speed, _tol; // last is aim tolerance
             public IMyTurretControlBlock _ctc;
             protected PID _aPID, _ePID;
-            protected TurretWeapons _weapons;
+            protected Weapons _weapons;
             protected Program _m;
             public long tEID = -1, lastUpdate = 0;
 
@@ -39,9 +39,9 @@ namespace IngameScript
             protected TurretBase(IMyMotorStator a, Program m)
             {
                 _m = m;
+                _azimuth = a;
                 if (_azimuth.Top == null)
                     return;
-                _azimuth = a;
                 long g1 = _azimuth.TopGrid.EntityId, g2 = -1;
                 m.Terminal.GetBlocksOfType<IMyMotorStator>(null, b =>
                 {
@@ -78,10 +78,11 @@ namespace IngameScript
                         _range = p.Double(h, "range", 800);
                         _speed = p.Double(h, "speed", 400);
                         _tol = p.Double(h, "tolerance", 1E-5);
-
+                        _aPID = new PID(75, 0, 0, 0.25, 5);
+                        _ePID = new PID(75, 0, 0, 0.25, 5);
                         var list = new List<IMyUserControllableGun>();
                         m.Terminal.GetBlocksOfType(list, b => b.CubeGrid.EntityId == g2);
-                        _weapons = new TurretWeapons(p.Int(h, "salvo", -1), list);
+                        _weapons = new Weapons(p.Int(h, "salvo", -1), list);
                     }
                     else throw new Exception($"\nFailed to create turret using azimuth rotor {_azimuth.CustomName}.");
             }
@@ -159,7 +160,7 @@ namespace IngameScript
                     fwd = r.WorldMatrix.Forward,
                     up = p.Up, pFwd = p.Forward,
                     flatFwd = Lib.Rejection(pFwd, up);
-                a = Lib.AngleBetween(flatFwd, fwd) * Math.Sign(flatFwd.Dot(p.Left)) / ((_m.F - lastUpdate) * Lib.tickSec);
+                a = Lib.AngleBetween(ref flatFwd, ref fwd) * Math.Sign(flatFwd.Dot(p.Left)) / ((_m.F - lastUpdate) * Lib.tickSec);
                 p = r.WorldMatrix;
             }
 
@@ -169,7 +170,7 @@ namespace IngameScript
                 p = Math.Sign(dir.Y);
                 var flat = dir;
                 flat.Y = 0;
-                p *= Vector3D.IsZero(flat) ? Lib.halfPi : Lib.AngleBetween(dir, flat);
+                p *= Vector3D.IsZero(flat) ? Lib.halfPi : Lib.AngleBetween(ref dir, ref flat);
             }
 
             public abstract void Update();

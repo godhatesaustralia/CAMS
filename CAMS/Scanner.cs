@@ -47,10 +47,10 @@ namespace IngameScript
         // |[B]
         // |[C]
         // |[D]
-        string mastUpdate(ref Screen s, int? ptr = null)
+        string mastUpdate(ref Screen s, int ptr)
         {
-            string grps = ""; int i = 0, p = ptr ?? s.ptr;
-            var l = Masts[masts[p]];
+            string grps = ""; int i = 0;
+            var l = Masts[masts[ptr]];
             for (; i < l.Lidars.Count; i++)
             {
                 var scan = l.Lidars[i].scanAVG != 0 ? $"{l.Lidars[i].scanAVG:G1}M\n" : "READY\n";
@@ -113,14 +113,8 @@ namespace IngameScript
                 new MySprite(Lib.SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, Lib.GRN, "", al),
             };
            
-            m.Screens.Add("masts", new Screen(() => masts.Length, sprites, s => s.SetData($"{mastUpdate(ref s)} {s.ptr + 1}/{masts.Length}", 0), 128f));
-            
-            if (Masts.Count == 2)
-            {
-                m.Screens.Add(Lib.SYA, new Screen(() => masts.Length, sprites, s => s.SetData($"{mastUpdate(ref s, 0)} LDR", 0), 128f));
-                m.Screens.Add(Lib.SYB, new Screen(() => masts.Length, sprites, s => s.SetData($"{mastUpdate(ref s, 1)} LDR", 0), 128f));
-            }
-            
+            m.CtrlScreens.Add("masts", new Screen(() => masts.Length, sprites, (p, s) => s.SetData($"{mastUpdate(ref s, p)} {p + 1}/{masts.Length}", 0), 128f));
+
             Commands.Add("designate", b =>
             {
                 if (Masts.ContainsKey(b.Argument(2)))
