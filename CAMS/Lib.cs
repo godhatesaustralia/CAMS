@@ -54,6 +54,8 @@ namespace IngameScript
 
         #endregion
 
+        public static Vector2 V2(float x, float y) => new Vector2(x, y);
+
         public static UpdateFrequency UpdateConverter(UpdateType src)
         {
             var updateFrequency = UpdateFrequency.None; //0000

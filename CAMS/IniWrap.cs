@@ -145,7 +145,7 @@ namespace IngameScript
                     {
                         Type = (SpriteType)byte.Parse(itm[0]),
                         Data = itm[1],
-                        Position = new Vector2(float.Parse(itm[2]), float.Parse(itm[3])),
+                        Position = Lib.V2(float.Parse(itm[2]), float.Parse(itm[3])),
                         Alignment = (TextAlignment)byte.Parse(itm[4]),
                         RotationOrScale = float.Parse(itm[5]),
                         Color = new Color(Hex(itm[6], 0), Hex(itm[6], 2), Hex(itm[6], 4), 255)
@@ -153,7 +153,7 @@ namespace IngameScript
                     if (spr.Type == Lib.TXT)
                         spr.FontId = itm[7];
                     else
-                        spr.Size = new Vector2(float.Parse(itm[7]), float.Parse(itm[8]));
+                        spr.Size = Lib.V2(float.Parse(itm[7]), float.Parse(itm[8]));
                     r[i] = spr;
                 }
                 catch(Exception)

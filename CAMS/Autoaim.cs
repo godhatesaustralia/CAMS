@@ -7,7 +7,7 @@ using System.Runtime.Versioning;
 
 namespace IngameScript
 {
-    public class Turnself : CompBase
+    public class Autoaim : CompBase
     {
         //static IMyGridTerminalSystem gridSystem;
         // replace with m
@@ -82,7 +82,7 @@ namespace IngameScript
             return;
         }
         //end of implement for CompBase
-        public Turnself(string n) : base(n, Lib.u1 | Lib.u10 | Lib.u100)
+        public Autoaim(string n) : base(n, Lib.u1 | Lib.u10 | Lib.u100)
         {
             //guar.....
             yaw = new PID(kP, kI, kD, lowerBound, upperBound, decay, timeStep);

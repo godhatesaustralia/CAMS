@@ -35,7 +35,6 @@ namespace IngameScript
                     p.TryReadVector2(Lib.HDR, "size", ref _sz);
                     _bg = p.Color(Lib.HDR, "colorBG", Color.Black);
                     _main = p.Color(Lib.HDR, "colorMain", Lib.GRN);
-                    var f = new MySprite(data: Lib.SQH, position: new Vector2(256, 256), size: _sz, color: _main);
                     isLarge = b is IMyTextPanel;
                     _sprites = p.Sprites(Lib.HDR, vcr ? Lib.SPR : Lib.SPR + "_V");
                 }

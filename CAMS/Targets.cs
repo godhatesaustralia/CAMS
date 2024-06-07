@@ -104,16 +104,18 @@ namespace IngameScript
         Dictionary<long, Target> _targetsMaster = new Dictionary<long, Target>();
         List<long> _targetEIDs = new List<long>(), _indexEIDs = new List<long>();
         const float rad = (float)Math.PI / 180, X_MIN = 28, X_MAX = 308, Y_MIN = 96, Y_MAX = 362; // radar
-        static Vector2 rdrCNR = new Vector2(168, 228), rdrSZ = new Vector2(308, 308), tgtSz = new Vector2(12, 12);
+        static Vector2 rdrCNR = Lib.V2(168, 228), rdrSZ = Lib.V2(308, 308), tgtSz = Lib.V2(12, 12);
         List<MySprite> _rdrBuffer = new List<MySprite>();
         string[] _rdrData = new string[14];
-        MySprite[] _rdrStatic = new MySprite[5]
+        // reused sprites
+        MySprite[] _rdrStatic = new MySprite[]
         {
-            new MySprite(Lib.SHP, Lib.SQS, rdrCNR, new Vector2(18, 18), Lib.DRG, rotation: rad * 45),
-            new MySprite(Lib.SHP, Lib.SQS, rdrCNR, new Vector2(6, 428), Lib.DRG, rotation: rad * -45),
-            new MySprite(Lib.SHP, Lib.SQS, rdrCNR, new Vector2(6, 428), Lib.DRG, rotation: rad * 45),
-            new MySprite(Lib.SHP, Lib.SQS, new Vector2(320, 228), new Vector2(8, 308), Lib.GRN),
-            new MySprite()
+            new MySprite(Lib.SHP, Lib.SQS, rdrCNR, Lib.V2(12, 12), Lib.DRG, rotation: rad * 45),
+            new MySprite(Lib.SHP, Lib.SQS, rdrCNR, Lib.V2(4, 428), Lib.DRG, rotation: rad * -45),
+            new MySprite(Lib.SHP, Lib.SQS, rdrCNR, Lib.V2(4, 428), Lib.DRG, rotation: rad * 45),
+            new MySprite(Lib.SHP, Lib.SQS, Lib.V2(320, 228), Lib.V2(8, 308), Lib.GRN),
+            new MySprite(), // this one depends on font in use
+            new MySprite(Lib.SHP, Lib.CHW, rdrCNR, Lib.V2(61.6f, 61.6f), Lib.DRG)
         };
 
         public HashSet<long> 
@@ -134,15 +136,14 @@ namespace IngameScript
             });
             m.CtrlScreens.Add("targets", new Screen(() => Count, new MySprite[]
             {
-                new MySprite(Lib.TXT, "", new Vector2(24, 112), null, Lib.GRN, Lib.VB, 0, 1.5f),
-                new MySprite(Lib.TXT, "", new Vector2(24, 192), null, Lib.GRN, Lib.VB, 0, 0.8195f),
-                //new MySprite(Lib.TXT, "", new Vector2(24, 112), null, Lib.GRN, Lib.WH, 0, 2f),
-                //new MySprite(Lib.TXT, "", new Vector2(24, 200), null, Lib.GRN, Lib.WH, 0, 1.5f)
+                new MySprite(Lib.TXT, "", Lib.V2(24, 112), null, Lib.GRN, Lib.VB, 0, 1.5f),
+                new MySprite(Lib.TXT, "", Lib.V2(24, 192), null, Lib.GRN, Lib.VB, 0, 0.8195f),
             }, (p, s) =>
             {
                     if (Count == 0)
                     {
                         s.SetData("NO TARGET", 0);
+                        s.SetData("SWITCH TO MASTS SCR\nFOR TGT ACQUISITION", 1);
                         return;
                     }
                     string ty = "NULL";
@@ -154,31 +155,25 @@ namespace IngameScript
                     s.SetData($"DIST {t.Distance / 1000:F2} KM\nASPD {t.Velocity.Length():F0} M/S\nRSPD {(_host.Velocity - t.Velocity).Length():F0} M/S\nSIZE {ty}\nNO TGT SELECTED", 1);
                 
             }));
-            //_rdrTXT = new MySprite(Lib.TXT, "", new Vector2(328, 084), null, Lib.GRN, m.Based ? "VCR" : "White", Lib.LFT, m.Based ? .425f : .8f);
-            _rdrStatic[4] = new MySprite(Lib.TXT, "", new Vector2(328, 084), null, Lib.GRN, Lib.V, Lib.LFT, !m.Based ? .425f : .8f);
-            //m.LCDScreens.Add("radar", new Screen(() => Count, new MySprite[]
-            //{
-            //    new MySprite(Lib.SHP, Lib.SQS, new Vector2(320, 228), new Vector2(8, 308), Lib.GRN),
-            //    new MySprite(Lib.SHP, Lib.CHW, new Vector2(168, 228), new Vector2(16, 16), Lib.GRN),
-            //    new MySprite(Lib.TXT, "", new Vector2(328, 084), null, Lib.GRN, m.Based ? "VCR" : "White", Lib.LFT, m.Based ? .425f : .8f)
-            //}));
+            // _rdrStatic[4]= new MySprite(Lib.TXT, "", Lib.V2(328, 084), null, Lib.GRN, m.Based ? "VCR" : "White", Lib.LFT, m.Based ? .425f : .8f);
+            _rdrStatic[4] = new MySprite(Lib.TXT, "", Lib.V2(328, 84), null, Lib.GRN, Lib.V, Lib.LFT, !m.Based ? .425f : .8f);
             m.LCDScreens.Add("radar", new Screen(() => Count, null, (p, s) => CreateRadar(p, s)));
         }
         #region radar
-        string tf(int num) => num < 10 ? $"0{num}" : $"{num}";
         void CreateRadar(int p, Screen s)
         {
             if (Count == 0)
             {
                 var d = DateTime.Now;
-
-
-                _rdrStatic[4].Data = $"CAMS RADAR\nNO TARGETS\n\n\n\n\n\n\n\n\n\n\n\nTIME {tf(d.TimeOfDay.Hours)}:{tf(d.TimeOfDay.Minutes)}";
+                _rdrStatic[4].Data = $"CAMS RADAR\nNO TARGETS";
                 s.sprites = _rdrStatic;
                 return;
             }
-            int i = 1;
-                         
+            int i = 0;
+            for (; i < _rdrData.Length; i++)
+                _rdrData[i] = "";
+           i = 1;
+            // todo: fix
             if (Count > 1)
             {
                 _rdrData[6] = "↑ PREV TGT ↑";
@@ -212,6 +207,8 @@ namespace IngameScript
                 else s.sprites[i] = _rdrBuffer[i - _rdrStatic.Length];
             }
         }
+
+        //shitty thing to reuse code for wc text
         void RadarText(int p, bool next)
         {
             int i = next ? 9 : 0;
@@ -224,7 +221,7 @@ namespace IngameScript
             var typ = (int)_targetsMaster[eid].Type == 3 ? "LARGE" : "SMALL";
             _rdrData[i] = _targetsMaster[eid].eIDString;
             _rdrData[i + 1] = $"DIST {_targetsMaster[eid].Distance / 1E3:F2} KM";
-            _rdrData[i + 2] = $"SZ {typ} GRID";
+            _rdrData[i + 2] = $"{typ} GRID";
             _rdrData[i + 3] = $"RSPD {(_targetsMaster[eid].Velocity - _host.Velocity).Length():F0} M/S";
             _rdrData[i + 4] = $"ELEV {(Math.Sign(rpos.Dot(up)) < 0 ? "-" : "+")}{Lib.Projection(rpos, up).Length():F0} M";
         }
@@ -251,11 +248,13 @@ namespace IngameScript
                 scrX = R_SIDE_L * xProj * INV_MAX_D + rdrCNR.X,
                 scrY = R_SIDE_L  * yProj * INV_MAX_D + rdrCNR.Y;
 
+            // clamp into a region that doesn't neatly correspond with screen size ( i have autism)
                 scrX = MathHelper.Clamp(scrX, X_MIN, X_MAX);
                 scrY = MathHelper.Clamp(scrY, Y_MIN, Y_MAX);
 
+            // position vectors
             Vector2 
-                pos = new Vector2((float)scrX, (float)scrY),
+                pos = Lib.V2((float)scrX, (float)scrY),
                 txt = (sel ? 2 : 1.5f) * tgtSz;
 
             _rdrBuffer.Add(new MySprite(Lib.TXT, eid, scrX > 2 * X_MIN ? pos - txt : pos + 0.5f * txt, null, Lib.GRN, Lib.V, rotation: 0.375f));

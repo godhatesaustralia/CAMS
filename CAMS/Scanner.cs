@@ -99,14 +99,14 @@ namespace IngameScript
                     masts = Masts.Keys.ToArray();
                 }
             Vector2
-                sqvpos = new Vector2(356, 222), // standard rect pos
-                sqvsz = new Vector2(128, 28), // standard rect size
-                sqoff = new Vector2(0, 40); // standard rect offset
+                sqvpos = Lib.V2(356, 222), // standard rect pos
+                sqvsz = Lib.V2(128, 28), // standard rect size
+                sqoff = Lib.V2(0, 40); // standard rect offset
             var al = TextAlignment.LEFT;
             var sprites = new MySprite[]
             {
-                new MySprite(Lib.TXT, "", new Vector2(24, 112), null, Lib.GRN, Lib.VB, 0, 1.75f),// 1. TUR NAME
-                new MySprite(Lib.TXT, "", new Vector2(24, 200), null, Lib.GRN, Lib.VB, 0, 0.8195f),
+                new MySprite(Lib.TXT, "", Lib.V2(24, 112), null, Lib.GRN, Lib.VB, 0, 1.75f),// 1. TUR NAME
+                new MySprite(Lib.TXT, "", Lib.V2(24, 200), null, Lib.GRN, Lib.VB, 0, 0.8195f),
                 new MySprite(Lib.SHP, Lib.SQS, sqvpos, sqvsz, Lib.GRN, "", al),
                 new MySprite(Lib.SHP, Lib.SQS, sqvpos + sqoff, sqvsz, Lib.GRN, "", al),
                 new MySprite(Lib.SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, Lib.GRN, "", al),

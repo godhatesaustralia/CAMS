@@ -63,7 +63,7 @@
     <AdditionalFiles Include="Instructions.readme" />
     <AdditionalFiles Include="thumb.png" />
     <AdditionalFiles Include="MDK\whitelist.cache" />
-    <Compile Include="Turnself.cs" />
+    <Compile Include="Autoaim.cs" />
     <Compile Include="Turret.cs" />
     <Compile Include="Weapons.cs" />
   </ItemGroup>
