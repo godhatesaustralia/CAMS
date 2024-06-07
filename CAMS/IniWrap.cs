@@ -48,17 +48,6 @@ namespace IngameScript
             return output;
         }
 
-        //public bool hasSection(string aSct)
-        //{
-        //    return myIni.ContainsSection(aSct);
-        //}
-
-        //public bool hasKey(string aSct, string aKy)
-        //{
-        //    aKy = keymod(aSct, aKy);
-        //    return myIni.ContainsKey(aSct, aKy);
-        //}
-
         public float Float(string aSct, string aKy, float def = 1)
         {
             aKy = keymod(aSct, aKy);
@@ -68,12 +57,6 @@ namespace IngameScript
         {
             aKy = keymod(aSct, aKy);
             return myIni.Get(aSct, aKy).ToDouble(def);
-        }
-
-        public byte Byte(string aSct, string aKy, byte def = 2)
-        {
-            aKy = keymod(aSct, aKy);
-            return myIni.Get(aSct, aKy).ToByte(def);
         }
 
         public bool TryReadVector2(string aSct, string aKey, ref Vector2 def)

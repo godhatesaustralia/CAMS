@@ -3,6 +3,7 @@ using Sandbox.ModAPI.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using VRage;
 using VRage.Game.GUI.TextPanel;
 using VRageMath;
 
@@ -13,7 +14,7 @@ namespace IngameScript
     {
         #region you arent built for these public static fields son
 
-        public static string
+        public const string
             HDR = "CAMS",
             ARY = "ARY",
             SPR = "SPRITES",
@@ -29,20 +30,29 @@ namespace IngameScript
             SYB = "SYS-B",
             SQS = "SquareSimple",
             SQH = "SquareHollow",
-            CHW = "CircleHollow",
             TRI = "Triangle",
-            WPN = "Weapons";
+            WPN = "Weapons",
+            IgcParams = "IGC_MSL_PAR_MSG",
+            IgcHoming = "IGC_MSL_HOM_MSG",
+            IgcBeamRiding = "IGC_MSL_OPT_MSG",
+            IgcIff = "IGC_IFF_PKT",
+            IgcFire = "IGC_MSL_FIRE_MSG",
+            Igcregister = "IGC_MSL_REG_MSG";
+
         public static UpdateFrequency
             u1 = UpdateFrequency.Update1,
             u10 = UpdateFrequency.Update10,
             u100 = UpdateFrequency.Update100;
+
         public static SpriteType
             TXT = SpriteType.TEXT,
             SHP = SpriteType.TEXTURE,
             CLP = SpriteType.CLIP_RECT;
+
         public static TextAlignment
             LFT = TextAlignment.LEFT,
             RGT = TextAlignment.RIGHT;
+
         public static readonly double
             tick = 16.6666,//ms
             tickSec = 0.016666, // sec
@@ -50,11 +60,33 @@ namespace IngameScript
             halfPi = MathHelperD.PiOver2,
             Pi2 = MathHelper.TwoPi,
             radPerTick = 30 / Pi2;
-        public static Color GRN = new Color(100, 250, 100), RED =  new Color(240, 50, 50), BG = new Color(7, 16, 7), DRG = new Color(50, 125, 50), TGT = new Color(155, 255, 155);
+
+        public static Color
+            GRN = new Color(100, 250, 100),
+            RED = new Color(240, 50, 50),
+            BG = new Color(7, 16, 7),
+            DRG = new Color(50, 125, 50),
+            TGT = new Color(155, 255, 155);
+
 
         #endregion
 
         public static Vector2 V2(float x, float y) => new Vector2(x, y);
+
+        static void FillMatrix(ref Matrix3x3 mat, ref Vector3D col0, ref Vector3D col1, ref Vector3D col2)
+        {
+            mat.M11 = (float)col0.X;
+            mat.M21 = (float)col0.Y;
+            mat.M31 = (float)col0.Z;
+
+            mat.M12 = (float)col1.X;
+            mat.M22 = (float)col1.Y;
+            mat.M32 = (float)col1.Z;
+
+            mat.M13 = (float)col2.X;
+            mat.M23 = (float)col2.Y;
+            mat.M33 = (float)col2.Z;
+        }
 
         public static UpdateFrequency UpdateConverter(UpdateType src)
         {
@@ -64,14 +96,6 @@ namespace IngameScript
             if ((src & UpdateType.Update100) != 0) updateFrequency |= u100;//0100
             return updateFrequency;
         }
-        //public static MySprite Sprite(SpriteType t, string d, float x, float y, Color c, int align = 2, float? rs = null, string fnt = null, float? sx = null, float? sy = null)
-        //{
-        //    var p = new Vector2(x, y);
-        //    var a = (TextAlignment)align;
-        //    return (t == Lib.TXT
-        //        ? new MySprite(t, d, p, null, c, fnt, a, rs.HasValue ? rs.Value : 1)
-        //        : new MySprite(t, d, p, sx.HasValue && sy.HasValue ? new Vector2(sx.Value, sy.Value) : new Vector2(sx ?? _dSz, sy ?? _dSz), c, null, a, rs ?? 0));
-        //}
 
         #region math
         public static double AngleBetween(Vector3D a, Vector3D b)

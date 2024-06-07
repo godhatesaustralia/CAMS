@@ -21,7 +21,7 @@ namespace IngameScript
     public class Target
     {
         #region fields
-        static public readonly int MAX_LIFETIME = 2; // s
+        public const int MAX_LIFETIME = 2; // s
         public readonly long EID, Source;
         public double Radius, Distance;
         public long Frame;
@@ -100,11 +100,11 @@ namespace IngameScript
     {
         Program _host;
         const double INV_MAX_D = 0.0001, R_SIDE_L = 154;
-        public int Count => _indexEIDs.Count;
-        Dictionary<long, Target> _targetsMaster = new Dictionary<long, Target>();
-        List<long> _targetEIDs = new List<long>(), _indexEIDs = new List<long>();
+        public int Count => _iEIDs.Count;
+        Dictionary<long, Target> _targets = new Dictionary<long, Target>();
+        List<long> _rmvEIDs = new List<long>(), _iEIDs = new List<long>();
         const float rad = (float)Math.PI / 180, X_MIN = 28, X_MAX = 308, Y_MIN = 96, Y_MAX = 362; // radar
-        static Vector2 rdrCNR = Lib.V2(168, 228), rdrSZ = Lib.V2(308, 308), tgtSz = Lib.V2(12, 12);
+        static Vector2 rdrCNR = Lib.V2(168, 228), tgtSz = Lib.V2(12, 12);
         List<MySprite> _rdrBuffer = new List<MySprite>();
         string[] _rdrData = new string[14];
         // reused sprites
@@ -114,8 +114,8 @@ namespace IngameScript
             new MySprite(Lib.SHP, Lib.SQS, rdrCNR, Lib.V2(4, 428), Lib.DRG, rotation: rad * -45),
             new MySprite(Lib.SHP, Lib.SQS, rdrCNR, Lib.V2(4, 428), Lib.DRG, rotation: rad * 45),
             new MySprite(Lib.SHP, Lib.SQS, Lib.V2(320, 228), Lib.V2(8, 308), Lib.GRN),
-            new MySprite(), // this one depends on font in use
-            new MySprite(Lib.SHP, Lib.CHW, rdrCNR, Lib.V2(61.6f, 61.6f), Lib.DRG)
+            new MySprite(), // special sprite at this index for text display
+            new MySprite(Lib.SHP, Lib.SQH, rdrCNR, Lib.V2(61.6f, 61.6f), Lib.DRG)
         };
 
         public HashSet<long> 
@@ -146,12 +146,11 @@ namespace IngameScript
                         s.SetData("SWITCH TO MASTS SCR\nFOR TGT ACQUISITION", 1);
                         return;
                     }
-                    string ty = "NULL";
-                    var t = _targetsMaster[_indexEIDs[p]];
+                    string ty = "";
+                    var t = _targets[_iEIDs[p]];
                     s.SetData($"{t.eIDString}", 0);
-                    if ((int)t.Type == 3) ty = "LARGE";
-                    else if ((int)t.Type == 2) ty = "SMALL";
-                    ty += " GRID";
+                    if ((int)t.Type == 3) ty = "LARGE GRID";
+                    else if ((int)t.Type == 2) ty = "SMALL GRID";
                     s.SetData($"DIST {t.Distance / 1000:F2} KM\nASPD {t.Velocity.Length():F0} M/S\nRSPD {(_host.Velocity - t.Velocity).Length():F0} M/S\nSIZE {ty}\nNO TGT SELECTED", 1);
                 
             }));
@@ -180,7 +179,7 @@ namespace IngameScript
                 _rdrData[7] = "↓ NEXT TGT ↓";
                 if (p == Count - 1)
                 {
-                    RadarText(p - 1, false);
+                    RadarText(p, false);
                     RadarText(p - 1, true);
                 }
                 else RadarText(p, true);
@@ -193,10 +192,9 @@ namespace IngameScript
             _rdrBuffer.Clear();
             for (i = 0; i < Count; i++)
             {
-                
                 var mat = _host.Controller.WorldMatrix;
-                var rPos = _host.Center - _targetsMaster[_indexEIDs[i]].Position;
-                _rdrBuffer.Add(DisplayTarget(ref rPos, ref mat, _targetsMaster[_indexEIDs[i]].eIDTag, p == i));
+                var rPos = _host.Center - _targets[_iEIDs[i]].Position;
+                _rdrBuffer.Add(DisplayTarget(ref rPos, ref mat, _targets[_iEIDs[i]].eIDTag, p == i));
             }
             s.sprites = null;
             s.sprites = new MySprite[_rdrBuffer.Count + _rdrStatic.Length];
@@ -212,17 +210,19 @@ namespace IngameScript
         void RadarText(int p, bool next)
         {
             int i = next ? 9 : 0;
-            if (next)
-                p++;
+            if (next) p++;
             if (p >= Count) return;
-            long eid = _indexEIDs[p];
-            var rpos = _targetsMaster[eid].Position - _host.Controller.WorldMatrix.Translation;
-            var up = _host.Controller.WorldMatrix.Up;
-            var typ = (int)_targetsMaster[eid].Type == 3 ? "LARGE" : "SMALL";
-            _rdrData[i] = _targetsMaster[eid].eIDString;
-            _rdrData[i + 1] = $"DIST {_targetsMaster[eid].Distance / 1E3:F2} KM";
+
+            long eid = _iEIDs[p];
+            Vector3D
+                rpos = _targets[eid].Position - _host.Controller.WorldMatrix.Translation,
+                up = _host.Controller.WorldMatrix.Up;
+            var typ = (int)_targets[eid].Type == 3 ? "LARGE" : "SMALL";
+
+            _rdrData[i] = _targets[eid].eIDString;
+            _rdrData[i + 1] = $"DIST {_targets[eid].Distance / 1E3:F2} KM";
             _rdrData[i + 2] = $"{typ} GRID";
-            _rdrData[i + 3] = $"RSPD {(_targetsMaster[eid].Velocity - _host.Velocity).Length():F0} M/S";
+            _rdrData[i + 3] = $"RSPD {(_targets[eid].Velocity - _host.Velocity).Length():F0} M/S";
             _rdrData[i + 4] = $"ELEV {(Math.Sign(rpos.Dot(up)) < 0 ? "-" : "+")}{Lib.Projection(rpos, up).Length():F0} M";
         }
 
@@ -266,16 +266,16 @@ namespace IngameScript
         {
             var id = i.EntityId;
             Target t;
-            if (_targetsMaster.ContainsKey(id))
+            if (_targets.ContainsKey(id))
             {
-                t = _targetsMaster[id];
+                t = _targets[id];
                 t.Update(ref i, _host.Center, _host.F);
                 return ScanResult.Update;
             }
             else
             {
-                _targetsMaster[id] = new Target(i, _host.F, src, (_host.Center - i.Position).Length());
-                _indexEIDs.Add(id);
+                _targets[id] = new Target(i, _host.F, src, (_host.Center - i.Position).Length());
+                _iEIDs.Add(id);
                 return ScanResult.Added;
             }
         }
@@ -283,10 +283,12 @@ namespace IngameScript
         public List<Target> AllTargets()
         {
             var list = new List<Target>(Count);
-            foreach (var t in _targetsMaster.Values)
+            foreach (var t in _targets.Values)
                 list.Add(t);
             return list;
         }
+
+        public Target Get(long eid) => _targets.ContainsKey(eid) ? _targets[eid] : null;
 
         public void Update(UpdateFrequency u)
         {
@@ -294,35 +296,35 @@ namespace IngameScript
             if ((u & Lib.u100) != 0)
                 RemoveExpired();
         }
-        public bool isNew(long id) => _targetsMaster.ContainsKey(id) && !ScannedIDs.Contains(id);
+        public bool isNew(long id) => _targets.ContainsKey(id) && !ScannedIDs.Contains(id);
 
         void RemoveExpired() // THIS GOES AFTER EVERYTHIGN ELSE
         {
-            foreach (var k in _targetsMaster.Keys)
-                _targetEIDs.Add(k);
+            foreach (var k in _targets.Keys)
+                _rmvEIDs.Add(k);
             if (Count == 0)
                 return;
             for (int i = Count - 1; i >= 0; i--)
-                if (_targetsMaster[_targetEIDs[i]].IsExpired(_host.F))
-                    RemoveID(_targetEIDs[i]);
-            _targetEIDs.Clear();
+                if (_targets[_rmvEIDs[i]].IsExpired(_host.F))
+                    RemoveID(_rmvEIDs[i]);
+            _rmvEIDs.Clear();
         }
         public void RemoveID(long eid)
         {
-            if (_targetsMaster.ContainsKey(eid))
+            if (_targets.ContainsKey(eid))
             {
                 ScannedIDs.Remove(eid);
-                _targetsMaster.Remove(eid);
-                _indexEIDs.Remove(eid);
+                _targets.Remove(eid);
+                _iEIDs.Remove(eid);
             }
         }
 
         public void Clear()
         {
-            _targetEIDs.Clear();
-            _targetsMaster.Clear();
+            _rmvEIDs.Clear();
+            _targets.Clear();
             ScannedIDs.Clear();
-            _indexEIDs.Clear();
+            _iEIDs.Clear();
         }
     }
 }

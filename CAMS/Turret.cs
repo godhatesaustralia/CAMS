@@ -40,14 +40,10 @@ namespace IngameScript
             _azimuth = a;
             if (_azimuth.Top == null)
                 return;
-            long g1 = _azimuth.TopGrid.EntityId, g2 = -1;
             m.Terminal.GetBlocksOfType<IMyMotorStator>(null, b =>
             {
-                if (b.EntityId == g1)
-                {
+                if (b.CubeGrid == _azimuth.TopGrid)
                     _elevation = b;
-                    g2 = b.EntityId;
-                }
                 return true;
             });
             var inv = "~";
@@ -59,8 +55,9 @@ namespace IngameScript
                     if (p.Bool(h, "ctc"))
                         m.Terminal.GetBlocksOfType<IMyTurretControlBlock>(null, b =>
                         {
-                            var e = b.CubeGrid.EntityId;
-                            if (b.CustomName.Contains(Name) || e == g1 || e == g2)
+                            if (b.CustomName.Contains(Name) || 
+                            b.CubeGrid == _azimuth.CubeGrid || 
+                            b.CubeGrid == _elevation.CubeGrid)
                                 _ctc = b;
                             return true;
                         });
@@ -79,7 +76,7 @@ namespace IngameScript
                     _aPID = new PID(75, 0, 0, 0.25, 5);
                     _ePID = new PID(75, 0, 0, 0.25, 5);
                     var list = new List<IMyUserControllableGun>();
-                    m.Terminal.GetBlocksOfType(list, b => b.CubeGrid.EntityId == g2);
+                    m.Terminal.GetBlocksOfType(list, b => b.CubeGrid == _elevation?.CubeGrid);
                     _weapons = new Weapons(p.Int(h, "salvo", -1), list);
                 }
                 else throw new Exception($"\nFailed to create turret using azimuth rotor {_azimuth.CustomName}.");
