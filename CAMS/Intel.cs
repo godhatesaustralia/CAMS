@@ -6,19 +6,6 @@ using VRageMath;
 
 namespace IngameScript
 {
-
-    public class MissileIGC
-    {
-        IMyIntergridCommunicationSystem _igc;
-
-        public MissileIGC(Program p)
-        {
-            _igc = p.IGC;
-        }
-
-     
-    }
-
     public class Intel : CompBase
     {
         IMyIntergridCommunicationSystem IGC => Main.IGC;
@@ -34,7 +21,7 @@ namespace IngameScript
         // deliberately omitting remote fire
         const string
             IgcFleet = "[FLT-CA]",
-            IgcTgt = "[FLT-TG]"; // :pranked:
+            IgcTgt = "[FLT-TG]";
 
 
         public Intel(string n) : base(n, Lib.u10 | Lib.u100)
@@ -53,9 +40,7 @@ namespace IngameScript
                     var h = Lib.HDR;
                     _fixedRange = p.Bool(h, "fixedAntennaRange", true);
                     _useNetwork = p.Bool(h, "network", false);
-                    _mslTag = p.String(h, "grpTag", "WHAM");
-                    _grpTags = p.String(h, "mslTypes", "MSL\nEKV").Split('\n');
-                    
+                    _mslTag = p.String(h, "grpTag", "WHAM");          
                 }
             Main.Terminal.GetBlocksOfType<IMyRadioAntenna>(null, a =>
             {

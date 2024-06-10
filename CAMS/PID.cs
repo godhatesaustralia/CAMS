@@ -56,7 +56,7 @@ namespace IngameScript
         {
             if (double.IsNaN(error)) return 0;
 
-            //Compute derivative term
+            //Compute dI term
             var errorDerivative = (error - _lastError) * _invTS;
 
             if (_first)
@@ -91,6 +91,40 @@ namespace IngameScript
             _errorSum = 0;
             _lastError = 0;
             _first = true;
+        }
+    }
+
+    // smac ignore this
+    public class PDController
+    {
+        public double 
+            gain_p,
+            gain_d;
+
+        double 
+            second,
+            lastInput;
+
+        public PDController(double pGain, double dGain, float hz = 60f)
+        {
+            gain_p = pGain;
+            gain_d = dGain;
+            second = hz;
+        }
+
+        public double Filter(double input, int r) // r => # of digits to round
+        {
+            double 
+                rInput = Math.Round(input, r),
+                dI = (rInput - lastInput) * second; // derivative
+            lastInput = rInput;
+
+            return (gain_p * input) + (gain_d * dI);
+        }
+
+        public void Reset()
+        {
+            lastInput = 0;
         }
     }
 }

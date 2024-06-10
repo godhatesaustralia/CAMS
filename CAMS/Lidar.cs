@@ -53,8 +53,8 @@ namespace IngameScript
         Vector3D RaycastLead(ref Target t, Vector3D srcPos, ref CompBase h, double ofs = 5) // ofs is spread factor. whip left as 5 default
         {
             var dT = t.Elapsed(h.F);
-            var tPos = t.Position;
-            tPos += t.Velocity * dT;
+            var tPos = t.AdjustedPosition(h.F);
+            //tPos += t.Velocity * dT;
             var tDir = (tPos - srcPos).Normalized();
             if (_lastScan == ScanResult.Failed)
             {

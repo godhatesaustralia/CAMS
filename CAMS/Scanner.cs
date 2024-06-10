@@ -1,4 +1,5 @@
-﻿using Sandbox.ModAPI.Ingame;
+﻿using ParallelTasks;
+using Sandbox.ModAPI.Ingame;
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
@@ -17,11 +18,17 @@ namespace IngameScript
 
         public List<LidarArray> Lidars = new List<LidarArray>();
         public Dictionary<string, LidarMast> Masts = new Dictionary<string, LidarMast>();
-
+        bool _fixedRange, _useNetwork, _useBackup = false;
         public List<IMyLargeTurretBase> AllTurrets, Artillery;
         //List<IMyCameraBlock> _camerasDebug = new List<IMyCameraBlock>();
         public double maxRaycast;
         int tPtr, tStep;
+        const string
+            IgcFleet = "[FLT-CA]",
+            IgcTgt = "[FLT-TG]";
+        IMyBroadcastListener  _FLT, _TGT;
+       
+
         //DEBUG
         IMyTextPanel _panel;
         public Scanner(string n) : base(n, Lib.u1 | Lib.u10 | Lib.u100)
@@ -66,18 +73,23 @@ namespace IngameScript
         {
             Clear();
             Main = m;
+            _FLT = m.IGC.RegisterBroadcastListener(IgcFleet);
+            _TGT = m.IGC.RegisterBroadcastListener(IgcTgt);
             var lct = "LargeCalibreTurret";
             using (var p = new iniWrap())
                 if (p.CustomData(Main.Me))
                 {
-                    tStep = p.Int(Lib.HDR, "tStep", 4);
-                    maxRaycast = p.Double(Lib.HDR, "maxRaycast", 8E3);
-                    var tagstr = p.String(Lib.HDR, "lidarTags", "[A]\n[B]\n[C]\n[D]");
+                    var h = Lib.HDR;
+                    tStep = p.Int(h, "tStep", 4);
+                    maxRaycast = p.Double(h, "maxRaycast", 8E3);
+                    var tagstr = p.String(h, "lidarTags", "[A]\n[B]\n[C]\n[D]");
                     var a = tagstr.Split('\n');
+                    _fixedRange = p.Bool(h, "fixedAntennaRange", true);
+                    _useNetwork = p.Bool(h, "network", false);
                     for (int i = 0; i < a.Length; i++)
                         a[i] = a[i].Trim('|');
                     tags = a;
-                   m.Terminal.GetBlocksOfType(AllTurrets, b => b.BlockDefinition.SubtypeName != lct && (b.CubeGrid.EntityId == ID) && !(b is IMyLargeInteriorTurret));
+                    m.Terminal.GetBlocksOfType(AllTurrets, b => b.BlockDefinition.SubtypeName != lct && (b.CubeGrid.EntityId == ID) && !(b is IMyLargeInteriorTurret));
                     m.Terminal.GetBlocksOfType(Artillery, b => b.BlockDefinition.SubtypeName == lct && (b.CubeGrid.EntityId == ID));
                     m.Terminal.GetBlocksOfType<IMyMotorStator>(null, mtr =>
                     {

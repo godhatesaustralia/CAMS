@@ -255,7 +255,7 @@ namespace IngameScript
             // position vectors
             Vector2 
                 pos = Lib.V2((float)scrX, (float)scrY),
-                txt = (sel ? 2 : 1.5f) * tgtSz;
+                txt = (sel ? 2.375F : 1.75f) * tgtSz;
 
             _rdrBuffer.Add(new MySprite(Lib.TXT, eid, scrX > 2 * X_MIN ? pos - txt : pos + 0.5f * txt, null, Lib.GRN, Lib.V, rotation: 0.375f));
             return new MySprite(Lib.SHP, sel ? Lib.SQS : Lib.TRI, pos, (sel ? 1.5f : 1) * tgtSz, Lib.GRN, null); // Center

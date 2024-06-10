@@ -78,25 +78,25 @@ namespace IngameScript
             return true;
         }
 
-        public int Int(string aSct, string aKy, int def = 0)
+        public int Int(string s, string k, int def = 0)
         {
-            aKy = keymod(aSct, aKy);
-            return myIni.Get(aSct, aKy).ToInt32(def);
+            k = keymod(s, k);
+            return myIni.Get(s, k).ToInt32(def);
         }
-        public bool Bool(string aSct, string aKy, bool def = false)
+        public bool Bool(string s, string k, bool def = false)
         {
-            aKy = keymod(aSct, aKy);
-            return myIni.Get(aSct, aKy).ToBoolean(def);
+            k = keymod(s, k);
+            return myIni.Get(s, k).ToBoolean(def);
         }
-        public string String(string aSct, string aKy, string def = "")
+        public string String(string s, string k, string def = "")
         {
-            aKy = keymod(aSct, aKy);
-            return myIni.Get(aSct, aKy).ToString(def);
+            k = keymod(s, k);
+            return myIni.Get(s, k).ToString(def);
         }
-        public Color Color(string aSct, string aKy, Color def)
+        public Color Color(string s, string k, Color def)
         {
             byte r, g, b, a;
-            var c = myIni.Get(aSct, aKy).ToString().ToLower();
+            var c = myIni.Get(s, k).ToString().ToLower();
             if (c.Length != 8)
                 return def; //safety
             r = Hex(c);
