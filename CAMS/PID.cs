@@ -1,6 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using VRageMath;
 
 namespace IngameScript
 {
@@ -125,6 +124,71 @@ namespace IngameScript
         public void Reset()
         {
             lastInput = 0;
+        }
+    }
+
+    // alysius controller
+    public delegate void AdjustFunc(ref double val);
+    public class PCtrl
+    {
+        const int MIN_REFRESH = 3; //Hard Limit To Avoid Spasm
+        double 
+            g_out, // gain output
+            g_pre, // gain predicted
+            lim_out, // output limit
+            
+            tgtDelta,
+            lastOut,
+            lastTgt;
+        long lastF;
+        AdjustFunc _fixAngle;
+        // double oGain = 60, double pGain = 1, double oLim = 30
+        public PCtrl(AdjustFunc fix, double oGain, double pGain, double oLim )
+        {
+            _fixAngle = fix;
+            g_out = oGain;
+            g_pre = pGain;
+            lim_out = oLim;
+        }
+
+        // cur, exp, frame
+        public float Filter(double cur, double exp, long f)
+        {
+            var stepDelta = Math.Max(f - lastF, 1); // limits step change to one for obv reason
+
+            double curDelta = exp - lastTgt;
+
+            if (stepDelta < MIN_REFRESH) // if dT is under spasm limit, clamp it to that
+            {
+                curDelta *= (double)MIN_REFRESH / stepDelta;
+                stepDelta = MIN_REFRESH;
+            }
+            _fixAngle(ref curDelta);
+
+            if (tgtDelta * curDelta < 0)  //Sign Reversal
+            {
+                tgtDelta = g_pre * curDelta;
+            }
+            else
+            {
+                // (1 - 1) * lastTgtDelta + (1 * curDelta) = curDelta
+                tgtDelta = ((1 - g_pre) * tgtDelta) + (g_pre * curDelta);
+            }
+
+            double delta = exp - cur + tgtDelta; // delta = difference between expected and current value plus target
+           _fixAngle(ref delta);
+
+            lastTgt = exp;
+            lastF = Math.Max(f, lastF);
+            var r = (float)MathHelper.Clamp(delta * (g_out - lastOut * stepDelta)/ stepDelta, -lim_out, lim_out);
+            lastOut = r;
+            return r;
+        }
+
+        public void Reset()
+        {
+            lastF = 0;
+            tgtDelta = lastTgt = 0;
         }
     }
 }

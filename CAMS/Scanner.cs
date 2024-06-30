@@ -161,7 +161,9 @@ namespace IngameScript
             if (t.HasTarget)
             {
                 info = t.GetTargetedEntity();
-                if (PassTarget(info) && arty && (int)info.Type == 2) // if small, retarget
+                if (Targets.Exists(info.EntityId))
+                    return;
+                else if (PassTarget(info) && arty && (int)info.Type == 2) // if small, retarget
                 {
                     t.ResetTargetingToDefault();
                     t.EnableIdleRotation = false;

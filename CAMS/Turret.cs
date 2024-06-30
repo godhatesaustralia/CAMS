@@ -2,11 +2,23 @@
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
+using VRage.Game;
 using VRageMath;
+using VRageRender;
 
 namespace IngameScript
 {
     // fuck it
+    public enum AimState
+    {
+        Default,
+        Rest,
+        TargetOOB, // target out of bounds (sorry)
+        Moving,
+        OnTarget
+    }
+
+    // rotor hinge turret. fuck yopu. DYCJ YOIU
     public abstract class TurretBase
     {
         #region you aint built for these fields son
@@ -15,23 +27,31 @@ namespace IngameScript
         public string Name; // yeah
         protected IMyMotorStator _azimuth, _elevation;
         public MatrixD aziMat => _azimuth.WorldMatrix;
-        MatrixD _lastAzi, _lastEl;
+        public AimState aimState = AimState.Default;
         protected float
             _aMx,
             _aMn,
             _aRest,
-            _aRPM,
             _eMx,
             _eMn,
-            _eRest,
-            _eRPM; // absolute max and min azi/el for basic check
+            _eRest; // absolute max and min azi/el for basic check
         protected double _range, _speed, _tol; // last is aim tolerance
         public IMyTurretControlBlock _ctc;
-        protected PID _aPID, _ePID;
+        public double lastAzTgt, lastElTgt;
+        PCtrl _aPCtrl, _ePCtrl;
         protected Weapons _weapons;
         protected Program _m;
-        public long tEID = -1, lastUpdate = 0;
+        public long tEID = -1, lastUpdate = 0, oobF = 0;
 
+        #endregion
+
+        #region debugFields
+
+        // public double _aTgt, _eTgt, _aCur, _eCur, aRPM, eRPM;
+        public double aRPM => _azimuth.TargetVelocityRPM;
+        public double eRPM => _elevation.TargetVelocityRPM;
+        public double aCur => _azimuth.Angle / rad;
+        public double eCur => _elevation.Angle / rad;
         #endregion
 
         protected TurretBase(IMyMotorStator a, Program m)
@@ -48,39 +68,90 @@ namespace IngameScript
             });
             var inv = "~";
             using (var p = new iniWrap())
-                if (p.CustomData(_azimuth))
+                if (p.CustomData(_azimuth) && _elevation != null)
                 {
                     var h = Lib.HDR;
                     Name = p.String(h, "name", inv);
                     if (p.Bool(h, "ctc"))
                         m.Terminal.GetBlocksOfType<IMyTurretControlBlock>(null, b =>
                         {
-                            if (b.CustomName.Contains(Name) || 
-                            b.CubeGrid == _azimuth.CubeGrid || 
+                            if (b.CustomName.Contains(Name) ||
+                            b.CubeGrid == _azimuth.CubeGrid ||
                             b.CubeGrid == _elevation.CubeGrid)
                                 _ctc = b;
                             return true;
                         });
 
-                    _aMx = rad * p.Float(h, "azMax", 361);
-                    _aMn = rad * p.Float(h, "azMin", -361);
+                    _azimuth.UpperLimitRad = _aMx = rad * p.Float(h, "azMax", 361);
+                    _azimuth.LowerLimitRad = _aMn = rad * p.Float(h, "azMin", -361);
                     _aRest = rad * p.Float(h, "azRst", 0);
-                    _aRPM = p.Float(h, "azRPM", 20);
-                    _eMx = rad * p.Float(h, "elMax", 90);
-                    _eMn = rad * p.Float(h, "elMin", -90);
+                    //                    _aRPM = p.Float(h, "azRPM", 20);
+                    _elevation.UpperLimitRad = _eMx = rad * p.Float(h, "elMax", 90);
+                    _elevation.LowerLimitRad = _eMn = rad * p.Float(h, "elMin", -90);
                     _eRest = rad * p.Float(h, "elRst", 0);
-                    _eRPM = p.Float(h, "elRPM", 20);
+                    //                    _eRPM = p.Float(h, "elRPM", 20);
                     _range = p.Double(h, "range", 800);
                     _speed = p.Double(h, "speed", 400);
-                    _tol = p.Double(h, "tolerance", 1E-5);
-                    _aPID = new PID(75, 0, 0, 0.25, 5);
-                    _ePID = new PID(75, 0, 0, 0.25, 5);
+                    _tol = p.Double(h, "tolerance", 7.5E-4);
+
+                    _aPCtrl = new PCtrl(AdjustAzimuth, 60, 1.125, p.Double(h, "azRLim", 60));
+                    _ePCtrl = new PCtrl(AdjustElevation, 60, 1.125, p.Double(h, "elRLim", 60));
+
                     var list = new List<IMyUserControllableGun>();
-                    m.Terminal.GetBlocksOfType(list, b => b.CubeGrid == _elevation?.CubeGrid);
+                    m.Terminal.GetBlocksOfType(list, b => b.CubeGrid == _elevation.CubeGrid || b.CustomName.Contains(Name));
                     _weapons = new Weapons(p.Int(h, "salvo", -1), list);
+                    _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
                 }
                 else throw new Exception($"\nFailed to create turret using azimuth rotor {_azimuth.CustomName}.");
         }
+
+        static void AdjustElevation(ref double val)
+        {
+            if (val < -Lib.halfPi)
+                val += Lib.Pi;
+            else if (val > Lib.halfPi)
+                val -= Lib.Pi;
+        }
+        static void AdjustAzimuth(ref double val)
+        {
+            if (val < -Lib.Pi)
+            {
+                val += Lib.Pi2;
+                if (val < -Lib.Pi) val += Lib.Pi2;
+            }
+            else if (val > Lib.Pi)
+            {
+                val -= Lib.Pi2;
+                if (val > Lib.Pi) val -= Lib.Pi2;
+            }
+        }
+
+        bool WithinDeadzone(IMyMotorStator rotor, float min, float max)
+        {
+            if (max <= min)
+            {
+                return false;
+            }
+
+            float angleDeg = MathHelper.ToDegrees(rotor.Angle);
+
+            float delta = 0;
+            if (angleDeg < min)
+            {
+                delta = min - angleDeg;
+            }
+            else if (angleDeg > max)
+            {
+                delta = max - angleDeg;
+            }
+
+            float wraps = (float)Math.Round(delta / 360f);
+            float wrappedAngle = angleDeg + wraps * 360f;
+
+            return wrappedAngle > min && wrappedAngle < max;
+        }
+
+
         // aim is an internal copy of CURRENT(!) target position
         // because in some cases (PDLR assistive targeting) we will only want to point at
         // the target directly and not lead (i.e. we will not be using this)
@@ -102,75 +173,148 @@ namespace IngameScript
                 t = t1 > 0 ? (t2 > 0 ? (t1 < t2 ? t1 : t2) : t1) : t2;
             if (double.IsNaN(t)) return false;
 
-            aim = tgt.Accel.Length() < 0.1 ? aim + tgt.Velocity * t : aim + tgt.Velocity * t + 0.5 * tgt.Accel * t * t;
+            //aim = tgt.Accel.Length() < 0.5 ? aim + tgt.Velocity * t : aim + tgt.Velocity * t + 0.0625 * tgt.Accel * t;
+            aim += rV * t;
             return true;
         }
 
-        // credit to https://forum.keenswh.com/threads/tutorial-how-to-do-vector-transformations-with-world-matricies.7399827/
-        // and! his turret ai slaving script.
-        // return value indicates whether turret is on target.
-        protected bool AimAtTarget(ref Vector3D aim)
-        {
-
-            if (tEID == -1)
-                return false; // maybe(?)
-            double tgtAzi, tgtEl, tgtAzi2, checkEl, azi, el, aRPM, eRPM, aRate, eRate;//, errTime;
-            aim.Normalize();
-
-            var localToTGT = Vector3D.TransformNormal(aim, MatrixD.Transpose(aziMat));
-            int dir = Math.Sign(localToTGT.Y);
-            localToTGT.Y = 0; // flat
-
-            tgtAzi = Lib.AngleBetween(Vector3D.Forward, localToTGT);
-            if (localToTGT.Z > 0 && tgtAzi < 1E-5)
-                tgtAzi = Lib.Pi;
-            tgtAzi *= Math.Sign(localToTGT.X);
-
-            CalcPitchAngle(aim, out tgtEl);
-            CalcPitchAngle(aziMat.Forward, out checkEl);
-
-            // angle domain constraint 
-            el = (tgtEl - checkEl) * dir;
-            tgtAzi2 = _azimuth.Angle + tgtAzi;
-
-            azi = (tgtAzi2 < _aMn && tgtAzi2 + Lib.Pi2 < _aMx) || (tgtAzi2 > _aMx && tgtAzi2 - Lib.Pi2 < _aMn)
-                ? -Math.Sign(tgtAzi) * (Lib.Pi2 - Math.Abs(tgtAzi))
-                : tgtAzi;
-            aRPM = _aPID.Control(azi);
-            eRPM = _ePID.Control(el);
-            CalcHdgError(_azimuth, ref _lastAzi, out aRate);
-            CalcHdgError(_elevation, ref _lastEl, out eRate);
-
-            _azimuth.TargetVelocityRPM = (float)(aRPM + aRate);
-            _elevation.TargetVelocityRPM = (float)(eRPM + eRate);
-
-            lastUpdate = _m.F;
-            return _weapons.AimDir.Dot(aim - _weapons.AimPos) < _tol;
-        }
-
-        // combination of whip's functions, i quite honestly don't know anything about this
-        void CalcHdgError(IMyMotorStator r, ref MatrixD p, out double a)
+        protected void GetCurrentAngles(ref MatrixD azm, out double aCur, out double eCur)
         {
             Vector3D
-                fwd = r.WorldMatrix.Forward,
-                up = p.Up, pFwd = p.Forward,
-                flatFwd = Lib.Rejection(pFwd, up);
-            a = Lib.AngleBetween(ref flatFwd, ref fwd) * Math.Sign(flatFwd.Dot(p.Left)) / ((_m.F - lastUpdate) * Lib.tickSec);
-            p = r.WorldMatrix;
+                guns = _weapons.AimPos.Normalized(),
+                aVec = guns - Lib.Projection(guns, azm.Up);
+
+            aCur = _azimuth.Angle;
+            if (aCur < 0)
+            {
+                if (aCur <= -Lib.Pi2) aCur += MathHelperD.FourPi;
+                else aCur += Lib.Pi2;
+            }
+            else if (aCur >= Lib.Pi2)
+            {
+                if (aCur >= MathHelperD.FourPi) aCur -= MathHelperD.FourPi;
+                else aCur -= Lib.Pi2;
+            }
+            eCur = (_elevation.Angle + Lib.Pi) % Lib.Pi2 - Lib.Pi; ;
         }
 
-        void CalcPitchAngle(Vector3D norm, out double p)
+        public void Reset()
         {
-            var dir = Vector3D.TransformNormal(norm, MatrixD.Transpose(aziMat));
-            p = Math.Sign(dir.Y);
-            var flat = dir;
-            flat.Y = 0;
-            p *= Vector3D.IsZero(flat) ? Lib.halfPi : Lib.AngleBetween(ref dir, ref flat);
+            if (aimState == AimState.Rest)
+                return;
+            if (_weapons.Active)
+            {
+                _weapons.Hold();
+                _weapons.Update();
+            }
+            var azm = _azimuth.WorldMatrix;
+            aimState = Rest(ref azm);
+            lastAzTgt = lastElTgt = 0;
         }
 
-        public abstract void Update();
-    }
+        protected AimState Rest(ref MatrixD azm)
+        {
+            double aCur, eCur;
+            GetCurrentAngles(ref azm, out aCur, out eCur);
+            if (Math.Abs(aCur - _aRest) < _tol && Math.Abs(eCur - _eRest) < _tol)
+            {
+                _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
+                return AimState.Rest;
+            }
 
+            _azimuth.TargetVelocityRad = _aPCtrl.Filter(aCur, _aRest, _m.F);
+            _elevation.TargetVelocityRad = _ePCtrl.Filter(eCur, _eRest, _m.F);
+            return AimState.Moving;
+        }
+
+        protected AimState AimAtTarget(ref MatrixD azm, ref Vector3D aim, double aCur, double eCur)
+        {
+            var a = aim;
+            aim.Normalize();
+            oobF++;
+            Vector3D
+                eTgtV = Lib.Projection(aim, azm.Up),
+                aTgtV = aim - eTgtV;
+            var aTgt = Lib.AngleBetween(aTgtV, azm.Backward) * Math.Sign(aTgtV.Dot(azm.Left));
+
+            #region debugapi
+            if (_m.F % 19 == 0)
+            {
+                var azmt = aziMat.Translation;
+                var tg = azmt + a;
+                _m.Debug.DrawPoint(tg, Lib.RED, 1);
+                _m.Debug.DrawLine(azmt, tg, Lib.RED, 0.075f);
+                //_m.Debug.DrawLine(azmt, azmt + aTgtV * 5, Lib.RED, 0.075f);
+                //_m.Debug.DrawLine(azmt, azmt + eTgtV * 5, Lib.YEL, 0.075f);
+            }
+            #endregion
+
+            if (aTgt > _aMx || aTgt < _aMn)
+                return AimState.TargetOOB;
+
+            var eTgt = Lib.AngleBetween(aTgtV, aim) * Math.Sign(aim.Dot(azm.Up));
+            eCur = (eCur + Lib.Pi) % Lib.Pi2 - Lib.Pi;
+
+            if (eTgt > _eMx || eTgt < _eMn)
+                return AimState.TargetOOB;
+
+            oobF = 0;
+            _azimuth.TargetVelocityRad = _aPCtrl.Filter(aCur, aTgt, _m.F);
+            _elevation.TargetVelocityRad = _ePCtrl.Filter(eCur, eTgt, _m.F);
+            return Math.Abs(aTgt - aCur) < _tol && Math.Abs(eTgt - eCur) < _tol ? AimState.OnTarget : AimState.Moving;
+        }
+        public virtual void Update(ref List<Target> tgts)
+        {
+            if ((int)aimState == 1 && _m.Targets.Count == 0)
+                return;
+            var azm = aziMat;
+            var aim = Vector3D.Zero;
+            double aCur, eCur;
+            GetCurrentAngles(ref azm, out aCur, out eCur);
+            if (tEID == -1)
+                foreach (var t in tgts)
+                {
+                    aim = t.Position;
+                    if (Interceptable(t, ref aim))
+                    {
+                        tEID = t.EID;
+                        aim -= azm.Translation;
+                        aimState = AimAtTarget(ref azm, ref aim, aCur, eCur);
+                        break;
+                    }
+                }
+            else
+            {
+                var tgt = _m.Targets.Get(tEID);
+                aim = tgt.Position;
+                if (!Interceptable(tgt, ref aim))
+                {
+                    tEID = -1;
+                    aimState = Rest(ref azm);
+                }
+                else
+                {
+                    aim -= azm.Translation;
+                    aimState = AimAtTarget(ref azm, ref aim, aCur, eCur);
+                }
+            }
+            if (oobF > 50 && aimState == AimState.TargetOOB)
+            {
+                aimState = Rest(ref azm);
+                return;
+            }
+            if (aim.Length() < _range && aimState == AimState.OnTarget)
+                _weapons.Fire();
+            else _weapons.Hold();
+            _weapons.Update();
+        }
+        // public abstract void Update(ref List<Target> tgts);
+    }
+    public class Turret : TurretBase
+    {
+        public Turret(IMyMotorStator a, Program m) : base(a, m)
+        { }
+    }
     public class PDC : TurretBase
     {
         public LidarArray Lidar;
@@ -183,11 +327,6 @@ namespace IngameScript
                 m.Terminal.GetBlocksOfType(l, c => c.CubeGrid == g && c.CustomName.Contains(Lib.ARY));
                 Lidar = new LidarArray(l);
             }
-
-        }
-
-        public override void Update()
-        {
 
         }
 

@@ -19,6 +19,7 @@ namespace IngameScript
         public long ID => Main.Me.CubeGrid.EntityId;
         public virtual string Debug { get; protected set; }
         public IMyShipController Reference => Main.Controller;
+        Vector3D lastVel = Vector3D.Zero;
         public Vector3D Velocity => Main.Controller.GetShipVelocities().LinearVelocity;
         public Dictionary<string, Action<MyCommandLine>> Commands = new Dictionary<string, Action<MyCommandLine>>();
         public Program Main;

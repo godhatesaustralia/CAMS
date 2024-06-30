@@ -22,6 +22,7 @@ namespace IngameScript
             TG = "targets",
             MS = "masts",
             SN = "scanner",
+            DF ="defense",
             V = "VCR",
             VB = "VCRBold",
             WH = "White",
@@ -64,6 +65,7 @@ namespace IngameScript
         public static Color
             GRN = new Color(100, 250, 100),
             RED = new Color(240, 50, 50),
+            YEL = new Color(250, 250, 100),
             BG = new Color(7, 16, 7),
             DRG = new Color(50, 125, 50),
             TGT = new Color(155, 255, 155);
@@ -98,6 +100,9 @@ namespace IngameScript
         }
 
         #region math
+
+        public static double Clamp(double val, double min, double max) => MathHelperD.Clamp(val, min, max);
+
         public static double AngleBetween(Vector3D a, Vector3D b)
         {
             if (Vector3D.IsZero(a) || Vector3D.IsZero(b))
@@ -123,6 +128,9 @@ namespace IngameScript
             return p;
         }
 
+        /// <summary>
+        /// Projects vector a onto vector b.
+        /// </summary>
         public static Vector3D Projection(Vector3D a, Vector3D b)
         {
             if (Vector3D.IsZero(b))
@@ -132,15 +140,8 @@ namespace IngameScript
 
 
         /// <summary>
-        /// Projects a value onto another vector.
+        /// Rejects vector a from vector b.
         /// </summary>
-        /// <param name="guide">Must be of length 1.</param>
-        public static double ScalarProjection(ref Vector3D value, ref Vector3D guide)
-        {
-            var returnValue = Vector3D.Dot(value, guide);
-            return double.IsNaN(returnValue) ? 0 : returnValue;
-        }
-
         public static Vector3D Rejection(Vector3D a, Vector3D b) //reject a on b
         {
             if (Vector3D.IsZero(a) || Vector3D.IsZero(b))

@@ -158,7 +158,8 @@ namespace IngameScript
                 double
                     dot = MathHelper.Clamp(Vector3D.Dot(Reference.WorldMatrix.Up, temp), -1, 1),
                     rollAngle = Math.Acos(dot),
-                    scalar = Lib.ScalarProjection(ref temp, ref rgt);
+                    scalar = temp.Dot(rgt);
+                    scalar = double.IsNaN(scalar) ? 0 : scalar;
                 if (scalar > 0)
                     rollAngle *= -1;
                 error.Z = rollAngle;

@@ -110,7 +110,7 @@ namespace IngameScript
             //            if (msg.Data is MyTuple<MyTuple<long, long, long, int, bool>, MyTuple<Vector3D, Vector3D, MatrixD, double>>)
             //            {
             //                var dat = (MyTuple<MyTuple<long, long, long, int, bool>, MyTuple<Vector3D, Vector3D, MatrixD, double>>)msg.Data;
-            //                if (Targets.isNew(dat.Item1.Item1))
+            //                if (Targets.Exists(dat.Item1.Item1))
 
             //            }
 

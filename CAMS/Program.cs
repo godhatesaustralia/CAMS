@@ -27,6 +27,7 @@ namespace IngameScript
             Targets = new TargetProvider(this);
             Debug = new DebugAPI(this, true);
             Components.Add(Lib.SN, new Scanner(Lib.SN));
+            Components.Add(Lib.DF, new Defense(Lib.DF));
             Runtime.UpdateFrequency |= UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;
             Start();
         }
@@ -51,8 +52,8 @@ namespace IngameScript
             {
                 if (Components.ContainsKey(_cmd.Argument(0)) && Components[_cmd.Argument(0)].Commands.ContainsKey(_cmd.Argument(1)))
                     Components[_cmd.Argument(0)].Commands[_cmd.Argument(1)].Invoke(_cmd);
-                else if (_cmd.Argument(0) == "switch" && _cmd.ArgumentCount == 3 && Displays.ContainsKey(_cmd.Argument(1)))
-                    Displays[_cmd.Argument(1)].SetActive(_cmd.Argument(2));
+                else if (_cmd.Argument(0) == "switch" && _cmd.ArgumentCount == 3 && Displays.ContainsKey(_cmd.Argument(2)))
+                    Displays[_cmd.Argument(2)].SetActive(_cmd.Argument(1));
                 else
                 {
                     if (Displays.ContainsKey(_cmd.Argument(0)))

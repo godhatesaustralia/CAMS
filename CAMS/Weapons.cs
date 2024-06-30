@@ -27,19 +27,6 @@ namespace IngameScript
             }
         }
 
-        public Vector3D AimDir
-        {
-            get
-            {
-                var r = Vector3D.Zero;
-                if (_guns.Count == 0) return r;
-                foreach (var g in _guns)
-                    r += g.WorldMatrix.Forward;
-                r /= _guns.Count;
-                return r;
-            }
-        }
-
         public Weapons(int s, List<IMyUserControllableGun> g)
         {
             salvoTicks = s;
@@ -62,7 +49,7 @@ namespace IngameScript
 
                 for (int i = 0; i < _guns.Count; i++)
                 {
-                    if (_guns[i].Enabled)
+                    if (_guns[i].Shoot)
                     {
                         anyWeaponOn = true;
                         break;

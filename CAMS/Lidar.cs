@@ -12,15 +12,6 @@ namespace IngameScript
 {
     // all lidar here designed for top-mounted cameras - some special constraints
 
-    public class RangeComparer : IComparer<IMyCameraBlock>
-    {
-        public int Compare(IMyCameraBlock x, IMyCameraBlock y)
-        {
-            if (x.Closed) return (y.Closed ? 0 : 1);
-            else if (y.Closed) return -1;
-            else return x.AvailableScanRange > y.AvailableScanRange ? -1 : (x.AvailableScanRange < y.AvailableScanRange ? 1 : (x.EntityId > y.EntityId ? -1 : (x.EntityId < y.EntityId ? 1 : 0)));
-        }
-    }
 
     public class LidarArray
     {
@@ -48,6 +39,15 @@ namespace IngameScript
             _isMast = m;
             foreach (var c2 in _cameras)
                 c2.EnableRaycast = true;
+        }
+        class RangeComparer : IComparer<IMyCameraBlock>
+        {
+            public int Compare(IMyCameraBlock x, IMyCameraBlock y)
+            {
+                if (x.Closed) return (y.Closed ? 0 : 1);
+                else if (y.Closed) return -1;
+                else return x.AvailableScanRange > y.AvailableScanRange ? -1 : (x.AvailableScanRange < y.AvailableScanRange ? 1 : (x.EntityId > y.EntityId ? -1 : (x.EntityId < y.EntityId ? 1 : 0)));
+            }
         }
 
         Vector3D RaycastLead(ref Target t, Vector3D srcPos, ref CompBase h, double ofs = 5) // ofs is spread factor. whip left as 5 default
@@ -132,7 +132,6 @@ namespace IngameScript
         public string Name;
         public List<LidarArray> Lidars = new List<LidarArray>();
         readonly string[] _tags;
-        //string _mainName;
         Scanner _scan;
         bool _activeCTC => _ctc?.IsUnderControl ?? false;
         public bool Manual => _stopSpin || _activeCTC;

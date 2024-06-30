@@ -118,7 +118,7 @@ namespace IngameScript
             new MySprite(Lib.SHP, Lib.SQH, rdrCNR, Lib.V2(61.6f, 61.6f), Lib.DRG)
         };
 
-        public HashSet<long> 
+        public HashSet<long>
             ScannedIDs = new HashSet<long>(),
             Blacklist = new HashSet<long>();
 
@@ -140,19 +140,18 @@ namespace IngameScript
                 new MySprite(Lib.TXT, "", Lib.V2(24, 192), null, Lib.GRN, Lib.VB, 0, 0.8195f),
             }, (p, s) =>
             {
-                    if (Count == 0)
-                    {
-                        s.SetData("NO TARGET", 0);
-                        s.SetData("SWITCH TO MASTS SCR\nFOR TGT ACQUISITION", 1);
-                        return;
-                    }
-                    string ty = "";
-                    var t = _targets[_iEIDs[p]];
-                    s.SetData($"{t.eIDString}", 0);
-                    if ((int)t.Type == 3) ty = "LARGE GRID";
-                    else if ((int)t.Type == 2) ty = "SMALL GRID";
-                    s.SetData($"DIST {t.Distance / 1000:F2} KM\nASPD {t.Velocity.Length():F0} M/S\nRSPD {(_host.Velocity - t.Velocity).Length():F0} M/S\nSIZE {ty}\nNO TGT SELECTED", 1);
-                
+                if (Count == 0)
+                {
+                    s.SetData("NO TARGET", 0);
+                    s.SetData("SWITCH TO MASTS SCR\nFOR TGT ACQUISITION", 1);
+                    return;
+                }
+                string ty = "";
+                var t = _targets[_iEIDs[p]];
+                s.SetData($"{t.eIDString}", 0);
+                if ((int)t.Type == 3) ty = "LARGE GRID";
+                else if ((int)t.Type == 2) ty = "SMALL GRID";
+                s.SetData($"DIST {t.Distance / 1000:F2} KM\nASPD {t.Velocity.Length():F0} M/S\nACCL {(t.Accel).Length():F0} M/S\nSIZE {ty}\nNO TGT SELECTED", 1);
             }));
             // _rdrStatic[4]= new MySprite(Lib.TXT, "", Lib.V2(328, 084), null, Lib.GRN, m.Based ? "VCR" : "White", Lib.LFT, m.Based ? .425f : .8f);
             _rdrStatic[4] = new MySprite(Lib.TXT, "", Lib.V2(328, 84), null, Lib.GRN, Lib.V, Lib.LFT, !m.Based ? .425f : .8f);
@@ -171,7 +170,7 @@ namespace IngameScript
             int i = 0;
             for (; i < _rdrData.Length; i++)
                 _rdrData[i] = "";
-           i = 1;
+            i = 1;
             // todo: fix
             if (Count > 1)
             {
@@ -246,14 +245,14 @@ namespace IngameScript
             // Adjust for screen center
 
                 scrX = R_SIDE_L * xProj * INV_MAX_D + rdrCNR.X,
-                scrY = R_SIDE_L  * yProj * INV_MAX_D + rdrCNR.Y;
+                scrY = R_SIDE_L * yProj * INV_MAX_D + rdrCNR.Y;
 
             // clamp into a region that doesn't neatly correspond with screen size ( i have autism)
-                scrX = MathHelper.Clamp(scrX, X_MIN, X_MAX);
-                scrY = MathHelper.Clamp(scrY, Y_MIN, Y_MAX);
+            scrX = MathHelper.Clamp(scrX, X_MIN, X_MAX);
+            scrY = MathHelper.Clamp(scrY, Y_MIN, Y_MAX);
 
             // position vectors
-            Vector2 
+            Vector2
                 pos = Lib.V2((float)scrX, (float)scrY),
                 txt = (sel ? 2.375F : 1.75f) * tgtSz;
 
@@ -296,7 +295,7 @@ namespace IngameScript
             if ((u & Lib.u100) != 0)
                 RemoveExpired();
         }
-        public bool isNew(long id) => _targets.ContainsKey(id) && !ScannedIDs.Contains(id);
+        public bool Exists(long id) => _targets.ContainsKey(id);
 
         void RemoveExpired() // THIS GOES AFTER EVERYTHIGN ELSE
         {
