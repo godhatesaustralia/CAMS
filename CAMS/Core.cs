@@ -13,12 +13,12 @@ using VRageMath;
 
 namespace IngameScript
 {
-    public class RetardRoundRobin<K, V>
+    public class RoundRobin<K, V>
     {
         public readonly K[] IDs;
         int start, current;
 
-        public RetardRoundRobin(ref K[] ks, int s = 0)
+        public RoundRobin(K[] ks, int s = 0)
         {
             start = s;
             IDs = ks;
@@ -34,6 +34,7 @@ namespace IngameScript
             return dict[IDs[current]];
         }
 
+        // checks whether end of the key collection has been reached+
         public bool Next(ref Dictionary<K, V> dict, out V val)
         {
             if (current < IDs.Length)
@@ -126,7 +127,7 @@ namespace IngameScript
         public Dictionary<string, CompBase> Components = new Dictionary<string, CompBase>();
         public Random RNG = new Random();
         MyCommandLine _cmd = new MyCommandLine();
-
+        RoundRobin<string, Display> DisplayRR;
         double _totalRT = 0, _worstRT, _avgRT;
         long _frame = 0, _worstF;
         const int _rtMax = 10;
@@ -159,6 +160,7 @@ namespace IngameScript
 
                     GridTerminalSystem.GetBlockGroupWithName(_tag + ' ' + p.String(Lib.HDR, "displays", "MFD Users")).GetBlocks(dspGrp);
                     if (dspGrp.Count > 0)
+                    {
                         foreach (var b in dspGrp)
                         {
                             Display d;
@@ -173,6 +175,8 @@ namespace IngameScript
                                 Displays.Add(d.Name, d);
                             }
                         }
+                        DisplayRR = new RoundRobin<string, Display>(Displays.Keys.ToArray());
+                    }
 
                 }
             else throw new Exception($"\n{r.Error} at line {r.LineNo} of {Me} custom data.");

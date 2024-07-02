@@ -100,8 +100,8 @@ namespace IngameScript
             Targets.Update(u);
             _totalRT += rt;
             Runtime.UpdateFrequency |= u;
-            foreach (var s in Displays.Values)
-                s.Update(u);
+
+            DisplayRR.Next(ref Displays).Update();
 
             Runtime.UpdateFrequency = tgtFreq;
             string r = "[[COMBAT MANAGER]]\n\n";

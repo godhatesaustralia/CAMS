@@ -70,10 +70,9 @@ namespace IngameScript
 
         public void Back() => _screens[_active]?.Back(ptr);
 
-        public void Update(UpdateFrequency u) // cursed
+        public void Update() // cursed
         {
             int i = 0;
-            if ((u & Freq) == 0) return;
             _surf.ScriptBackgroundColor = _bg;
             _screens[_active].GetData(ptr);
             var f = _surf.DrawFrame();

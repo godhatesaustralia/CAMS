@@ -1,22 +1,28 @@
 ﻿using Sandbox.ModAPI.Ingame;
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http.Headers;
 using VRage.Game.GUI.TextPanel;
 using VRageMath;
 
 namespace IngameScript
 {
+    class HingeLauncher
+    {
+        IMyMotorStator _arm;
+        IMyShipWelder _welders;
+        IMyProjector _bp;
+    }
+
     public class Defense : CompBase // turrets and interceptors
     {
         Dictionary<string, RotorTurret> Turrets = new Dictionary<string, RotorTurret>();
-        RetardRoundRobin<string, RotorTurret>
+        RoundRobin<string, RotorTurret>
             AssignRR, UpdateRR;
         SortedDictionary<int, long> _tEIDsByPriority = new SortedDictionary<int, long>();
         string[] TurretNames, PDTs;
         int Count => TurretNames.Length;
         int maxPriTgt;
+
         #region clock
         bool priUpdateSwitch = true;
         int
@@ -30,7 +36,6 @@ namespace IngameScript
         }
 
         #region implementations
-
         public override void Setup(Program m)
         {
             var r = new List<IMyMotorStator>();
@@ -81,8 +86,8 @@ namespace IngameScript
                     TurretNames = Turrets.Keys.ToArray();
                     PDTs = pdn.ToArray();
 
-                    AssignRR = new RetardRoundRobin<string, RotorTurret>(ref TurretNames);
-                    UpdateRR = new RetardRoundRobin<string, RotorTurret>(ref TurretNames);
+                    AssignRR = new RoundRobin<string, RotorTurret>(TurretNames);
+                    UpdateRR = new RoundRobin<string, RotorTurret>(TurretNames);
 
                     #region list-screen
                     MySprite[] spr = {
@@ -113,24 +118,6 @@ namespace IngameScript
         public override void Update(UpdateFrequency u)
         {
             AssignTargets();
-            //if (Targets.Count != 0)
-            //{
-            //    foreach (var tur in Turrets.Values)
-            //        if (tur.tEID != -1)
-            //            tur.UpdateTurret();
-            //        else foreach (var t in Targets.ScannedIDs)
-            //                if (tur.CanTarget(t))
-            //                {
-            //                    tur.tEID = t;
-            //                    tur.UpdateTurret();
-            //                    break;
-            //                }
-            //}
-            //else
-            //{
-            //    foreach (var tur in Turrets.Values)
-            //        tur.ResetTurret();
-            //}
             for (int i = 0; i < maxTurUpdates; i++)
             {
                 var tur = UpdateRR.Next(ref Turrets);

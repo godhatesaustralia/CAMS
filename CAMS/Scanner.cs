@@ -23,9 +23,6 @@ namespace IngameScript
             IgcTgt = "[FLT-TG]";
         IMyBroadcastListener _FLT, _TGT;
 
-
-        //DEBUG
-        IMyTextPanel _panel;
         public Scanner(string n) : base(n, Lib.u1 | Lib.u10 | Lib.u100)
         {
             AllTurrets = new List<IMyLargeTurretBase>();
