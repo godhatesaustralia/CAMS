@@ -13,13 +13,49 @@ using VRageMath;
 
 namespace IngameScript
 {
+    public class RetardRoundRobin<K, V>
+    {
+        public readonly K[] IDs;
+        int start, current;
+
+        public RetardRoundRobin(ref K[] ks, int s = 0)
+        {
+            start = s;
+            IDs = ks;
+            Reset();
+        }
+
+        public V Next(ref Dictionary<K, V> dict)
+        {
+            if (current < IDs.Length)
+                current++;
+            if (current == IDs.Length)
+                current = start;
+            return dict[IDs[current]];
+        }
+
+        public bool Next(ref Dictionary<K, V> dict, out V val)
+        {
+            if (current < IDs.Length)
+                current++;
+            if (current == IDs.Length)
+                current = start;
+            val = dict[IDs[current]];
+            return current < IDs.Length - (start + 1);
+        }
+
+
+        public void Reset() => start = current = 0;
+
+    }
+
     public abstract class CompBase
     {
         public readonly string Name;
         public long ID => Main.Me.CubeGrid.EntityId;
         public virtual string Debug { get; protected set; }
         public IMyShipController Reference => Main.Controller;
-        Vector3D lastVel = Vector3D.Zero;
+
         public Vector3D Velocity => Main.Controller.GetShipVelocities().LinearVelocity;
         public Dictionary<string, Action<MyCommandLine>> Commands = new Dictionary<string, Action<MyCommandLine>>();
         public Program Main;
@@ -76,6 +112,7 @@ namespace IngameScript
         public IMyShipController Controller;
         public DebugAPI Debug;
         public bool Based;
+        public double PDSpray = -1;
         string _tag;
         public Vector3D Center => Controller.WorldMatrix.Translation;
         public Vector3D Velocity => Controller.GetShipVelocities().LinearVelocity;
@@ -107,6 +144,7 @@ namespace IngameScript
                 {
                     Based = p.Bool(Lib.HDR, "vcr");
                     _tag = p.String(Lib.HDR, "tag", Lib.HDR);
+                    PDSpray = p.Double(Lib.HDR, "spray", -1);
                     string
                         ctrl = p.String(Lib.HDR, "controller", "Helm");
                     GridTerminalSystem.GetBlocksOfType<IMyShipController>(null, (b) =>
@@ -138,6 +176,25 @@ namespace IngameScript
 
                 }
             else throw new Exception($"\n{r.Error} at line {r.LineNo} of {Me} custom data.");
+        }
+
+        static Vector3D 
+            lastVel = Vector3D.Zero,
+            lastAccel = Vector3D.Zero;
+        static long lastVelT = 0;
+
+        public Vector3D Acceleration
+        {
+            get 
+            {
+                if (F - lastVelT > 0)
+                {
+                    lastAccel = 0.5 * (lastAccel + (Velocity - lastVel) / (F - lastVelT));
+                    lastVelT = F;
+                    lastVel = Velocity;
+                }
+                return lastAccel;
+            }
         }
         public void SendWhamTarget(ref Vector3D hitPos, ref Vector3D tPos, ref Vector3D tVel, ref Vector3D preciseOffset, ref Vector3D myPos, double elapsed, long tEID, long keycode)
         {

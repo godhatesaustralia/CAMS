@@ -55,7 +55,7 @@
 //        {
 //            foreach (ITorpedoControllable tube in Children)
 //            {
-//                if (tube.Ready) return tube.Fire(f, offset, target, trickshot);
+//                if (tube.IsOK) return tube.Fire(f, offset, target, trickshot);
 //            }
 //            return null;
 //        }
@@ -174,10 +174,10 @@
 //                merge.Enabled = false;
 //        }
 
-//        public void Update(Target tgt, long f)
+//        public void CanEngageTarget(Target tgt, long f)
 //        {
 //            if (!initialized) return;
-//            if (!OK())
+//            if (!IsOK())
 //            {
 //                foreach (var Gyro in Gyros)
 //                {
@@ -227,7 +227,7 @@
 //            }
 //        }
 
-//        public bool OK()
+//        public bool IsOK()
 //        {
 //            return Gyros.Count > 0 && Controller != null && Controller.IsFunctional && Thrusters.Count > 0;
 //        }

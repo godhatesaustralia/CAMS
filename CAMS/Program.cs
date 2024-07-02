@@ -105,11 +105,6 @@ namespace IngameScript
 
             Runtime.UpdateFrequency = tgtFreq;
             string r = "[[COMBAT MANAGER]]\n\n";
-            foreach (var tgt in Targets.AllTargets())
-                r += $"{tgt.eIDString}\nDIST {tgt.Distance:0000}, ELAPSED {tgt.Elapsed(F)}\n";
-            //foreach (var c in Components.Values)
-            //    Debug.PrintHUD(c.Debug);
-            //Debug.PrintHUD(Components[Lib.TR].Debug);
             r += $"RUNS - {_frame}\nRUNTIME - {rt} ms\nAVG - {_avgRT:0.####} ms\nWORST - {_worstRT} ms, F{_worstF}\n";
             r += Components[Lib.SN].Debug;
             Echo(r);

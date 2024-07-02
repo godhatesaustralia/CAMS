@@ -44,6 +44,7 @@
   <ItemGroup>
     <Compile Include="Defense.cs" />
     <Compile Include="Display.cs" />
+    <Compile Include="Guidance.cs" />
     <Compile Include="Intel.cs" />
     <Compile Include="Lidar.cs" />
     <Compile Include="Missile.cs" />
@@ -65,7 +66,7 @@
     <AdditionalFiles Include="thumb.png" />
     <AdditionalFiles Include="MDK\whitelist.cache" />
     <Compile Include="Autoaim.cs" />
-    <Compile Include="Turret.cs" />
+    <Compile Include="RotorTurret.cs" />
     <Compile Include="Weapons.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

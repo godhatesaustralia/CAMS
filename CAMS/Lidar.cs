@@ -1,18 +1,12 @@
-﻿
-using Sandbox.ModAPI.Ingame;
+﻿using Sandbox.ModAPI.Ingame;
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
-using System.Reflection;
-using VRage;
-using VRage.Game;
 using VRageMath;
 
 namespace IngameScript
 {
     // all lidar here designed for top-mounted cameras - some special constraints
-
-
     public class LidarArray
     {
         public IMyCameraBlock First => _cameras[0];
@@ -70,7 +64,7 @@ namespace IngameScript
             return tPos + tDir * 2 * t.Radius;
         }
 
-        public ScanResult Scan(CompBase h, Target t, MatrixD el, bool spread = false)
+        public ScanResult Scan(CompBase h, Target t, bool spread = false)
         {
             var r = _lastScan = ScanResult.Failed;
             int i = Scans = 0;
@@ -102,16 +96,6 @@ namespace IngameScript
                     if (c.WorldMatrix.Down.Dot(dir) > 0.58)
                         continue;
                 }
-                // ---------------------------------------[DEBUG]-------------------------------------------------
-                //if (h.PassTarget(c.Raycast(pos), out r))
-                //{
-                //    h.Main.Debug.DrawLine(c.WorldMatrix.Translation + 0.15 * c.WorldMatrix.Down + 0.15 * c.WorldMatrix.Forward, pos, Lib.GRN, 0.225f);
-                //    Scans++;
-                //    _lastScan = r;
-                //    break;
-                //}
-                //h.Main.Debug.DrawLine(c.WorldMatrix.Translation + 0.15 * c.WorldMatrix.Down + 0.15 * c.WorldMatrix.Forward, pos, Lib.RED, 0.225f);
-                // ---------------------------------------[DEBUG]-------------------------------------------------
                 if (h.PassTarget(c.Raycast(pos), out r))
                 {
                     Scans++;
@@ -277,7 +261,7 @@ namespace IngameScript
                             continue;
                         if (icpt.Dot(Lidars[i].First.WorldMatrix.Backward) > 0 || icpt.Dot(Lidars[i].First.WorldMatrix.Down) > _maxCamD)
                             continue;
-                        if (Lidars[i].Scan(_scan, t, _elevation.WorldMatrix) != ScanResult.Failed)
+                        if (Lidars[i].Scan(_scan, t) != ScanResult.Failed)
                             Scans[i] = Lidars[i].Scans;
                         Scans[i] = 0;
                     }

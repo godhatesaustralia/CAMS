@@ -8,12 +8,15 @@ namespace IngameScript
     public class Weapons
     {
         List<IMyUserControllableGun> _guns = new List<IMyUserControllableGun>();
-        public int
+        public long
                salvoTickCounter = 0,
                offsetTicks = 0,
-               offsetTimer = 0;
-        readonly int salvoTicks = 0; // 0 or lower means no salvoing
+               offsetTimer = 0,
+               lastTrigger = 0;
+        readonly long salvoTicks = 0; // 0 or lower means no salvoing
         int ptr = -1;
+        bool Shooting = false;
+
         public Vector3D AimPos
         {
             get
@@ -33,38 +36,15 @@ namespace IngameScript
             _guns = g;
         }
 
-        public void Fire()
+        public void Fire(long f)
         {
+            Shooting = true;
             offsetTicks = 20;
             ++offsetTimer;
-        }
-        public void Hold() => offsetTicks = -1;
-
-        public bool Active
-        {
-            get
-            {
-                if (_guns.Count == 0) return false;
-                var anyWeaponOn = false;
-
-                for (int i = 0; i < _guns.Count; i++)
-                {
-                    if (_guns[i].Shoot)
-                    {
-                        anyWeaponOn = true;
-                        break;
-                    }
-                }
-
-                if (!anyWeaponOn) return false;
-
-                return true;
-            }
-        }
-        public void Update(int ticks = 1)
-        {
-            salvoTickCounter -= ticks;
-            offsetTicks -= ticks;
+            f -= lastTrigger;
+            salvoTickCounter -= f;
+            offsetTicks -= f;
+            lastTrigger += f;
 
             if (_guns.Count == 0) return;
             while (_guns[0].Closed)
@@ -94,5 +74,16 @@ namespace IngameScript
                     _guns[i].Shoot = false;
 
         }
+
+        public void Hold()
+        {
+            if (!Shooting)
+                return;
+            for (int i = 0; i < _guns.Count; i++)
+                _guns[i].Shoot = false;
+            offsetTicks = -1;
+            Shooting = false;
+        }
+
     }
 }

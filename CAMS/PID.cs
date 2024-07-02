@@ -138,7 +138,7 @@ namespace IngameScript
             lim_out, // output limit
             
             tgtDelta,
-            lastOut,
+           // lastOut,
             lastTgt;
         long lastF;
         AdjustFunc _fixAngle;
@@ -180,9 +180,7 @@ namespace IngameScript
 
             lastTgt = exp;
             lastF = Math.Max(f, lastF);
-            var r = (float)MathHelper.Clamp(delta * (g_out - lastOut * stepDelta)/ stepDelta, -lim_out, lim_out);
-            lastOut = r;
-            return r;
+            return (float)MathHelper.Clamp(delta * g_out / stepDelta, -lim_out, lim_out);
         }
 
         public void Reset()

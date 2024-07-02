@@ -103,7 +103,7 @@ namespace IngameScript
 
         public static double Clamp(double val, double min, double max) => MathHelperD.Clamp(val, min, max);
 
-        public static double AngleBetween(Vector3D a, Vector3D b)
+        public static double AngleBetween(ref Vector3D a, Vector3D b)
         {
             if (Vector3D.IsZero(a) || Vector3D.IsZero(b))
                 return 0;

@@ -1,13 +1,9 @@
-﻿using ParallelTasks;
-using Sandbox.ModAPI.Ingame;
+﻿using Sandbox.ModAPI.Ingame;
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using VRage.Game;
 using VRage.Game.GUI.TextPanel;
-using VRage.Game.ModAPI.Ingame.Utilities;
 using VRageMath;
 
 namespace IngameScript
@@ -20,14 +16,13 @@ namespace IngameScript
         public Dictionary<string, LidarMast> Masts = new Dictionary<string, LidarMast>();
         bool _fixedRange, _useNetwork, _useBackup = false;
         public List<IMyLargeTurretBase> AllTurrets, Artillery;
-        //List<IMyCameraBlock> _camerasDebug = new List<IMyCameraBlock>();
         public double maxRaycast;
         int tPtr, tStep;
         const string
             IgcFleet = "[FLT-CA]",
             IgcTgt = "[FLT-TG]";
-        IMyBroadcastListener  _FLT, _TGT;
-       
+        IMyBroadcastListener _FLT, _TGT;
+
 
         //DEBUG
         IMyTextPanel _panel;
@@ -102,12 +97,6 @@ namespace IngameScript
                         }
                         return true;
                     });
-                    //m.Terminal.GetBlocksOfType<IMyTextPanel>(null, b =>
-                    //{
-                    //    if (b.CustomName.Contains("BCR Info LCD CIC-FWD"))
-                    //        _panel = b as IMyTextPanel;
-                    //    return false;
-                    //});
                     masts = Masts.Keys.ToArray();
                 }
             Vector2
@@ -124,7 +113,7 @@ namespace IngameScript
                 new MySprite(Lib.SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, Lib.GRN, "", al),
                 new MySprite(Lib.SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, Lib.GRN, "", al),
             };
-           
+
             m.CtrlScreens.Add("masts", new Screen(() => masts.Length, sprites, (p, s) => s.SetData($"{mastUpdate(ref s, p)} {p + 1}/{masts.Length}", 0), 128f));
 
             Commands.Add("designate", b =>
@@ -150,10 +139,6 @@ namespace IngameScript
                     t.Elevation = 0;
                 }
             });
-            //if (_panel != null)
-            //{
-            //    _panel.ContentType = ContentType.TEXT_AND_IMAGE;
-            //}
         }
         void CheckTurret(IMyLargeTurretBase t, bool arty = false)
         {
@@ -173,66 +158,22 @@ namespace IngameScript
         public override void Update(UpdateFrequency u)
         {
             Debug = "";
-            
+
             if (Main.F % 5 == 0) // guar
                 foreach (var m in Masts.Values)
                     m.Update();
 
-                int n = Math.Min(AllTurrets.Count, tPtr + tStep);
-                for (; tPtr < n; tPtr++)
-                    CheckTurret(AllTurrets[tPtr]);
+            int n = Math.Min(AllTurrets.Count, tPtr + tStep);
+            for (; tPtr < n; tPtr++)
+                CheckTurret(AllTurrets[tPtr]);
 
-                for (int i = 0; i < Artillery.Count; i++)
-                    CheckTurret(Artillery[i], true);
+            for (int i = 0; i < Artillery.Count; i++)
+                CheckTurret(Artillery[i], true);
 
-                if (n == AllTurrets.Count)
-                {
-                    tPtr = 0;
-                }
-            
-            // ---------------------------------------[DEBUG]-------------------------------------------------
-            //if (_panel != null)
-            //{
-            //    int count = 0;
-            //    string s = "";
-            //    bool newline = false;
-            //    _panel.ContentType = ContentType.TEXT_AND_IMAGE;
-            //    _panel.ContentType = ContentType.SCRIPT;
-            //    _camerasDebug.Clear();
-            //    foreach (var mast in Masts.Values)
-            //        mast.DumpAllCameras(ref _camerasDebug);
-            //    _camerasDebug.Sort(temp);
-            //    foreach (var c in _camerasDebug)
-            //    {
-            //        ++count;
-            //        var nam = c.CustomName.Remove(0, 4);
-            //        var a = nam.ToCharArray();
-            //        var ct = count.ToString("00");
-            //        a[6] = nam[7];
-            //        a[7] = ct[0];
-            //        a[8] = ct[1];
-            //        nam = new string(a);
-            //        if (nam.Contains("MAIN"))
-            //            nam = nam.Substring(0, nam.Length - 5);
-
-            //        if (nam[nam.Length - 1] == 'C')
-            //            s += $"{nam}  {c.AvailableScanRange:G1}m";
-            //        else
-            //            s += $"{nam} {c.AvailableScanRange:G1}m";
-            //        s += newline ? "\n" : "    ";
-            //        newline = !newline;
-            //    }
-            //    var f = _panel.DrawFrame();
-            //    var cnr = new Vector2(256, 256);
-            //    f.Add(new MySprite(data: "SquareHollow", position: cnr, size: 2 * cnr, color: Lib.GRN));
-            //    f.Add(new MySprite(data: "SquareSimple", position: cnr, size: new Vector2(16, 512), color: Lib.GRN));
-            //    f.Add(new MySprite(SpriteType.TEXT, s.ToUpper(), new Vector2(28, 16), null, Lib.GRN, "VCR", TextAlignment.LEFT, 0.275f));
-            //    f.Dispose();
-            //}
-            // ---------------------------------------[DEBUG]-------------------------------------------------
-
+            if (n == AllTurrets.Count)
+            {
+                tPtr = 0;
+            }
         }
-        //RangeComparer temp = new RangeComparer();
-
     }
 }

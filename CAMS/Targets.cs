@@ -25,13 +25,13 @@ namespace IngameScript
         public readonly long EID, Source;
         public double Radius, Distance;
         public long Frame;
+        public int Priority = -1;
         public MatrixD Matrix;
         public Vector3D Position, Velocity, LastVelocity, Accel;
         public readonly MyDetectedEntityType Type;
         public readonly MyRelationsBetweenPlayerAndBlock IFF; // wham
-        bool _isEngaged = false;
-        #endregion
         public readonly string eIDString, eIDTag;
+        #endregion
 
 
         public Target(MyDetectedEntityInfo i, long f, long id, double dist)
@@ -50,13 +50,12 @@ namespace IngameScript
             Distance = dist;
         }
 
-        public Target(MyTuple<MyTuple<long, long, long, int, bool>, MyTuple<Vector3D, Vector3D, MatrixD, double>> data)
+        public Target(MyTuple<MyTuple<long, long, long, int>, MyTuple<Vector3D, Vector3D, MatrixD, double>> data)
         {
             EID = data.Item1.Item1;
             Source = data.Item1.Item2;
             Frame = data.Item1.Item3;
             Type = (MyDetectedEntityType)data.Item1.Item4;
-            _isEngaged = data.Item1.Item5;
             Position = data.Item2.Item1;
             Matrix = data.Item2.Item3;
             Velocity = data.Item2.Item2;
@@ -71,20 +70,19 @@ namespace IngameScript
             LastVelocity = Velocity;
             Velocity = i.Velocity;
             Matrix = i.Orientation;
+
             Accel = Vector3D.Zero;
             var a = (Velocity - LastVelocity) * dT;
-            // decide whether to keep this later
             if (a.LengthSquared() > 1)
                 Accel = (Accel * 0.25) + (a * 0.75);
+
             Radius = i.BoundingBox.Size.Length();
             Distance = (cnr - i.Position).Length();
         }
 
         public bool IsExpired(long now) => Elapsed(now) >= MAX_LIFETIME;
 
-
         public double Elapsed(long f) => Lib.tickSec * Math.Max(f - Frame, 1);
-
 
         public Vector3D AdjustedPosition(long f, long offset = 0)
         {
@@ -121,6 +119,7 @@ namespace IngameScript
         public HashSet<long>
             ScannedIDs = new HashSet<long>(),
             Blacklist = new HashSet<long>();
+        long _selEID, _lastPryCheck, _pChckIvl;
 
         public TargetProvider(Program m)
         {
@@ -157,6 +156,7 @@ namespace IngameScript
             _rdrStatic[4] = new MySprite(Lib.TXT, "", Lib.V2(328, 84), null, Lib.GRN, Lib.V, Lib.LFT, !m.Based ? .425f : .8f);
             m.LCDScreens.Add("radar", new Screen(() => Count, null, (p, s) => CreateRadar(p, s)));
         }
+
         #region radar
         void CreateRadar(int p, Screen s)
         {
@@ -259,9 +259,9 @@ namespace IngameScript
             _rdrBuffer.Add(new MySprite(Lib.TXT, eid, scrX > 2 * X_MIN ? pos - txt : pos + 0.5f * txt, null, Lib.GRN, Lib.V, rotation: 0.375f));
             return new MySprite(Lib.SHP, sel ? Lib.SQS : Lib.TRI, pos, (sel ? 1.5f : 1) * tgtSz, Lib.GRN, null); // Center
         }
-
+     
         #endregion
-        public ScanResult AddOrUpdate(ref MyDetectedEntityInfo i, long src)
+        public ScanResult AddOrUpdate(ref MyDetectedEntityInfo i, long src, bool hits = false)
         {
             var id = i.EntityId;
             Target t;
@@ -269,14 +269,36 @@ namespace IngameScript
             {
                 t = _targets[id];
                 t.Update(ref i, _host.Center, _host.F);
+                SetPriority(t);
                 return ScanResult.Update;
             }
             else
             {
                 _targets[id] = new Target(i, _host.F, src, (_host.Center - i.Position).Length());
                 _iEIDs.Add(id);
+                SetPriority(_targets[id]);
                 return ScanResult.Added;
             }
+        }
+
+
+        /// <summary>
+        /// sets target priority uhhhhh
+        /// </summary>
+        void SetPriority(Target tgt)
+        {
+            var dir = tgt.Position - _host.Center;
+            dir.Normalize();
+            tgt.Priority = 0;
+            bool uhoh = tgt.Velocity.Normalized().Dot(dir) > 0.9; // RUUUUUUUUUNNNNNNNNNNNNNN
+            if (tgt.Radius > 10 || (int)tgt.Type != 2)
+                tgt.Priority += uhoh ? 75 : 300;
+            else if (uhoh)
+                tgt.Priority -= (int)(tgt.Distance / tgt.Radius);
+            if (tgt.Distance > 2E3)
+                tgt.Priority += 500;
+            else if (tgt.Distance < 8E2)
+                tgt.Priority -= uhoh ? 500 : 400;
         }
 
         public List<Target> AllTargets()
@@ -294,6 +316,8 @@ namespace IngameScript
             ScannedIDs.Clear();
             if ((u & Lib.u100) != 0)
                 RemoveExpired();
+            // TODO: Priorities
+            
         }
         public bool Exists(long id) => _targets.ContainsKey(id);
 

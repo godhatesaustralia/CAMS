@@ -17,7 +17,7 @@ namespace IngameScript
         public readonly bool isLarge = false;
         Dictionary<string, Screen> _screens => isLarge ? _m.LCDScreens : _m.CtrlScreens;
         public int ptr { get; private set; }
-        // just keep everything to a minimum for now
+        // just keep everything to d minimum for now
         //readonly int _offset;
         //static int _oBase = 0;
         Func<int> ptrMax = null;
@@ -66,6 +66,10 @@ namespace IngameScript
             else ptr++;
         }
 
+        public void Select() => _screens[_active]?.Select(ptr);
+
+        public void Back() => _screens[_active]?.Back(ptr);
+
         public void Update(UpdateFrequency u) // cursed
         {
             int i = 0;
@@ -85,18 +89,20 @@ namespace IngameScript
         public MySprite[] sprites;
         public int ptr { get; protected set; }
         public Func<int> pMax = null;
-        Action<int, Screen> Data = null, Select = null, Back = null;
+        Action<int, Screen> Data = null; 
+        public Action<int> Select = null, Back = null;
         protected readonly float graphLength;
         public readonly UpdateFrequency Update;
-        public Screen(Func<int> m, MySprite[] s, Action<int, Screen> a = null, float g = 0, UpdateFrequency u = UpdateFrequency.Update10)
+        public Screen(Func<int> m, MySprite[] s, Action<int, Screen> d = null, float g = 0, UpdateFrequency u = UpdateFrequency.Update10)
         {
             ptr = 0;
             sprites = s;
             pMax = m;
-            Data = a;
+            Data = d;
             graphLength = g;
             Update = u;
         }
+
         public void GetData(int p) => Data(p, this);
         public void SetData(string d, int i) => sprites[i].Data = d;    
         public void SetColor(Color c, int i) => sprites[i].Color = c;
