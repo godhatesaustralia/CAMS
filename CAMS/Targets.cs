@@ -31,6 +31,7 @@ namespace IngameScript
         public readonly MyDetectedEntityType Type;
         public readonly MyRelationsBetweenPlayerAndBlock IFF; // wham
         public readonly string eIDString, eIDTag;
+
         #endregion
 
 

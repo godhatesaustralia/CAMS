@@ -1,21 +1,14 @@
-﻿using Sandbox.Game.EntityComponents;
-using Sandbox.ModAPI.Ingame;
-using Sandbox.ModAPI.Interfaces;
+﻿using Sandbox.ModAPI.Ingame;
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using VRage;
-using VRage.Collections;
 using VRage.Game;
-using VRage.Game.Components;
-using VRage.Game.GUI.TextPanel;
 using VRage.Game.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
-using VRage.Game.ObjectBuilders.Definitions;
 using VRageMath;
 
 namespace IngameScript
@@ -26,17 +19,12 @@ namespace IngameScript
         #region WHAM
         const string Version = "170.8.6";
         const string Date = "2023/03/20";
-        const string CompatVersion = "95.0.0";
-
         #region Global Fields
 
         enum GuidanceAlgoType { ProNav, WhipNav, HybridNav, ZeroEffortMiss };
 
         MissileGuidanceBase _selectedGuidance;
         Dictionary<GuidanceAlgoType, MissileGuidanceBase> _guidanceAlgorithms;
-
-        const string MissileNamePattern = "{0}-{1}";
-        const string MissileGroupPattern = "{0}-{1}";
 
         Vector3D
             _shooterForwardVec,
@@ -94,23 +82,16 @@ namespace IngameScript
             _mainThrusters = new List<IMyThrust>(),
             _sideThrusters = new List<IMyThrust>(),
             _detachThrusters = new List<IMyThrust>();
-        List<IMyVirtualMass> _artMasses = new List<IMyVirtualMass>();
         List<IMyShipMergeBlock> _mergeBlocks = new List<IMyShipMergeBlock>();
         List<IMyBatteryBlock> _batteries = new List<IMyBatteryBlock>();
         List<IMyShipController> _shipControllers = new List<IMyShipController>();
         List<IMyGyro> _gyros = new List<IMyGyro>();
         List<IMyShipConnector> _connectors = new List<IMyShipConnector>();
-        List<IMyMotorStator> _rotors = new List<IMyMotorStator>();
-        List<IMyReactor> _reactors = new List<IMyReactor>();
         List<IMyRadioAntenna> _antennas = new List<IMyRadioAntenna>();
-        List<IMyBeacon> _beacons = new List<IMyBeacon>();
-        List<IMySensorBlock> _sensors = new List<IMySensorBlock>();
         List<IMyWarhead> _warheads = new List<IMyWarhead>();
-        List<IMyTimerBlock> _timers = new List<IMyTimerBlock>();
         List<IMyCameraBlock> _cameras = new List<IMyCameraBlock>();
         List<IMyCameraBlock> _homingCameras = new List<IMyCameraBlock>();
         List<IMyGasTank> _gasTanks = new List<IMyGasTank>();
-        List<MyDetectedEntityInfo> _sensorEntities = new List<MyDetectedEntityInfo>();
 
         List<DynamicCircularBuffer<IMyCameraBlock>> _cameraBufferList = new List<DynamicCircularBuffer<IMyCameraBlock>>();
         DynamicCircularBuffer<IMyCameraBlock>
@@ -168,6 +149,7 @@ namespace IngameScript
             IgcTagBeamRiding = "IGC_MSL_OPT_MSG",
             IgcTagIff = "IGC_IFF_PKT",
             IgcTagFire = "IGC_MSL_FIRE_MSG",
+            IgcTagSplash = "IGC_MSL_SPLASH",
             IgcTagregister = "IGC_MSL_REG_MSG",
             IgcTagUnicast = "UNICAST";
 
@@ -194,53 +176,60 @@ namespace IngameScript
             IniSectionSpiral = "Spiral Parameters",
             IniSectionRandom = "Random Fligh Path Parameters",
             IniSectionRaycast = "Raycast/Sensors",
-            IniSectionMisc = "Misc.",
-            IniCompatMemeMode = "Antenna meme mode";
+            IniSectionMisc = "Misc.";
 
         ConfigBool _autoConfigure = new ConfigBool(IniSectionNames, "Auto-configure missile name", true);
-        ConfigString _missileTag = new ConfigString(IniSectionNames, "Missile tag", "MSL");
-        ConfigString _missilePos = new ConfigString(IniSectionNames, "Missile position", "CC");
-        ConfigString _referenceParentName = new ConfigString(IniSectionNames, "Launch positional spread reference" +
-            " name");
-        ConfigString _fireControlGroupNameTag = new ConfigString(IniSectionNames, "Fire control group name", "Fire Control");
-        ConfigString _detachThrustTag = new ConfigString(IniSectionNames, "Detach thruster name tag", "Detach");
 
-        ConfigDouble _disconnectDelay = new ConfigDouble(IniSectionDelays, "Stage 1: Disconnect delay (s)", 0);
-        ConfigDouble _guidanceDelay = new ConfigDouble(IniSectionDelays, "Guidance delay (s)", 1);
-        ConfigDouble _detachDuration = new ConfigDouble(IniSectionDelays, "Stage 2: Detach duration (s)", 0);
-        ConfigDouble _mainIgnitionDelay = new ConfigDouble(IniSectionDelays, "Stage 3: Main ignition delay (s)", 0);
+        ConfigString 
+            _missileTag = new ConfigString(IniSectionNames, "Missile tag", "MSL"),
+            _missilePos = new ConfigString(IniSectionNames, "Missile position", "CC"),
+            _referenceParentName = new ConfigString(IniSectionNames, "Launch positional spread reference" + " name"),
+            _fireControlGroupNameTag = new ConfigString(IniSectionNames, "Fire control group name", "Fire Control"),
+            _detachThrustTag = new ConfigString(IniSectionNames, "Detach thruster name tag", "Detach");
 
-        ConfigDouble _gyroProportionalGain = new ConfigDouble(IniSectionGyro, "Proportional gain", 10);
-        ConfigDouble _gyroIntegralGain = new ConfigDouble(IniSectionGyro, "Integral gain", 0);
-        ConfigDouble _gyroDerivativeGain = new ConfigDouble(IniSectionGyro, "Derivative gain", 10);
+        ConfigDouble
+            _disconnectDelay = new ConfigDouble(IniSectionDelays, "Stage 1: Disconnect delay (s)", 0),
+            _guidanceDelay = new ConfigDouble(IniSectionDelays, "Guidance delay (s)", 1),
+            _detachDuration = new ConfigDouble(IniSectionDelays, "Stage 2: Detach duration (s)", 0),
+            _mainIgnitionDelay = new ConfigDouble(IniSectionDelays, "Stage 3: Main ignition delay (s)", 0),
+            _gyroProportionalGain = new ConfigDouble(IniSectionGyro, "Proportional gain", 10),
+            _gyroIntegralGain = new ConfigDouble(IniSectionGyro, "Integral gain", 0),
+            _gyroDerivativeGain = new ConfigDouble(IniSectionGyro, "Derivative gain", 10);
 
         ConfigEnum<GuidanceAlgoType> _guidanceAlgoType = new ConfigEnum<GuidanceAlgoType>(IniSectionHoming, "Guidance algorithm", GuidanceAlgoType.ProNav, " Valid guidance algorithms: ProNav, WhipNav, HybridNav, ZeroEffortMiss");
-        ConfigDouble _navConstant = new ConfigDouble(IniSectionHoming, "Navigation constant", 3);
-        ConfigDouble _accelNavConstant = new ConfigDouble(IniSectionHoming, "Acceleration constant", 1.5);
-        ConfigDouble _maxAimDispersion = new ConfigDouble(IniSectionHoming, "Max aim dispersion (m)", 0);
-        ConfigDouble _topDownAttackHeight = new ConfigDouble(IniSectionHoming, "Topdown attack height (m)", 1500);
 
-        ConfigDouble _offsetUp = new ConfigDouble(IniSectionBeamRide, "Hit offset up (m)", 0);
-        ConfigDouble _offsetLeft = new ConfigDouble(IniSectionBeamRide, "Hit offset left (m)", 0);
+        ConfigDouble 
+            _navConstant = new ConfigDouble(IniSectionHoming, "Navigation constant", 3),
+            _accelNavConstant = new ConfigDouble(IniSectionHoming, "Acceleration constant", 1.5),
+            _maxAimDispersion = new ConfigDouble(IniSectionHoming, "Max aim dispersion (m)", 0),
+            _topDownAttackHeight = new ConfigDouble(IniSectionHoming, "Topdown attack height (m)", 1500),
+            _offsetUp = new ConfigDouble(IniSectionBeamRide, "Hit offset up (m)", 0),
+            _offsetLeft = new ConfigDouble(IniSectionBeamRide, "Hit offset left (m)", 0),
+            _missileSpinRPM = new ConfigDouble(IniSectionEvasion, "Spin rate (RPM)", 0);
 
-        ConfigDouble _missileSpinRPM = new ConfigDouble(IniSectionEvasion, "Spin rate (RPM)", 0);
-        ConfigBool _evadeWithSpiral = new ConfigBool(IniSectionEvasion, "Use spiral", false);
-        ConfigBool _evadeWithRandomizedHeading = new ConfigBool(IniSectionEvasion, "Use random flight path", true, " AKA \"Drunken Missile Mode\"");
+        ConfigBool
+            _evadeWithSpiral = new ConfigBool(IniSectionEvasion, "Use spiral", false),
+            _evadeWithRandomizedHeading = new ConfigBool(IniSectionEvasion, "Use random flight path", true, " AKA \"Drunken Missile Mode\"");
 
-        ConfigDouble _spiralDegrees = new ConfigDouble(IniSectionSpiral, "Spiral angle (deg)", 15);
-        ConfigDouble _timeMaxSpiral = new ConfigDouble(IniSectionSpiral, "Spiral time (sec)", 3);
-        ConfigDouble _spiralActivationRange = new ConfigDouble(IniSectionSpiral, "Spiral activation range (m)", 1000);
-
-        ConfigDouble _randomVectorInterval = new ConfigDouble(IniSectionRandom, "Direction change interval (sec)", 0.5);
-        ConfigDouble _maxRandomAccelRatio = new ConfigDouble(IniSectionRandom, "Max acceleration ratio", 0.25);
+        ConfigDouble 
+            _spiralDegrees = new ConfigDouble(IniSectionSpiral, "Spiral angle (deg)", 15),
+            _timeMaxSpiral = new ConfigDouble(IniSectionSpiral, "Spiral time (sec)", 3),
+            _spiralActivationRange = new ConfigDouble(IniSectionSpiral, "Spiral activation range (m)", 1000),
+            _randomVectorInterval = new ConfigDouble(IniSectionRandom, "Direction change interval (sec)", 0.5),
+            _maxRandomAccelRatio = new ConfigDouble(IniSectionRandom, "Max acceleration ratio", 0.25);
 
         ConfigBool _useCamerasForHoming = new ConfigBool(IniSectionRaycast, "Use cameras for homing", true);
-        ConfigDouble _raycastRange = new ConfigDouble(IniSectionRaycast, "Tripwire range (m)", 0.25);
-        ConfigDouble _raycastMinimumTargetSize = new ConfigDouble(IniSectionRaycast, "Minimum target size (m)", 0);
-        ConfigDouble _minimumArmingRange = new ConfigDouble(IniSectionRaycast, "Minimum warhead arming range (m)", 100);
-        ConfigBool _raycastIgnoreFriends = new ConfigBool(IniSectionRaycast, "Ignore friendlies", false);
-        ConfigBool _raycastIgnorePlanetSurface = new ConfigBool(IniSectionRaycast, "Ignore planets", true);
-        ConfigBool _ignoreIdForDetonation = new ConfigBool(IniSectionRaycast, "Ignore target ID for detonation", false);
+
+        ConfigDouble 
+            _raycastRange = new ConfigDouble(IniSectionRaycast, "Tripwire range (m)", 0.25),
+            _raycastMinimumTargetSize = new ConfigDouble(IniSectionRaycast, "Minimum target size (m)", 0),
+            _minimumArmingRange = new ConfigDouble(IniSectionRaycast, "Minimum warhead arming range (m)", 100);
+
+        ConfigBool 
+            _raycastIgnoreFriends = new ConfigBool(IniSectionRaycast, "Ignore friendlies", false),
+            _raycastIgnorePlanetSurface = new ConfigBool(IniSectionRaycast, "Ignore planets", true),
+            _ignoreIdForDetonation = new ConfigBool(IniSectionRaycast, "Ignore target ID for detonation", false);
+
         ConfigEnum<AntennaNameMode> _antennaMode = new ConfigEnum<AntennaNameMode>(IniSectionMisc, "Antenna name mode", AntennaNameMode.Empty, " Valid antenna name modes: Empty, MissileName, MissileStatus");
 
         IConfigValue[] _config;
@@ -668,17 +657,12 @@ namespace IngameScript
             _mainThrusters.Clear();
             _sideThrusters.Clear();
             _detachThrusters.Clear();
-            _artMasses.Clear();
             _mergeBlocks.Clear();
             _batteries.Clear();
             _shipControllers.Clear();
             _gyros.Clear();
             _connectors.Clear();
-            _rotors.Clear();
-            _reactors.Clear();
             _antennas.Clear();
-            _beacons.Clear();
-            _sensors.Clear();
             _warheads.Clear();
             _cameras.Clear();
             _camerasFront.Clear();
@@ -691,10 +675,8 @@ namespace IngameScript
             _gasTanks.Clear();
         }
 
-        string GetTitle()
-        {
-            return $"Whip's Homing Adv. Missile Script\n(Version {Version} - {Date})\n\nFor use with LAMP v{CompatVersion} or later.\n";
-        }
+        string GetTitle() => $"\nWHAM-C (Forked from WHAM version {Version} - {Date})\n\nFor CAMS launchers only.\n";
+
 
         List<IMyRadioAntenna> _broadcasters = new List<IMyRadioAntenna>();
         List<IMyBlockGroup> _foundGroups = new List<IMyBlockGroup>();
@@ -968,23 +950,16 @@ namespace IngameScript
                 GetThrusterOrientation(_shipControllers[0]);
             }
             setupFailed |= EchoIfTrue(_mainThrusters.Count == 0, ">> ERR: No main thrusters found");
-            setupFailed |= EchoIfTrue(_batteries.Count == 0 && _reactors.Count == 0, ">> ERR: No batteries or reactors found");
-
             // WARNINGS
-            if (!EchoIfTrue(_mergeBlocks.Count == 0 && _rotors.Count == 0 && _connectors.Count == 0, "> WARN: No merge blocks, rotors, or connectors found for detaching"))
+            if (!EchoIfTrue(_mergeBlocks.Count == 0 && _connectors.Count == 0, "> WARN: No merge blocks, rotors, or connectors found for detaching"))
             {
                 EchoBlockCount(_mergeBlocks.Count, "merge");
-                EchoBlockCount(_rotors.Count, "rotor");
                 EchoBlockCount(_connectors.Count, "connector");
             }
 
             // INFO
-            EchoBlockCount(_artMasses.Count, "art. mass block");
-            EchoBlockCount(_sensors.Count, "sensor");
             EchoBlockCount(_warheads.Count, "warhead");
-            EchoBlockCount(_beacons.Count, "beacon");
             EchoBlockCount(_cameras.Count, "camera");
-            EchoBlockCount(_timers.Count, "timer");
             EchoBlockCount(_unsortedThrusters.Count, "total thruster");
             EchoBlockCount(_mainThrusters.Count, "main thruster");
             EchoBlockCount(_sideThrusters.Count, "side thruster");
@@ -1053,17 +1028,11 @@ namespace IngameScript
                     _homingCameras.Add(camera);
                 GetCameraOrientation(camera);
             }
-            else if (AddToListIfType(block, _artMasses)
-                    || AddToListIfType(block, _batteries)
+            else if (AddToListIfType(block, _batteries)
                     || AddToListIfType(block, _gyros)
                     || AddToListIfType(block, _mergeBlocks)
                     || AddToListIfType(block, _shipControllers)
                     || AddToListIfType(block, _connectors)
-                    || AddToListIfType(block, _rotors)
-                    || AddToListIfType(block, _reactors)
-                    || AddToListIfType(block, _beacons)
-                    || AddToListIfType(block, _sensors)
-                    || AddToListIfType(block, _timers)
                     || AddToListIfType(block, _gasTanks))
             {
                 /* Nothing to do here */
@@ -1156,15 +1125,6 @@ namespace IngameScript
                 b.ChargeMode = ChargeMode.Discharge;
             }
 
-            foreach (var r in _reactors)
-            {
-                r.Enabled = true;
-            }
-
-            foreach (var s in _sensors)
-            {
-                s.Enabled = false;
-            }
 
             foreach (var w in _warheads)
             {
@@ -1181,21 +1141,12 @@ namespace IngameScript
                 t.Stockpile = false;
             }
 
-            foreach (var t in _timers)
-            {
-                t.Trigger();
-            }
         }
 
         // Detaches missile from the firing ship.
         void MissileStage2()
         {
             _missileStage = 2;
-
-            foreach (var m in _artMasses)
-            {
-                m.Enabled = true;
-            }
 
             foreach (var b in _mergeBlocks)
             {
@@ -1207,11 +1158,6 @@ namespace IngameScript
                 c.Disconnect();
             }
 
-            foreach (var r in _rotors)
-            {
-                r.Detach();
-            }
-
             foreach (var a in _antennas)
             {
                 a.Radius = 1f;
@@ -1219,13 +1165,6 @@ namespace IngameScript
                 a.EnableBroadcasting = false;
                 a.Enabled = true; //this used to be a bug workaround, not sure if it is still needed tbh
                 a.CustomName = "";
-            }
-
-            foreach (var b in _beacons)
-            {
-                b.Radius = 1f;
-                b.Enabled = true;
-                b.CustomName = "";
             }
 
             ApplyThrustOverride(_sideThrusters, MinThrust, false);
@@ -1244,11 +1183,6 @@ namespace IngameScript
         void MissileStage4()
         {
             _missileStage = 4;
-
-            foreach (var m in _artMasses)
-            {
-                m.Enabled = false;
-            }
 
             foreach (var c in _cameras)
             {
@@ -1608,13 +1542,6 @@ namespace IngameScript
                 a.CustomName = GetAntennaName();
             }
 
-            foreach (IMyBeacon thisBeacon in _beacons)
-            {
-                if (thisBeacon.Closed)
-                    continue;
-
-                thisBeacon.Radius = (float)dist;
-            }
         }
 
         void ApplyThrustOverride(List<IMyThrust> thrusters, float overrideValue, bool turnOn = true)
@@ -1674,7 +1601,7 @@ namespace IngameScript
             double closingSpeed;
 
             // If we have no cameras or sensors for detonation, use some approximations
-            if (_cameras.Count == 0 && _sensors.Count == 0)
+            if (_cameras.Count == 0)
             {
                 if (_guidanceMode == GuidanceMode.BeamRiding) // Arm warheads if in beam ride mode
                 {
@@ -1695,6 +1622,7 @@ namespace IngameScript
                     if (distanceToTarget < adjustedDetonationRange + closingSpeed * SecondsPerUpdate)
                     {
                         Detonate((distanceToTarget - adjustedDetonationRange) / closingSpeed);
+                        IGC.SendBroadcastMessage(IgcTagSplash, _missileNameTag);
                         return;
                     }
                 }
@@ -1709,6 +1637,7 @@ namespace IngameScript
             if ((_guidanceMode & GuidanceMode.Homing) != 0 && RaycastTripwireInDirection(missileToTargetNorm, closingVelocity, out raycastHitDistance, out closingSpeed))
             {
                 Detonate((raycastHitDistance - _raycastRange) / closingSpeed);
+                IGC.SendBroadcastMessage(IgcTagSplash, _missileNameTag);
                 return;
             }
 
@@ -1729,32 +1658,10 @@ namespace IngameScript
                 RaycastTripwireInDirection(closingVelocity, closingVelocity, out raycastHitDistance, out closingSpeed, -perp2))
             {
                 Detonate((raycastHitDistance - _raycastRange) / closingSpeed);
+                IGC.SendBroadcastMessage(IgcTagSplash, _missileNameTag);
                 return;
             }
 
-            foreach (IMySensorBlock sensor in _sensors)
-            {
-                if (sensor.Closed)
-                    continue;
-
-                if (!sensor.Enabled)
-                    sensor.Enabled = true;
-
-                if (sensor.IsActive)
-                {
-                    _sensorEntities.Clear();
-                    sensor.DetectedEntities(_sensorEntities);
-
-                    foreach (var targetInfo in _sensorEntities)
-                    {
-                        if (IsValidTarget(targetInfo))
-                        {
-                            Detonate(0);
-                            return;
-                        }
-                    }
-                }
-            }
         }
 
         bool RaycastTripwireInDirection(Vector3D directionToTarget, Vector3D closingVelocity, out double raycastHitDistance, out double closingSpeed, Vector3D? offsetVector = null)
@@ -1842,6 +1749,7 @@ namespace IngameScript
                     b.Enabled = false;
             }
             Detonate(0);
+            IGC.SendBroadcastMessage(IgcTagSplash, _missileNameTag);
             Runtime.UpdateFrequency = UpdateFrequency.None;
         }
 

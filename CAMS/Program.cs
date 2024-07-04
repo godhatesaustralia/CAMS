@@ -26,6 +26,7 @@ namespace IngameScript
         {
             Targets = new TargetProvider(this);
             Debug = new DebugAPI(this, true);
+            Datalink.BindIGC(this);
             Components.Add(Lib.SN, new Scanner(Lib.SN));
             Components.Add(Lib.DF, new Defense(Lib.DF));
             Runtime.UpdateFrequency |= UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;

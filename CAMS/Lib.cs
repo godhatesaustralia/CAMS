@@ -22,7 +22,7 @@ namespace IngameScript
             TG = "targets",
             MS = "masts",
             SN = "scanner",
-            DF ="defense",
+            DF = "defense",
             V = "VCR",
             VB = "VCRBold",
             WH = "White",
@@ -32,13 +32,7 @@ namespace IngameScript
             SQS = "SquareSimple",
             SQH = "SquareHollow",
             TRI = "Triangle",
-            WPN = "Weapons",
-            IgcParams = "IGC_MSL_PAR_MSG",
-            IgcHoming = "IGC_MSL_HOM_MSG",
-            IgcBeamRiding = "IGC_MSL_OPT_MSG",
-            IgcIff = "IGC_IFF_PKT",
-            IgcFire = "IGC_MSL_FIRE_MSG",
-            Igcregister = "IGC_MSL_REG_MSG";
+            WPN = "Weapons";
 
         public static UpdateFrequency
             u1 = UpdateFrequency.Update1,

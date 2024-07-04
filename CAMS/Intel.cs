@@ -119,7 +119,5 @@ namespace IngameScript
 
         }
 
-        public void InterceptorParams(bool k, bool r, long kc) => Main.SendParams(k, false, false, false, true, r, kc);
-
     }
 }

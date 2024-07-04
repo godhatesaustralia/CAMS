@@ -25,6 +25,13 @@ namespace IngameScript
             Reset();
         }
 
+        public RoundRobin(ref Dictionary<K, V> dict, int s = 0)
+        {
+            start = s;
+            IDs = dict.Keys.ToArray();
+            Reset();
+        }
+
         public V Next(ref Dictionary<K, V> dict)
         {
             if (current < IDs.Length)
@@ -200,59 +207,5 @@ namespace IngameScript
                 return lastAccel;
             }
         }
-        public void SendWhamTarget(ref Vector3D hitPos, ref Vector3D tPos, ref Vector3D tVel, ref Vector3D preciseOffset, ref Vector3D myPos, double elapsed, long tEID, long keycode)
-        {
-            Matrix3x3 mat1 = new Matrix3x3();
-            FillMatrix(ref mat1, ref hitPos, ref tPos, ref tVel);
-
-            Matrix3x3 mat2 = new Matrix3x3();
-            FillMatrix(ref mat2, ref preciseOffset, ref myPos, ref Vector3D.Zero);
-
-            var msg = new MyTuple<Matrix3x3, Matrix3x3, float, long, long>
-            {
-                Item1 = mat1,
-                Item2 = mat2,
-                Item3 = (float)elapsed,
-                Item4 = tEID,
-                Item5 = keycode,
-            };
-            IGC.SendBroadcastMessage(Lib.IgcHoming, msg);
-        }
-
-        public void SendParams(bool kill, bool stealth, bool spiral, bool topdown, bool precise, bool retask, long keycode)
-        {
-            byte packed = 0;
-            packed |= BoolToByte(kill);
-            packed |= (byte)(BoolToByte(stealth) << 1);
-            packed |= (byte)(BoolToByte(spiral) << 2);
-            packed |= (byte)(BoolToByte(topdown) << 3);
-            packed |= (byte)(BoolToByte(precise) << 4);
-            packed |= (byte)(BoolToByte(retask) << 5);
-
-            var msg = new MyTuple<byte, long>
-            {
-                Item1 = packed,
-                Item2 = keycode
-            };
-
-            IGC.SendBroadcastMessage(Lib.IgcParams, msg);
-        }
-
-        static byte BoolToByte(bool value) => value ? (byte)1 : (byte)0;
-        static void FillMatrix(ref Matrix3x3 mat, ref Vector3D col0, ref Vector3D col1, ref Vector3D col2)
-        {
-            mat.M11 = (float)col0.X;
-            mat.M21 = (float)col0.Y;
-            mat.M31 = (float)col0.Z;
-
-            mat.M12 = (float)col1.X;
-            mat.M22 = (float)col1.Y;
-            mat.M32 = (float)col1.Z;
-
-            mat.M13 = (float)col2.X;
-            mat.M23 = (float)col2.Y;
-            mat.M33 = (float)col2.Z;
-        }
-
     }
 }
