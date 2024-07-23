@@ -1,42 +1,36 @@
 ﻿using Sandbox.ModAPI.Ingame;
-using SpaceEngineers.Game.ModAPI.Ingame;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http.Headers;
 using VRage.Game.GUI.TextPanel;
 using VRageMath;
 
 namespace IngameScript
 {
-
     public class Defense : CompBase // turrets and interceptors
     {
         Dictionary<string, RotorTurret> Turrets = new Dictionary<string, RotorTurret>();
-        Dictionary<string, EKVLauncher> Launchers = new Dictionary<string, EKVLauncher>();
-        Dictionary<string, long> _mslToTargetID = new Dictionary<string, long>();
         RoundRobin<string, RotorTurret>
             AssignRR, UpdateRR;
-        RoundRobin<string, EKVLauncher> LauncherRR;
         SortedDictionary<int, long> _tEIDsByPriority = new SortedDictionary<int, long>();
-
         string[] TurretNames, PDTs;
         int Count => TurretNames.Length;
         int maxPriTgt;
-
         #region clock
         bool priUpdateSwitch = true;
         int
             maxTurUpdates,
             priCheckTicks = 2;
         long nextPriorityCheck = 0;
-        IMyBroadcastListener _mslSplash;
         #endregion
 
         public Defense(string n) : base(n, Lib.u1 | Lib.u10 | Lib.u100)
         {
-            _mslSplash = Datalink.IGC.RegisterBroadcastListener(Datalink.IgcSplash);
         }
 
         #region implementations
+
         public override void Setup(Program m)
         {
             var r = new List<IMyMotorStator>();
@@ -50,14 +44,13 @@ namespace IngameScript
                         grp = "RotorGroup",
                         def = " CAMS Azimuths",
                         pdg = q.String(h, "pd" + grp, "PD" + def),
-                        mng = q.String(h, "main" + grp, "Main" + def),
-                        icptg = q.String(h, "ekv" + grp, "EKV" + def);
+                        mng = q.String(h, "main" + grp, "Main" + def);
                     m.Terminal.GetBlockGroupWithName(pdg).GetBlocks(null, b =>
                     {
                         var a = b as IMyMotorStator;
                         if (a != null)
                             r.Add(a);
-                        return false;
+                        return true;
                     });
                     var pdn = new List<string>();
                     int mx = q.Int(h, "maxScansPDLR", 3);
@@ -66,7 +59,7 @@ namespace IngameScript
                         var pd = new PDT(a, m, this, mx);
                         if (pd != null)
                         {
-                            Turrets[pd.Name] = pd;
+                            Turrets.Add(pd.Name, pd);
                             pdn.Add(pd.Name);
                         }
                     }
@@ -76,34 +69,20 @@ namespace IngameScript
                         var a = b as IMyMotorStator;
                         if (a != null)
                             r.Add(a);
-                        return false;
+                        return true;
                     });
                     foreach (var a in r)
                     {
                         var tr = new RotorTurret(a, m);
                         if (tr != null)
-                            Turrets[tr.Name] = tr;
+                            Turrets.Add(tr.Name, tr);
                     }
-                    r.Clear() ;
-                    m.Terminal.GetBlockGroupWithName(icptg).GetBlocks(null, b =>
-                    {
-                        var a = b as IMyMotorStator;
-                        if (a != null)
-                            r.Add(a);
-                        return false;
-                    });
-                    foreach (var a in r)
-                    {
-                        var l = new EKVLauncher(a, m);
-                        if (l != null)
-                            Launchers[a.CustomName] = l;
-                    }
+
                     TurretNames = Turrets.Keys.ToArray();
                     PDTs = pdn.ToArray();
 
                     AssignRR = new RoundRobin<string, RotorTurret>(TurretNames);
                     UpdateRR = new RoundRobin<string, RotorTurret>(TurretNames);
-                    LauncherRR = new RoundRobin<string, EKVLauncher>(ref Launchers);
 
                     #region list-screen
                     MySprite[] spr = {
@@ -113,17 +92,17 @@ namespace IngameScript
                         new MySprite(Lib.TXT, "", new Vector2(20, 348), null, Lib.GRN, Lib.VB, 0, 0.925f)// 5. STATE
                             };
                     m.CtrlScreens.Add(Lib.TR, new Screen(() => TurretNames.Length, spr, (p, s) =>
-                     {
-                         var turret = Turrets[TurretNames[p]];
-                         string n = turret.Name, st = turret.Status.ToString().ToUpper();
-                         int ct = p >= 9 ? 12 : 13;
-                         ct -= turret.Name.Length;
-                         for (; ct-- > 0;)
-                             n += " ";
-                         s.SetData(n + $"{p + 1}/{Count}", 0);
-                         s.SetData($"RPM {turret.aRPM:00.0}\nCUR {turret.aCur:000}°\nRPM {turret.eRPM:00.0}\nCUR {turret.eCur:000}°", 2);
-                         s.SetData(st, 3);
-                     }));
+                    {
+                        var turret = Turrets[TurretNames[p]];
+                        string n = turret.Name, st = turret.Status.ToString().ToUpper();
+                        int ct = p >= 9 ? 12 : 13;
+                        ct -= turret.Name.Length;
+                        for (; ct-- > 0;)
+                            n += " ";
+                        s.SetData(n + $"{p + 1}/{Count}", 0);
+                        s.SetData($"RPM {turret.aRPM:00.0}\nCUR {turret.aCur:000}°\nRPM {turret.eRPM:00.0}\nCUR {turret.eCur:000}°", 2);
+                        s.SetData(st, 3);
+                    }));
                     #endregion
 
                 }
@@ -133,29 +112,12 @@ namespace IngameScript
 
         public override void Update(UpdateFrequency u)
         {
-            while (_mslSplash.HasPendingMessage)
-            {
-                var name = (string)_mslSplash.AcceptMessage().Data;
-                _mslToTargetID.Remove(name);
-            }
-
             AssignTargets();
             for (int i = 0; i < maxTurUpdates; i++)
             {
                 var tur = UpdateRR.Next(ref Turrets);
                 tur.UpdateTurret();
             }
-
-            var l = LauncherRR.Next(ref Launchers);
-            if (l.NeedsReload)
-                l.Reload();
-
-            if (_mslToTargetID.Count > 0)
-            {
-
-            }    
-
-                    
         }
 
         #endregion
@@ -174,18 +136,13 @@ namespace IngameScript
                         maxPriTgt = t.Priority > maxPriTgt ? t.Priority : maxPriTgt;
                     }
                     nextPriorityCheck = F + priCheckTicks;
-                    // TODO: better
-                    //if ((int)Targets.Get(_tEIDsByPriority[maxPriTgt]).Type == 2)
-                    //    foreach (var l in Launchers.Values)
-                    //        if (l.Count > 0 && !l.NeedsReload)
-                    //            l.Launch();
                     priUpdateSwitch = false;
                 }
                 else if (!priUpdateSwitch)
                 {
                     RotorTurret tur;
                     priUpdateSwitch = AssignRR.Next(ref Turrets, out tur);
-                    if (tur.CanTarget(tur.tEID))
+                    if (tur.tEID != -1 && tur.CanTarget(tur.tEID))
                         return;
 
                     int p = -1;
@@ -208,10 +165,9 @@ namespace IngameScript
                         }
                     }
                     tempEID = bestEID == -1 ? tempEID : bestEID;
-                    if (tempEID != -1)
+                    if (tempEID != -1 && _tEIDsByPriority.Remove(p))
                     {
                         tur.tEID = tempEID;
-                        _tEIDsByPriority.Remove(p);
                         _tEIDsByPriority.Add(p + 1000, tempEID);
                     }
                     return;

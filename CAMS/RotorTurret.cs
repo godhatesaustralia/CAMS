@@ -220,8 +220,7 @@ namespace IngameScript
                 _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
                 return AimState.Rest;
             }
-            if (_m.F % 2 == 0)
-                _m.Debug.DrawGPS($"{Name}\naCur {aCur / rad:##0.#}°\neCur {eCur / rad:##0.#}°\n{Status}", aziMat.Translation, Lib.YEL);
+            _m.Debug.DrawGPS($"{Name}\naCur {aCur / rad}°\neCur {eCur / rad}°\n{Status}", aziMat.Translation, Lib.YEL);
             _azimuth.TargetVelocityRad = _aPCtrl.Filter(a, _aRest, _m.F);
             _elevation.TargetVelocityRad = _ePCtrl.Filter(e, _eRest, _m.F);
 
@@ -248,8 +247,7 @@ namespace IngameScript
             // elevation target angle
             var eTgt = Lib.AngleBetween(ref aTgtV, ref aim) * Math.Sign(aim.Dot(azm.Up));
             eCur = (eCur + Lib.Pi) % Lib.Pi2 - Lib.Pi;
-            if (_m.F % 2 == 0)
-                _m.Debug.DrawGPS($"{Name}\naTgt/Cur {aTgt / rad:##0.#}°|{aCur / rad:##0.#}°\neTgt/Cur {eTgt / rad:##0.#}°|{eCur / rad:##0.#}°\n{Status}", azm.Translation, Lib.YEL);
+            //_m.Debug.DrawGPS($"{Name}\naTgt/Cur {aTgt / rad}°|{aCur / rad}°\neTgt/Cur {eTgt / rad}°|{eCur / rad}°\n{Status}", azm.Translation, Lib.YEL);
             if (eTgt > _eMx || eTgt < _eMn)
                 return AimState.Blocked;
 
@@ -300,15 +298,14 @@ namespace IngameScript
                 Inoperable = !_azimuth.IsAttached || !_elevation.IsAttached || !_azimuth.IsFunctional || !_elevation.IsFunctional;
                 if (tgt == null || Inoperable)
                     return;
-
                 var aim = tgt.Position;
+                var tgtDst = -1d;
                 bool icpt = Interceptable(tgt, ref aim);
-                var tgtDst = aim.Length();
-
-                if (icpt && tgtDst < TrackRange)
+                if (icpt)
                 {
                     var azm = aziMat;
                     aim -= azm.Translation;
+                    tgtDst = aim.Length();
 
                     double
                         a = _azimuth.Angle,
@@ -375,28 +372,27 @@ namespace IngameScript
                 if (tgt == null || Inoperable)
                     return;
 
-                var aim = tgt.Position;        
+                var aim = tgt.Position;
+                if (!lidarTarget && _spray != -1)
+                {
+                    if (switchOfs)
+                        _sprayOfs = Lib.RandomOffset(ref _m.RNG, _spray) * tgt.Radius / tgt.Distance;
+                    aim += _sprayOfs;
+                }
+                var tgtDst = -1d;
                 bool icpt = Interceptable(tgt, ref aim);
-                var tgtDst = aim.Length();
-
-                if (icpt && tgtDst < TrackRange)
+                if (icpt)
                 {
                     var azm = aziMat;
                     aim -= azm.Translation;
-
-                    if (!lidarTarget && _spray != -1)
-                    {
-                        if (switchOfs)
-                            _sprayOfs = Lib.RandomOffset(ref _m.RNG, _spray) * tgt.Radius / tgt.Distance;
-                        aim += _sprayOfs;
-                    }
+                    tgtDst = aim.Length();
 
                     double
                         a = _azimuth.Angle,
                         e = (_elevation.Angle + Lib.Pi) % Lib.Pi2 - Lib.Pi;
                     Lim2PiLite(ref a);
                     Status = AimAtTarget(ref azm, ref aim, a, e);
-                    if ((oobF > 50 && Status == AimState.Blocked)|| tgtDst > TrackRange)
+                    if ((oobF > 50 && Status == AimState.Blocked) || tgtDst > TrackRange)
                     {
                         Status = ResetTurret();
                         return;
@@ -406,7 +402,7 @@ namespace IngameScript
                         var r = ScanResult.Failed;
                         if (Status == AimState.OnTarget)
                             for (scanCtr = 0; scanCtr < scanMx && r == ScanResult.Failed; scanCtr++)
-                            r = Lidar.Scan(_base, tgt, true);
+                                r = Lidar.Scan(_base, tgt, true);
                     }
                     else if (tgtDst < Range && Status == AimState.OnTarget)
                     {

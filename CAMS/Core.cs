@@ -52,7 +52,6 @@ namespace IngameScript
             return current < IDs.Length - (start + 1);
         }
 
-
         public void Reset() => start = current = 0;
 
     }
@@ -116,6 +115,7 @@ namespace IngameScript
 
     public partial class Program
     {
+
         public IMyGridTerminalSystem Terminal => GridTerminalSystem;
         public IMyShipController Controller;
         public DebugAPI Debug;

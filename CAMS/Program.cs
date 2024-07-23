@@ -26,7 +26,7 @@ namespace IngameScript
         {
             Targets = new TargetProvider(this);
             Debug = new DebugAPI(this, true);
-            Datalink.BindIGC(this);
+            Datalink.Setup(this);
             Components.Add(Lib.SN, new Scanner(Lib.SN));
             Components.Add(Lib.DF, new Defense(Lib.DF));
             Runtime.UpdateFrequency |= UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;
@@ -47,26 +47,29 @@ namespace IngameScript
         {
             _frame++;
             _totalRT += Runtime.TimeSinceLastRun.TotalMilliseconds;
-                
-            _cmd.Clear();
-            if (argument != "" && _cmd.TryParse(argument))
+
+            if (argument != "")
             {
-                if (Components.ContainsKey(_cmd.Argument(0)) && Components[_cmd.Argument(0)].Commands.ContainsKey(_cmd.Argument(1)))
-                    Components[_cmd.Argument(0)].Commands[_cmd.Argument(1)].Invoke(_cmd);
-                else if (_cmd.Argument(0) == "switch" && _cmd.ArgumentCount == 3 && Displays.ContainsKey(_cmd.Argument(2)))
-                    Displays[_cmd.Argument(2)].SetActive(_cmd.Argument(1));
-                else
+                _cmd.Clear();
+                if (_cmd.TryParse(argument))
                 {
-                    if (Displays.ContainsKey(_cmd.Argument(0)))
+                    if (Components.ContainsKey(_cmd.Argument(0)) && Components[_cmd.Argument(0)].Commands.ContainsKey(_cmd.Argument(1)))
+                        Components[_cmd.Argument(0)].Commands[_cmd.Argument(1)].Invoke(_cmd);
+                    else if (_cmd.Argument(0) == "switch" && _cmd.ArgumentCount == 3 && Displays.ContainsKey(_cmd.Argument(2)))
+                        Displays[_cmd.Argument(2)].SetActive(_cmd.Argument(1));
+                    else
                     {
-                        if (_cmd.Argument(1) == "up")
-                            Displays[_cmd.Argument(0)].Up();
-                        else if (_cmd.Argument(1) == "down")
-                            Displays[_cmd.Argument(0)].Down();
-                        //else if (_cmd.Argument(0) == "select")
-                        //    Displays[_cmd.Argument(0)].Select.Invoke(s);
-                        //else if (_cmd.Argument(0) == "back")
-                        //    Displays[_cmd.Argument(0)].Back.Invoke(s);
+                        if (Displays.ContainsKey(_cmd.Argument(0)))
+                        {
+                            if (_cmd.Argument(1) == "up")
+                                Displays[_cmd.Argument(0)].Up();
+                            else if (_cmd.Argument(1) == "down")
+                                Displays[_cmd.Argument(0)].Down();
+                            //else if (_cmd.Argument(0) == "select")
+                            //    Displays[_cmd.Argument(0)].Select.Invoke(s);
+                            //else if (_cmd.Argument(0) == "back")
+                            //    Displays[_cmd.Argument(0)].Back.Invoke(s);
+                        }
                     }
                 }
             }
@@ -105,7 +108,7 @@ namespace IngameScript
             DisplayRR.Next(ref Displays).Update();
 
             Runtime.UpdateFrequency = tgtFreq;
-            string r = "[[COMBAT MANAGER]]\n\n";
+            string r = "====<CAMS>====\n\n";
             r += $"RUNS - {_frame}\nRUNTIME - {rt} ms\nAVG - {_avgRT:0.####} ms\nWORST - {_worstRT} ms, F{_worstF}\n";
             r += Components[Lib.SN].Debug;
             Echo(r);

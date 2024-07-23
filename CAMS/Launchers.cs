@@ -1,11 +1,10 @@
 ﻿using Sandbox.ModAPI.Ingame;
-using System.Collections.Generic;
-using VRage;
-using VRageMath;
-using System.Linq;
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
-using System.Runtime.InteropServices;
+using System.Collections.Generic;
+using System.Linq;
+using VRage;
+using VRageMath;
 
 namespace IngameScript
 {
@@ -13,12 +12,13 @@ namespace IngameScript
     {
         int Count { get; }
         bool NeedsReload { get; }
-        void Launch();
+        string Launch();
         void Reload();
     }
     public static class Datalink
     {
         public static IMyIntergridCommunicationSystem IGC;
+        static IMyRadioAntenna[] _broadcasters;
         public static string
             IgcParams = "IGC_MSL_PAR_MSG",
             IgcHoming = "IGC_MSL_HOM_MSG",
@@ -26,12 +26,28 @@ namespace IngameScript
             IgcFire = "IGC_MSL_FIRE_MSG",
             IgcSplash = "IGC_MSL_SPLASH",
             Igcregister = "IGC_MSL_REG_MSG";
-        public static void BindIGC(Program p) => IGC = p.IGC;
+        public static void Setup(Program p) 
+        {
+            IGC = p.IGC;
+            var ant = new List<IMyRadioAntenna>();
+            using (var q = new iniWrap())
+                if (q.CustomData(p.Me))
+                {
+                    var grp = p.Terminal.GetBlockGroupWithName(q.String(Lib.HDR, "antennaGrp"));
+                    if (grp != null)
+                        grp.GetBlocksOfType(ant);
+                    else p.Terminal.GetBlocksOfType(ant);
+                }
+                else p.Terminal.GetBlocksOfType(ant);
+            _broadcasters = ant.ToArray();
+            //if (_broadcasters != null && _broadcasters.Length > 0)
+            //    _broadcasters[0].Enabled = _broadcasters[0].EnableBroadcasting = true;
+        }
 
 
         public static void FireMissile(long id) => IGC.SendUnicastMessage(id, IgcFire, "");
 
-        public static void SendWhamTarget(ref Vector3D hitPos, ref Vector3D tPos, ref Vector3D tVel, ref Vector3D preciseOffset, ref Vector3D myPos, double elapsed, long tEID, long keycode)
+        public static void SendWhamTarget(ref Vector3D hitPos, ref Vector3D tPos, ref Vector3D tVel, ref Vector3D preciseOffset, ref Vector3D myPos, double elapsed, long tEID)
         {
             var mat1 = new Matrix3x3();
             FillMatrix(ref mat1, ref hitPos, ref tPos, ref tVel);
@@ -45,12 +61,12 @@ namespace IngameScript
                 Item2 = mat2,
                 Item3 = (float)elapsed,
                 Item4 = tEID,
-                Item5 = keycode,
+                Item5 = _broadcasters[0].EntityId,
             };
             IGC.SendBroadcastMessage(IgcHoming, msg);
         }
 
-        public static void SendParams(bool kill, bool stealth, bool spiral, bool topdown, bool precise, bool retask, long keycode)
+        public static void SendParams(bool kill, bool stealth, bool spiral, bool topdown, bool precise, bool retask)
         {
             byte packed = 0;
             packed |= BoolToByte(kill);
@@ -63,7 +79,7 @@ namespace IngameScript
             var msg = new MyTuple<byte, long>
             {
                 Item1 = packed,
-                Item2 = keycode
+                Item2 = _broadcasters[0].EntityId
             };
 
             IGC.SendBroadcastMessage(IgcParams, msg);
@@ -99,7 +115,7 @@ namespace IngameScript
             _RPM;
         bool _loaded = false, _gtsSearchFlag = true;
         long _reloadWaitTicks, _lastReload;
-        int _reloadPtr = 0;
+        int _reloadPtr = -1;
         public int Count => Computers.Count;
         public bool NeedsReload => !_loaded;
         public List<IMyProgrammableBlock> Computers = new List<IMyProgrammableBlock>();
@@ -120,28 +136,30 @@ namespace IngameScript
                     if (t != "")
                     {
                         Missiles = t.Split('\n');
-                        var tempSet = new SortedSet<float>();
+                        _reload = new float[Missiles.Length];
                         if (Missiles != null)
                             for (int i = 0; i < Missiles.Length; i++)
                             {
                                 Missiles[i].Trim('|');
                                 var angle = q.Float(h, "weldAngle" + Missiles[i], float.MinValue);
                                 if (angle != float.MinValue)
-                                    _reload[i] = angle;
+                                    _reload[i] = angle * rad;
                                 var merge = (IMyShipMergeBlock)p.GridTerminalSystem.GetBlockWithName(q.String(h, "merge" + Missiles[i]));
                                 if (merge != null)
                                     _mergeDict[Missiles[i]] = merge;
 
                             }
-     
                     }
+
                     var w = q.String(h, "welders");
                     var weldnames = w.Contains(',') ? w.Split(',') : new string[] { w };
                     if (weldnames != null)
                     {
                         _welders = new IMyShipWelder[weldnames.Length];
-                        for (int i = 0; i < _welders.Length; i++)
+                        for (int i = 0; i < _welders.Length; i++) {
                             _welders[i] = (IMyShipWelder)p.Terminal.GetBlockWithName(weldnames[i]);
+                            if (_welders[i] != null) _welders[i].Enabled = false;
+                                }
                     }
                     _launchAngle = q.Float(h, "fireAngle", 60) * rad;
                     _RPM = q.Float(h, "rpm", 5);
@@ -152,7 +170,10 @@ namespace IngameScript
             p.Terminal.GetBlocksOfType<IMyProjector>(null, b =>
             {
                 if (b.CubeGrid == _arm.TopGrid)
+                {
+                    b.Enabled = false;
                     _proj = b;
+                }
                 return false;
             });
 
@@ -163,8 +184,8 @@ namespace IngameScript
         public void Reload()
         {
             if (Computers.Count == Missiles.Length) return;
-            var tgt = _reload[_reloadPtr];
-            if (_gtsSearchFlag)
+
+            if (_gtsSearchFlag && _reloadPtr >= 0)
             {
                 _m.Terminal.GetBlocksOfType<IMyProgrammableBlock>(null, b =>
                 {
@@ -186,30 +207,35 @@ namespace IngameScript
                     _proj.Enabled = false;
                     foreach (var w in _welders)
                         w.Enabled = false;
-                    _reloadPtr = 0;
+                    _reloadPtr = -1;
                 }
 
-                if (Computers.Count != 0)
-                    _reloadPtr++;
-                else
+                if (_reloadPtr == -1)
                 {
+                    foreach (var m in _mergeDict.Values) m.Enabled = false;
                     _proj.Enabled = true;
                     foreach (var w in _welders)
                         w.Enabled = true;
-                }
+                    _reloadPtr++;
 
+                }
+                else if (Computers.Count != 0 && _reloadPtr < _reload.Length - 1)
+                    _reloadPtr++;
+                var tgt = _reload[_reloadPtr];
                 _arm.LowerLimitRad = tgt;
-                _arm.TargetVelocityRPM = Math.Sign(_arm.Angle - tgt) * _RPM;
+                _arm.TargetVelocityRPM = Math.Sign(tgt - _arm.Angle) * _RPM;
                 _lastReload = _m.F;
                 _gtsSearchFlag = !_gtsSearchFlag;
                 _mergeDict[Missiles[_reloadPtr]].Enabled = true;
             }
         }
 
-        public void Launch()
+        public string Launch()
         {
+            var id = Computers[0].EntityId;
             Datalink.FireMissile(Computers[0].EntityId);
             Computers.Remove(Computers[0]);
+            return id.ToString("X");
         }
     }
 }
