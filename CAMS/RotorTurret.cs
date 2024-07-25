@@ -42,7 +42,7 @@ namespace IngameScript
         PCtrl _aPCtrl, _ePCtrl;
         SectorCheck[] _limits;
         protected Weapons _weapons;
-        protected Program _m;
+        protected Program _p;
         public long tEID = -1, lastUpdate = 0, oobF = 0;
         public bool Inoperable = false, IsPDT;
         #endregion
@@ -75,7 +75,7 @@ namespace IngameScript
 
         public RotorTurret(IMyMotorStator a, Program m)
         {
-            _m = m;
+            _p = m;
             _azimuth = a;
             if (_azimuth.Top == null)
                 return;
@@ -166,12 +166,12 @@ namespace IngameScript
         // aim is an internal copy of CURRENT(!) target position
         // because in some cases (PDLR assistive targeting) we will only want to point at
         // the target directly and not lead (i.e. we will not be using this)
-        protected virtual bool Interceptable(Target tgt, ref Vector3D aim, bool testOnly = false)
+        protected bool Interceptable(Target tgt, ref Vector3D aim, bool test = false)
         {
             Vector3D
                 rP = aim - _weapons.AimPos,
-                rV = tgt.Velocity - _m.Velocity,
-                rA = tgt.Accel - _m.Acceleration;
+                rV = tgt.Velocity - _p.Velocity,
+                rA = tgt.Accel - _p.Acceleration;
 
             double
                 a = Speed * Speed - rV.LengthSquared(),
@@ -188,7 +188,7 @@ namespace IngameScript
 
             if (double.IsNaN(t)) return false;
 
-            if (testOnly)
+            if (test)
                 return true;
 
             aim += rV * t + 0.375 * rA * t * t;
@@ -220,13 +220,15 @@ namespace IngameScript
                 _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
                 return AimState.Rest;
             }
-            _m.Debug.DrawGPS($"{Name}\naCur {aCur / rad}°\neCur {eCur / rad}°\n{Status}", aziMat.Translation, Lib.YEL);
-            _azimuth.TargetVelocityRad = _aPCtrl.Filter(a, _aRest, _m.F);
-            _elevation.TargetVelocityRad = _ePCtrl.Filter(e, _eRest, _m.F);
+            _p.Debug.DrawGPS($"{Name}\naCur {aCur / rad}°\neCur {eCur / rad}°\n{Status}", aziMat.Translation, Lib.YEL);
+            _azimuth.TargetVelocityRad = _aPCtrl.Filter(a, _aRest, _p.F);
+            _elevation.TargetVelocityRad = _ePCtrl.Filter(e, _eRest, _p.F);
 
             return AimState.Moving;
         }
 
+        // TODO: There is some kind of issue here wrt angle checks, possibly for elevation?
+        //       Or could be azimuth. Main railgun turrets only fire to the right (for top) or to the left (for bottom).
         protected AimState AimAtTarget(ref MatrixD azm, ref Vector3D aim, double aCur, double eCur)
         {
             if (Status == AimState.Blocked)
@@ -247,7 +249,7 @@ namespace IngameScript
             // elevation target angle
             var eTgt = Lib.AngleBetween(ref aTgtV, ref aim) * Math.Sign(aim.Dot(azm.Up));
             eCur = (eCur + Lib.Pi) % Lib.Pi2 - Lib.Pi;
-            //_m.Debug.DrawGPS($"{Name}\naTgt/Cur {aTgt / rad}°|{aCur / rad}°\neTgt/Cur {eTgt / rad}°|{eCur / rad}°\n{Status}", azm.Translation, Lib.YEL);
+            //_p.Debug.DrawGPS($"{Name}\naTgt/Cur {aTgt / rad}°|{aCur / rad}°\neTgt/Cur {eTgt / rad}°|{eCur / rad}°\n{Status}", azm.Translation, Lib.YEL);
             if (eTgt > _eMx || eTgt < _eMn)
                 return AimState.Blocked;
 
@@ -258,8 +260,8 @@ namespace IngameScript
                     return AimState.Blocked;
                 }
             oobF = 0;
-            _azimuth.TargetVelocityRad = _aPCtrl.Filter(aCur, aTgt, _m.F);
-            _elevation.TargetVelocityRad = _ePCtrl.Filter(eCur, eTgt, _m.F);
+            _azimuth.TargetVelocityRad = _aPCtrl.Filter(aCur, aTgt, _p.F);
+            _elevation.TargetVelocityRad = _ePCtrl.Filter(eCur, eTgt, _p.F);
 
             return Math.Abs(aTgt - aCur) < _tol && Math.Abs(eTgt - eCur) < _tol ? AimState.OnTarget : AimState.Moving;
         }
@@ -283,7 +285,7 @@ namespace IngameScript
         {
             if (Inoperable)
                 return false;
-            var tgt = _m.Targets.Get(eid);
+            var tgt = _p.Targets.Get(eid);
             if (tgt == null || tgt.Distance > TrackRange)
                 return false;
 
@@ -292,9 +294,9 @@ namespace IngameScript
 
         public virtual void UpdateTurret()
         {
-            if (_m.Targets.Count != 0)
+            if (_p.Targets.Count != 0)
             {
-                var tgt = _m.Targets.Get(tEID);
+                var tgt = _p.Targets.Get(tEID);
                 Inoperable = !_azimuth.IsAttached || !_elevation.IsAttached || !_azimuth.IsFunctional || !_elevation.IsFunctional;
                 if (tgt == null || Inoperable)
                     return;
@@ -318,7 +320,7 @@ namespace IngameScript
                         return;
                     }
                     if (tgtDst < Range && Status == AimState.OnTarget)
-                        _weapons.Fire(_m.F);
+                        _weapons.Fire(_p.F);
                     else _weapons.Hold();
                 }
                 else
@@ -336,16 +338,14 @@ namespace IngameScript
     public class PDT : RotorTurret
     {
         public LidarArray Lidar;
-        CompBase _base;
         double _spray, _sprayTol = 7.5E-4;
         Vector3D _sprayOfs;
-        bool switchOfs = true, lidarTarget = false;
+        bool switchOfs = true, useLidar = false;
         int scanCtr, scanMx;
 
-        public PDT(IMyMotorStator a, Program m, CompBase b, int sMx) : base(a, m)
+        public PDT(IMyMotorStator a, Program m, int sMx) : base(a, m)
         {
             var g = _elevation.TopGrid;
-            _base = b;
             scanMx = sMx;
             if (g != null)
             {
@@ -359,29 +359,36 @@ namespace IngameScript
 
         public void AssignLidarTarget(long eid)
         {
-            lidarTarget = true;
+            useLidar = true;
             tEID = eid;
+        }
+
+        public void CancelLidar()
+        {
+            useLidar = false;
+            if (!CanTarget(tEID))
+                tEID = 0;
         }
 
         public override void UpdateTurret()
         {
-            if (_m.Targets.Count != 0)
+            if (_p.Targets.Count != 0)
             {
-                var tgt = _m.Targets.Get(tEID);
+                var tgt = _p.Targets.Get(tEID);
                 Inoperable = !_azimuth.IsAttached || !_elevation.IsAttached || !_azimuth.IsFunctional || !_elevation.IsFunctional;
                 if (tgt == null || Inoperable)
                     return;
 
                 var aim = tgt.Position;
-                if (!lidarTarget && _spray != -1)
+                if (!useLidar && _spray != -1)
                 {
                     if (switchOfs)
-                        _sprayOfs = Lib.RandomOffset(ref _m.RNG, _spray) * tgt.Radius / tgt.Distance;
+                        _sprayOfs = Lib.RandomOffset(ref _p.RNG, _spray) * tgt.Radius / tgt.Distance;
                     aim += _sprayOfs;
                 }
                 var tgtDst = -1d;
-                bool icpt = Interceptable(tgt, ref aim);
-                if (icpt)
+                bool icpt = Interceptable(tgt, ref aim, useLidar);
+                if (icpt || useLidar) // admittedly not the best way to do this
                 {
                     var azm = aziMat;
                     aim -= azm.Translation;
@@ -394,19 +401,20 @@ namespace IngameScript
                     Status = AimAtTarget(ref azm, ref aim, a, e);
                     if ((oobF > 50 && Status == AimState.Blocked) || tgtDst > TrackRange)
                     {
+                        tEID = 0; // test this
                         Status = ResetTurret();
                         return;
                     }
-                    if (lidarTarget)
+                    if (useLidar)
                     {
                         var r = ScanResult.Failed;
                         if (Status == AimState.OnTarget)
                             for (scanCtr = 0; scanCtr < scanMx && r == ScanResult.Failed; scanCtr++)
-                                r = Lidar.Scan(_base, tgt, true);
+                                r = Lidar.Scan(_p, tgt, true);
                     }
-                    else if (tgtDst < Range && Status == AimState.OnTarget)
+                    if (tgtDst < Range && Status == AimState.OnTarget)
                     {
-                        _weapons.Fire(_m.F);
+                        _weapons.Fire(_p.F);
                         switchOfs = _weapons.offsetTicks == 0;
                     }
                     else _weapons.Hold();

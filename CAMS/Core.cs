@@ -59,54 +59,17 @@ namespace IngameScript
     public abstract class CompBase
     {
         public readonly string Name;
-        public long ID => Main.Me.CubeGrid.EntityId;
+        public static long ID;
         public virtual string Debug { get; protected set; }
-        public IMyShipController Reference => Main.Controller;
 
-        public Vector3D Velocity => Main.Controller.GetShipVelocities().LinearVelocity;
         public Dictionary<string, Action<MyCommandLine>> Commands = new Dictionary<string, Action<MyCommandLine>>();
         public Program Main;
-        public double NextDbl() => 2 * Main.RNG.NextDouble() - 1; // from lamp
-        public double GaussRNG() => (NextDbl() + NextDbl() + NextDbl()) / 3;
-        public double Time => Main.RuntimeMS;
-        public long F => Main.F;
 
-        public bool PassTarget(MyDetectedEntityInfo info, bool m = false)
-        {
-            ScanResult fake;
-            return PassTarget(info, out fake, m);
-        }
-        public bool PassTarget(MyDetectedEntityInfo info, out ScanResult r, bool m = false)
-        {
-            r = ScanResult.Failed;
-            if (info.IsEmpty())
-                return false;
-            if (Targets.Blacklist.Contains(info.EntityId))
-                return false;
-            int rel = (int)info.Relationship, t = (int)info.Type;
-            if (rel == 1 || rel == 5) // owner or friends
-                return false;
-            if (t != 2 && t != 3) // small grid and large grid respectively
-                return false;
-            if (info.BoundingBox.Size.Length() < 1.5)
-                return false;
-            r = Targets.AddOrUpdate(ref info, ID);
-            if (!m)
-                Targets.ScannedIDs.Add(info.EntityId);
-            return true;
-        }
-
-        public TargetProvider Targets => Main.Targets; // IEnumerator sneed
         public UpdateFrequency Frequency;
         public CompBase(string n, UpdateFrequency u)
         {
             Name = n;
             Frequency = u;
-        }
-        public T Cast<T>()
-        where T : CompBase
-        {
-            return (T)this;
         }
 
         public abstract void Setup(Program prog);
@@ -115,12 +78,11 @@ namespace IngameScript
 
     public partial class Program
     {
-
         public IMyGridTerminalSystem Terminal => GridTerminalSystem;
         public IMyShipController Controller;
         public DebugAPI Debug;
         public bool Based;
-        public double PDSpray = -1;
+        public double PDSpray = -1, maxRaycast;
         string _tag;
         public Vector3D Center => Controller.WorldMatrix.Translation;
         public Vector3D Velocity => Controller.GetShipVelocities().LinearVelocity;
@@ -133,6 +95,7 @@ namespace IngameScript
 
         public Dictionary<string, CompBase> Components = new Dictionary<string, CompBase>();
         public Random RNG = new Random();
+
         MyCommandLine _cmd = new MyCommandLine();
         RoundRobin<string, Display> DisplayRR;
         double _totalRT = 0, _worstRT, _avgRT;
@@ -145,6 +108,7 @@ namespace IngameScript
         void Start()
         {
             Targets.Clear();
+            CompBase.ID = Me.CubeGrid.EntityId;
             var r = new MyIniParseResult();
             var dspGrp = new List<IMyTerminalBlock>();
             using (var p = new iniWrap())
@@ -153,6 +117,7 @@ namespace IngameScript
                     Based = p.Bool(Lib.HDR, "vcr");
                     _tag = p.String(Lib.HDR, "tag", Lib.HDR);
                     PDSpray = p.Double(Lib.HDR, "spray", -1);
+                    maxRaycast = p.Double(Lib.HDR, "maxRaycast", 8E3);
                     string
                         ctrl = p.String(Lib.HDR, "controller", "Helm");
                     GridTerminalSystem.GetBlocksOfType<IMyShipController>(null, (b) =>
@@ -187,6 +152,33 @@ namespace IngameScript
 
                 }
             else throw new Exception($"\n{r.Error} at line {r.LineNo} of {Me} custom data.");
+        }
+
+        public double GaussRNG() => (2 * RNG.NextDouble() - 1 + 2 * RNG.NextDouble() - 1 + 2 * RNG.NextDouble() - 1) / 3;
+
+        public bool PassTarget(MyDetectedEntityInfo info, bool m = false)
+        {
+            ScanResult fake;
+            return PassTarget(info, out fake, m);
+        }
+        public bool PassTarget(MyDetectedEntityInfo info, out ScanResult r, bool m = false)
+        {
+            r = ScanResult.Failed;
+            if (info.IsEmpty())
+                return false;
+            if (Targets.Blacklist.Contains(info.EntityId))
+                return false;
+            int rel = (int)info.Relationship, t = (int)info.Type;
+            if (rel == 1 || rel == 5) // owner or friends
+                return false;
+            if (t != 2 && t != 3) // small grid and large grid respectively
+                return false;
+            if (info.BoundingBox.Size.Length() < 1.5)
+                return false;
+            r = Targets.AddOrUpdate(ref info, CompBase.ID);
+            if (!m)
+                Targets.ScannedIDs.Add(info.EntityId);
+            return true;
         }
 
         static Vector3D 

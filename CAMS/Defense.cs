@@ -1,13 +1,151 @@
-﻿using Sandbox.ModAPI.Ingame;
+﻿using Sandbox.Game.Weapons;
+using Sandbox.ModAPI.Ingame;
+using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Linq;
 using System.Net.Http.Headers;
+using System.Runtime.Remoting.Messaging;
 using VRage.Game.GUI.TextPanel;
 using VRageMath;
 
 namespace IngameScript
 {
+    public class ArmLauncherWHAM
+    {
+        enum LauncherState
+        {
+            Default = 0,
+            Boot = 1,
+            Reload = 2,
+            Ready = 3,
+            Empty = 4
+        }
+        IMyMotorStator _arm;
+        IMyShipWelder[] _welders;
+        IMyProjector _proj;
+        Dictionary<string, EKV> eKVDict = new Dictionary<string, EKV>();
+        SortedSet<EKV> eKVsByAngle = new SortedSet<EKV>();
+        float _FireAngle, _RPM;
+        bool _startup = true;
+        int Count = 0;
+        IMyGridTerminalSystem _gts;
+
+
+        public ArmLauncherWHAM(IMyMotorStator a, Program p)
+        {
+            _arm = a;
+            _gts = p.GridTerminalSystem;
+        }
+
+        public bool Init()
+        {
+            if (_arm == null) return false;
+            using (var q = new iniWrap())
+                if (!q.CustomData(_arm)) return false;
+                else
+                {
+                    var h = Lib.HDR;
+                    var t = q.String(h, "tags", "");
+                    var rad = (float)(Lib.Pi / 180);
+                    if (t != "")
+                    {
+                        var tags = t.Split('\n');
+                        if (tags != null)
+                            for (int i = 0; i < tags.Length; i++)
+                            {
+                                tags[i].Trim('|');
+                                var angle = q.Float(h, "weldAngle" + tags[i], float.MinValue);
+                                if (angle != float.MinValue)
+                                    angle *= rad;
+                                var merge = (IMyShipMergeBlock)_gts.GetBlockWithName(q.String(h, "merge" + tags[i]));
+                                if (merge != null && angle != float.MinValue)
+                                {
+                                    var n = q.String(h, "computer" + tags[i], tags[i] + " Computer WHAM");
+                                    var cptr = (IMyProgrammableBlock)_gts.GetBlockWithName(n);
+                                    
+                                    eKVDict.Add(tags[i], new EKV(tags[i], n, cptr, merge, angle));
+                                    if (cptr != null) Count++;
+                                }
+                            }
+                    }
+
+                    var w = q.String(h, "welders");
+                    var weldnames = w.Contains(',') ? w.Split(',') : new string[] { w };
+                    if (weldnames != null)
+                    {
+                        _welders = new IMyShipWelder[weldnames.Length];
+                        for (int i = 0; i < _welders.Length; i++)
+                        {
+                            _welders[i] = (IMyShipWelder)_gts.GetBlockWithName(weldnames[i]);
+                            if (_welders[i] != null) _welders[i].Enabled = false;
+                        }
+                    }
+                    _FireAngle = q.Float(h, "fireAngle", 60) * rad;
+                    _RPM = q.Float(h, "rpm", 5);
+                    foreach (var val in eKVDict.Values)
+                        eKVsByAngle.Add(val);
+                    _gts.GetBlocksOfType<IMyProjector>(null, b =>
+                    {
+                        if (b.CubeGrid == _arm.TopGrid)
+                        {
+                            b.Enabled = false;
+                            _proj = b;
+                        }
+                        return false;
+                    });
+                }
+            return _welders != null && eKVDict.Count > 0;
+        }
+
+        public bool Boot()
+        {
+            if (Count == eKVDict.Count)
+            {
+                var m = eKVsByAngle.Min;
+                if (!m.Computer?.Enabled ?? false && !m.Computer.IsRunning)
+                {
+                    m.Computer.Enabled = true;
+                    m.Computer.TryRun("setup");
+                }
+                else m.Computer = (IMyProgrammableBlock)_gts.GetBlockWithName(m.ComputerName);
+            }
+            return _startup;
+        }
+
+        public bool ValidHandshake(string n)
+        {
+            var e = eKVsByAngle.Min;
+            if (e.Name == n)
+                eKVsByAngle.Remove(e);
+            return e.Name == n;
+        }
+        class EKV : IComparable<EKV>
+        {
+            public bool Active = false, Ready = false;
+            public string Name, ComputerName;
+            public IMyShipMergeBlock Hardpoint;
+            public IMyProgrammableBlock Computer;
+            public float Reload;
+
+            public EKV(string n, string cn, IMyProgrammableBlock c, IMyShipMergeBlock m, float r)
+            {
+                Name = n;
+                ComputerName = cn;
+                Computer = c;
+                Hardpoint = m;
+                Reload = r;
+            }
+
+            public int CompareTo(EKV o)
+            {
+                if (Reload == o.Reload)
+                    return Computer == null ? -1 : Name.CompareTo(o.Name);
+                else return Reload < o.Reload ? -1 : 1;
+            }
+        }
+    }
     public class Defense : CompBase // turrets and interceptors
     {
         Dictionary<string, RotorTurret> Turrets = new Dictionary<string, RotorTurret>();
@@ -56,7 +194,7 @@ namespace IngameScript
                     int mx = q.Int(h, "maxScansPDLR", 3);
                     foreach (var a in r)
                     {
-                        var pd = new PDT(a, m, this, mx);
+                        var pd = new PDT(a, m, mx);
                         if (pd != null)
                         {
                             Turrets.Add(pd.Name, pd);
@@ -109,7 +247,6 @@ namespace IngameScript
 
         }
 
-
         public override void Update(UpdateFrequency u)
         {
             AssignTargets();
@@ -124,18 +261,18 @@ namespace IngameScript
 
         void AssignTargets()
         {
-            if (Targets.Count > 0)
+            if (Main.Targets.Count > 0)
             {
-                if (priUpdateSwitch && F >= nextPriorityCheck)
+                if (priUpdateSwitch && Main.F >= nextPriorityCheck)
                 {
                     _tEIDsByPriority.Clear();
                     maxPriTgt = -1;
-                    foreach (var t in Targets.AllTargets())
+                    foreach (var t in Main.Targets.AllTargets())
                     {
                         _tEIDsByPriority[t.Priority] = t.EID;
                         maxPriTgt = t.Priority > maxPriTgt ? t.Priority : maxPriTgt;
                     }
-                    nextPriorityCheck = F + priCheckTicks;
+                    nextPriorityCheck = Main.F + priCheckTicks;
                     priUpdateSwitch = false;
                 }
                 else if (!priUpdateSwitch)
@@ -151,7 +288,7 @@ namespace IngameScript
                         bestEID = p; // bestEID 
                     foreach (var kvp in _tEIDsByPriority)
                     {
-                        int type = (int)Targets.Get(kvp.Value)?.Type;
+                        int type = (int)Main.Targets.Get(kvp.Value)?.Type;
                         if (tur.CanTarget(kvp.Value))
                         {
                             tempEID = kvp.Value;

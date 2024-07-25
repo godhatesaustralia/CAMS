@@ -16,7 +16,6 @@ namespace IngameScript
         public Dictionary<string, LidarMast> Masts = new Dictionary<string, LidarMast>();
         bool _fixedRange, _useNetwork, _useBackup = false;
         public List<IMyLargeTurretBase> AllTurrets, Artillery;
-        public double maxRaycast;
         int tPtr, tStep;
         const string
             IgcFleet = "[FLT-CA]",
@@ -55,7 +54,7 @@ namespace IngameScript
                 var scan = l.Lidars[i].scanAVG != 0 ? $"{l.Lidars[i].scanAVG:G1}M\n" : "READY\n";
                 grps += $"SCAN {l.Lidars[i].tag[1]} " + scan;
             }
-            grps += $"TARGETS {Targets.Count:00} CTRL " + (!l.Manual ? "OFF" : "MAN");
+            grps += $"TARGETS {Main.Targets.Count:00} CTRL " + (!l.Manual ? "OFF" : "MAN");
             s.SetData(grps, 1);
             for (i = 0; i < l.Lidars.Count; ++i)
                 s.SetColor(l.Lidars[i].Scans > 0 ? Lib.GRN : Lib.DRG, i + 2);
@@ -73,7 +72,6 @@ namespace IngameScript
                 {
                     var h = Lib.HDR;
                     tStep = p.Int(h, "tStep", 4);
-                    maxRaycast = p.Double(h, "maxRaycast", 8E3);
                     var tagstr = p.String(h, "lidarTags", "[A]\n[B]\n[C]\n[D]");
                     var a = tagstr.Split('\n');
                     _fixedRange = p.Bool(h, "fixedAntennaRange", true);
@@ -87,7 +85,7 @@ namespace IngameScript
                     {
                         if (mtr.CustomName.Contains(Lib.ARY) && mtr.CubeGrid.EntityId == ID)
                         {
-                            var tur = new LidarMast(this, mtr, tags);
+                            var tur = new LidarMast(m, mtr, tags);
                             tur.Setup(ref m);
                             if (!Masts.ContainsKey(tur.Name))
                                 Masts.Add(tur.Name, tur);
@@ -143,9 +141,9 @@ namespace IngameScript
             if (t.HasTarget)
             {
                 info = t.GetTargetedEntity();
-                if (Targets.Exists(info.EntityId))
+                if (Main.Targets.Exists(info.EntityId))
                     return;
-                else if (PassTarget(info) && arty && (int)info.Type == 2) // if small, retarget
+                else if (Main.PassTarget(info) && arty && (int)info.Type == 2) // if small, retarget
                 {
                     t.ResetTargetingToDefault();
                     t.EnableIdleRotation = false;

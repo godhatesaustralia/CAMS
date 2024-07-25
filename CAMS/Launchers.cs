@@ -24,8 +24,8 @@ namespace IngameScript
             IgcHoming = "IGC_MSL_HOM_MSG",
             IgcIff = "IGC_IFF_PKT",
             IgcFire = "IGC_MSL_FIRE_MSG",
-            IgcSplash = "IGC_MSL_SPLASH",
-            Igcregister = "IGC_MSL_REG_MSG";
+            IgcSplash = "IGC_MSL_SPLASH_MSG",
+            IgcStatus = "IGC_MSL_STAT_MSG";
         public static void Setup(Program p) 
         {
             IGC = p.IGC;

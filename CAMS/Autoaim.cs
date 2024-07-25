@@ -94,9 +94,9 @@ namespace IngameScript
         {
             // In (pitch, yaw, roll)
             Vector3D
-                error = -GetAngles(Reference.WorldMatrix, ref forward, ref up),
+                error = -GetAngles(Main.Controller.WorldMatrix, ref forward, ref up),
                 angles = new Vector3D(Control(ref error));
-            ApplyOverride(Reference.WorldMatrix, ref angles);
+            ApplyOverride(Main.Controller.WorldMatrix, ref angles);
         }
 
         public void FaceDirection(ref Vector3D aim)
@@ -153,10 +153,10 @@ namespace IngameScript
             if (up != Vector3D.Zero)
             {
                 Vector3D
-                    temp = Vector3D.Normalize(Lib.Rejection(up, Reference.WorldMatrix.Forward)),
-                    rgt = Reference.WorldMatrix.Right;
+                    temp = Vector3D.Normalize(Lib.Rejection(up, Main.Controller.WorldMatrix.Forward)),
+                    rgt = Main.Controller.WorldMatrix.Right;
                 double
-                    dot = MathHelper.Clamp(Vector3D.Dot(Reference.WorldMatrix.Up, temp), -1, 1),
+                    dot = MathHelper.Clamp(Vector3D.Dot(Main.Controller.WorldMatrix.Up, temp), -1, 1),
                     rollAngle = Math.Acos(dot),
                     scalar = temp.Dot(rgt);
                     scalar = double.IsNaN(scalar) ? 0 : scalar;
