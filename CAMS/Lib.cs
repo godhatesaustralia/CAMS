@@ -69,21 +69,6 @@ namespace IngameScript
 
         public static Vector2 V2(float x, float y) => new Vector2(x, y);
 
-        static void FillMatrix(ref Matrix3x3 mat, ref Vector3D col0, ref Vector3D col1, ref Vector3D col2)
-        {
-            mat.M11 = (float)col0.X;
-            mat.M21 = (float)col0.Y;
-            mat.M31 = (float)col0.Z;
-
-            mat.M12 = (float)col1.X;
-            mat.M22 = (float)col1.Y;
-            mat.M32 = (float)col1.Z;
-
-            mat.M13 = (float)col2.X;
-            mat.M23 = (float)col2.Y;
-            mat.M33 = (float)col2.Z;
-        }
-
         public static UpdateFrequency UpdateConverter(UpdateType src)
         {
             var updateFrequency = UpdateFrequency.None; //0000

@@ -1,11 +1,10 @@
 ﻿using Sandbox.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
-using System.Threading;
+using System.Runtime.InteropServices;
 using VRage;
 using VRage.Game;
 using VRage.Game.GUI.TextPanel;
-using VRage.Game.ObjectBuilders.VisualScripting;
 using VRageMath;
 
 namespace IngameScript
@@ -18,10 +17,9 @@ namespace IngameScript
         Added = Hit | Update
     }
 
-    public class Target
+    public class Target : IComparable<Target>, IEquatable<Target>
     {
         #region fields
-        public const int MAX_LIFETIME = 2; // s
         public readonly long EID, Source;
         public double Radius, Distance;
         public long Frame;
@@ -31,9 +29,8 @@ namespace IngameScript
         public readonly MyDetectedEntityType Type;
         public readonly MyRelationsBetweenPlayerAndBlock IFF; // wham
         public readonly string eIDString, eIDTag;
-
+        public bool PriorityKill;
         #endregion
-
 
         public Target(MyDetectedEntityInfo i, long f, long id, double dist)
         {
@@ -63,26 +60,6 @@ namespace IngameScript
             Radius = data.Item2.Item4;
         }
 
-        public void Update(ref MyDetectedEntityInfo i, Vector3D cnr, long f)
-        {
-            var dT = Elapsed(f);
-            Frame = f;
-            Position = i.Position;
-            LastVelocity = Velocity;
-            Velocity = i.Velocity;
-            Matrix = i.Orientation;
-
-            Accel = Vector3D.Zero;
-            var a = (Velocity - LastVelocity) * dT;
-            if (a.LengthSquared() > 1)
-                Accel = (Accel * 0.25) + (a * 0.75);
-
-            Radius = i.BoundingBox.Size.Length();
-            Distance = (cnr - i.Position).Length();
-        }
-
-        public bool IsExpired(long now) => Elapsed(now) >= MAX_LIFETIME;
-
         public double Elapsed(long f) => Lib.tickSec * Math.Max(f - Frame, 1);
 
         public Vector3D AdjustedPosition(long f, long offset = 0)
@@ -93,12 +70,19 @@ namespace IngameScript
                 return Position;
             return Position + Velocity * dT + Accel * 0.5 * dT * dT;
         }
+
+        public int CompareTo(Target t) => t.Priority <= Priority ? -1 : 1;
+        public bool Equals(Target t)
+        {
+            return EID == t.EID;
+        }
     }
 
     public class TargetProvider
     {
-        Program _host;
+        Program _p;
         const double INV_MAX_D = 0.0001, R_SIDE_L = 154;
+        const int MAX_LIFETIME = 2; // s
         public int Count => _iEIDs.Count;
         Dictionary<long, Target> _targets = new Dictionary<long, Target>();
         List<long> _rmvEIDs = new List<long>(), _iEIDs = new List<long>();
@@ -120,11 +104,10 @@ namespace IngameScript
         public HashSet<long>
             ScannedIDs = new HashSet<long>(),
             Blacklist = new HashSet<long>();
-        long _selEID, _lastPryCheck, _pChckIvl;
 
         public TargetProvider(Program m)
         {
-            _host = m;
+            _p = m;
             Blacklist.Add(m.Me.CubeGrid.EntityId);
             m.Terminal.GetBlocksOfType<IMyMotorStator>(null, b =>
             {
@@ -192,8 +175,8 @@ namespace IngameScript
             _rdrBuffer.Clear();
             for (i = 0; i < Count; i++)
             {
-                var mat = _host.Controller.WorldMatrix;
-                var rPos = _host.Center - _targets[_iEIDs[i]].Position;
+                var mat = _p.Controller.WorldMatrix;
+                var rPos = _p.Center - _targets[_iEIDs[i]].Position;
                 _rdrBuffer.Add(DisplayTarget(ref rPos, ref mat, _targets[_iEIDs[i]].eIDTag, p == i));
             }
             s.sprites = null;
@@ -215,14 +198,14 @@ namespace IngameScript
 
             long eid = _iEIDs[p];
             Vector3D
-                rpos = _targets[eid].Position - _host.Controller.WorldMatrix.Translation,
-                up = _host.Controller.WorldMatrix.Up;
+                rpos = _targets[eid].Position - _p.Controller.WorldMatrix.Translation,
+                up = _p.Controller.WorldMatrix.Up;
             var typ = (int)_targets[eid].Type == 3 ? "LARGE" : "SMALL";
 
             _rdrData[i] = _targets[eid].eIDString;
             _rdrData[i + 1] = $"DIST {_targets[eid].Distance / 1E3:F2} KM";
             _rdrData[i + 2] = $"{typ} GRID";
-            _rdrData[i + 3] = $"RSPD {(_targets[eid].Velocity - _host.Velocity).Length():F0} M/S";
+            _rdrData[i + 3] = $"RSPD {(_targets[eid].Velocity - _p.Velocity).Length():F0} M/S";
             _rdrData[i + 4] = $"ELEV {(Math.Sign(rpos.Dot(up)) < 0 ? "-" : "+")}{Lib.Projection(rpos, up).Length():F0} M";
         }
 
@@ -260,7 +243,7 @@ namespace IngameScript
             _rdrBuffer.Add(new MySprite(Lib.TXT, eid, scrX > 2 * X_MIN ? pos - txt : pos + 0.5f * txt, null, Lib.GRN, Lib.V, rotation: 0.375f));
             return new MySprite(Lib.SHP, sel ? Lib.SQS : Lib.TRI, pos, (sel ? 1.5f : 1) * tgtSz, Lib.GRN, null); // Center
         }
-     
+
         #endregion
         public ScanResult AddOrUpdate(ref MyDetectedEntityInfo i, long src, bool hits = false)
         {
@@ -269,33 +252,48 @@ namespace IngameScript
             if (_targets.ContainsKey(id))
             {
                 t = _targets[id];
-                t.Update(ref i, _host.Center, _host.F);
+                var dT = t.Elapsed(_p.F);
+                t.Frame = _p.F;
+                t.Position = i.Position;
+                t.LastVelocity = t.Velocity;
+                t.Velocity = i.Velocity;
+                t.Matrix = i.Orientation;
+
+                t.Accel = Vector3D.Zero;
+                var a = (t.Velocity - t.LastVelocity) * dT;
+                if (a.LengthSquared() > 1)
+                    t.Accel = (t.Accel * 0.25) + (a * 0.75);
+
+                t.Radius = i.BoundingBox.Size.Length();
+                t.Distance = (_p.Center - i.Position).Length();
                 SetPriority(t);
                 return ScanResult.Update;
             }
             else
             {
-                _targets[id] = new Target(i, _host.F, src, (_host.Center - i.Position).Length());
+                _targets[id] = new Target(i, _p.F, src, (_p.Center - i.Position).Length());
                 _iEIDs.Add(id);
                 SetPriority(_targets[id]);
                 return ScanResult.Added;
             }
         }
 
-
         /// <summary>
         /// sets target priority uhhhhh
         /// </summary>
         void SetPriority(Target tgt)
         {
-            var dir = tgt.Position - _host.Center;
+            var dir = tgt.Position - _p.Center;
             dir.Normalize();
             tgt.Priority = 0;
             bool uhoh = tgt.Velocity.Normalized().Dot(dir) > 0.9; // RUUUUUUUUUNNNNNNNNNNNNNN
-            if (tgt.Radius > 10 || (int)tgt.Type != 2)
+            if (tgt.Radius > 15 || (int)tgt.Type != 2)
                 tgt.Priority += uhoh ? 75 : 300;
             else if (uhoh)
-                tgt.Priority -= (int)(tgt.Distance / tgt.Radius);
+            {
+                tgt.Priority -= (int)Math.Round(tgt.Distance);
+                tgt.PriorityKill = true;
+            }
             if (tgt.Distance > 2E3)
                 tgt.Priority += 500;
             else if (tgt.Distance < 8E2)
@@ -316,32 +314,22 @@ namespace IngameScript
         {
             ScannedIDs.Clear();
             if ((u & Lib.u100) != 0)
-                RemoveExpired();
-            // TODO: Priorities
-            
-        }
-        public bool Exists(long id) => _targets.ContainsKey(id);
-
-        void RemoveExpired() // THIS GOES AFTER EVERYTHIGN ELSE
-        {
-            foreach (var k in _targets.Keys)
-                _rmvEIDs.Add(k);
-            if (Count == 0)
-                return;
-            for (int i = Count - 1; i >= 0; i--)
-                if (_targets[_rmvEIDs[i]].IsExpired(_host.F))
-                    RemoveID(_rmvEIDs[i]);
-            _rmvEIDs.Clear();
-        }
-        public void RemoveID(long eid)
-        {
-            if (_targets.ContainsKey(eid))
             {
-                ScannedIDs.Remove(eid);
-                _targets.Remove(eid);
-                _iEIDs.Remove(eid);
+                foreach (var k in _targets.Keys)
+                    _rmvEIDs.Add(k);
+                if (Count == 0)
+                    return;
+                for (int i = Count - 1; i >= 0; i--)
+                    if (_targets[_rmvEIDs[i]].Elapsed(_p.F) >= MAX_LIFETIME)
+                    {
+                        ScannedIDs.Remove(_rmvEIDs[i]);
+                        _targets.Remove(_rmvEIDs[i]);
+                        _iEIDs.Remove(_rmvEIDs[i]);
+                    }
+                _rmvEIDs.Clear();
             }
         }
+        public bool Exists(long id) => _targets.ContainsKey(id);
 
         public void Clear()
         {

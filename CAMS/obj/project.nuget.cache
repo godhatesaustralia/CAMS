@@ -1,22 +1,22 @@
 {
   "version": 2,
-  "dgSpecHash": "pNp56GoFqYs=",
+  "dgSpecHash": "w/Pu3tUdvJo=",
   "success": true,
-  "projectFilePath": "C:\\Users\\daike\\Downloads\\CAMS\\CAMS\\CAMS.csproj",
+  "projectFilePath": "C:\\Users\\barred3\\Documents\\GitHub\\CAMS\\CAMS\\CAMS.csproj",
   "expectedPackageFiles": [
-    "C:\\Users\\daike\\.nuget\\packages\\mal.mdk2.pbanalyzers\\2.1.9\\mal.mdk2.pbanalyzers.2.1.9.nupkg.sha512",
-    "C:\\Users\\daike\\.nuget\\packages\\mal.mdk2.pbpackager\\2.0.6\\mal.mdk2.pbpackager.2.0.6.nupkg.sha512",
-    "C:\\Users\\daike\\.nuget\\packages\\mal.mdk2.references\\2.2.2\\mal.mdk2.references.2.2.2.nupkg.sha512",
-    "C:\\Users\\daike\\.nuget\\packages\\microsoft.build.framework\\17.10.4\\microsoft.build.framework.17.10.4.nupkg.sha512",
-    "C:\\Users\\daike\\.nuget\\packages\\microsoft.build.utilities.core\\17.10.4\\microsoft.build.utilities.core.17.10.4.nupkg.sha512",
-    "C:\\Users\\daike\\.nuget\\packages\\microsoft.io.redist\\6.0.0\\microsoft.io.redist.6.0.0.nupkg.sha512",
-    "C:\\Users\\daike\\.nuget\\packages\\microsoft.net.stringtools\\17.10.4\\microsoft.net.stringtools.17.10.4.nupkg.sha512",
-    "C:\\Users\\daike\\.nuget\\packages\\system.buffers\\4.5.1\\system.buffers.4.5.1.nupkg.sha512",
-    "C:\\Users\\daike\\.nuget\\packages\\system.collections.immutable\\8.0.0\\system.collections.immutable.8.0.0.nupkg.sha512",
-    "C:\\Users\\daike\\.nuget\\packages\\system.configuration.configurationmanager\\8.0.0\\system.configuration.configurationmanager.8.0.0.nupkg.sha512",
-    "C:\\Users\\daike\\.nuget\\packages\\system.memory\\4.5.5\\system.memory.4.5.5.nupkg.sha512",
-    "C:\\Users\\daike\\.nuget\\packages\\system.numerics.vectors\\4.5.0\\system.numerics.vectors.4.5.0.nupkg.sha512",
-    "C:\\Users\\daike\\.nuget\\packages\\system.runtime.compilerservices.unsafe\\6.0.0\\system.runtime.compilerservices.unsafe.6.0.0.nupkg.sha512"
+    "C:\\Users\\barred3\\.nuget\\packages\\mal.mdk2.pbanalyzers\\2.1.9\\mal.mdk2.pbanalyzers.2.1.9.nupkg.sha512",
+    "C:\\Users\\barred3\\.nuget\\packages\\mal.mdk2.pbpackager\\2.0.6\\mal.mdk2.pbpackager.2.0.6.nupkg.sha512",
+    "C:\\Users\\barred3\\.nuget\\packages\\mal.mdk2.references\\2.2.2\\mal.mdk2.references.2.2.2.nupkg.sha512",
+    "C:\\Users\\barred3\\.nuget\\packages\\microsoft.build.framework\\17.10.4\\microsoft.build.framework.17.10.4.nupkg.sha512",
+    "C:\\Users\\barred3\\.nuget\\packages\\microsoft.build.utilities.core\\17.10.4\\microsoft.build.utilities.core.17.10.4.nupkg.sha512",
+    "C:\\Users\\barred3\\.nuget\\packages\\microsoft.io.redist\\6.0.0\\microsoft.io.redist.6.0.0.nupkg.sha512",
+    "C:\\Users\\barred3\\.nuget\\packages\\microsoft.net.stringtools\\17.10.4\\microsoft.net.stringtools.17.10.4.nupkg.sha512",
+    "C:\\Users\\barred3\\.nuget\\packages\\system.buffers\\4.5.1\\system.buffers.4.5.1.nupkg.sha512",
+    "C:\\Users\\barred3\\.nuget\\packages\\system.collections.immutable\\8.0.0\\system.collections.immutable.8.0.0.nupkg.sha512",
+    "C:\\Users\\barred3\\.nuget\\packages\\system.configuration.configurationmanager\\8.0.0\\system.configuration.configurationmanager.8.0.0.nupkg.sha512",
+    "C:\\Users\\barred3\\.nuget\\packages\\system.memory\\4.5.5\\system.memory.4.5.5.nupkg.sha512",
+    "C:\\Users\\barred3\\.nuget\\packages\\system.numerics.vectors\\4.5.0\\system.numerics.vectors.4.5.0.nupkg.sha512",
+    "C:\\Users\\barred3\\.nuget\\packages\\system.runtime.compilerservices.unsafe\\6.0.0\\system.runtime.compilerservices.unsafe.6.0.0.nupkg.sha512"
   ],
   "logs": []
 }

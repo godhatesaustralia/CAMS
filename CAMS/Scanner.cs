@@ -16,7 +16,7 @@ namespace IngameScript
         public Dictionary<string, LidarMast> Masts = new Dictionary<string, LidarMast>();
         bool _fixedRange, _useNetwork, _useBackup = false;
         public List<IMyLargeTurretBase> AllTurrets, Artillery;
-        int tPtr, tStep;
+        int tPtr, tStep, mastCheckInterval;
         const string
             IgcFleet = "[FLT-CA]",
             IgcTgt = "[FLT-TG]";
@@ -110,7 +110,7 @@ namespace IngameScript
             };
 
             m.CtrlScreens.Add("masts", new Screen(() => masts.Length, sprites, (p, s) => s.SetData($"{mastUpdate(ref s, p)} {p + 1}/{masts.Length}", 0), 128f));
-
+            Commands.Add("clear", b => Main.Targets.Clear());
             Commands.Add("designate", b =>
             {
                 if (Masts.ContainsKey(b.Argument(2)))
@@ -154,7 +154,7 @@ namespace IngameScript
         {
             Debug = "";
 
-            if (Main.F % 5 == 0) // guar
+            if (Main.F % 3 == 0) // guar
                 foreach (var m in Masts.Values)
                     m.Update();
 

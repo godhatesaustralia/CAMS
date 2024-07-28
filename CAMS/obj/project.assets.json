@@ -578,19 +578,19 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\daike\\.nuget\\packages\\": {}
+    "C:\\Users\\barred3\\.nuget\\packages\\": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\daike\\Downloads\\CAMS\\CAMS\\CAMS.csproj",
+      "projectUniqueName": "C:\\Users\\barred3\\Documents\\GitHub\\CAMS\\CAMS\\CAMS.csproj",
       "projectName": "CAMS",
-      "projectPath": "C:\\Users\\daike\\Downloads\\CAMS\\CAMS\\CAMS.csproj",
-      "packagesPath": "C:\\Users\\daike\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\daike\\Downloads\\CAMS\\CAMS\\obj\\",
+      "projectPath": "C:\\Users\\barred3\\Documents\\GitHub\\CAMS\\CAMS\\CAMS.csproj",
+      "packagesPath": "C:\\Users\\barred3\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\barred3\\Documents\\GitHub\\CAMS\\CAMS\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "C:\\Users\\daike\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Users\\barred3\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
       "originalTargetFrameworks": [

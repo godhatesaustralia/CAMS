@@ -27,7 +27,6 @@ namespace IngameScript
         const float rad = (float)Math.PI / 180;
         public string Name; // yeah
         protected IMyMotorStator _azimuth, _elevation;
-        public MatrixD aziMat => _azimuth.WorldMatrix;
         public AimState Status { get; protected set; }
         protected float
             _aMx,
@@ -189,7 +188,7 @@ namespace IngameScript
             if (double.IsNaN(t)) return false;
 
             if (test)
-                return true;
+                return test;
 
             aim += rV * t + 0.375 * rA * t * t;
             return true;
@@ -220,7 +219,7 @@ namespace IngameScript
                 _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
                 return AimState.Rest;
             }
-            _p.Debug.DrawGPS($"{Name}\naCur {aCur / rad}°\neCur {eCur / rad}°\n{Status}", aziMat.Translation, Lib.YEL);
+            _p.Debug.DrawGPS($"{Name}\naCur {aCur / rad}°\neCur {eCur / rad}°\n{Status}", _azimuth.WorldMatrix.Translation, Lib.YEL);
             _azimuth.TargetVelocityRad = _aPCtrl.Filter(a, _aRest, _p.F);
             _elevation.TargetVelocityRad = _ePCtrl.Filter(e, _eRest, _p.F);
 
@@ -257,6 +256,7 @@ namespace IngameScript
             for (int i = 0; i < (_limits?.Length ?? 0); i++)
                 if (_limits[i].aMn < aTgt && _limits[i].aMx > aTgt && _limits[i].eMn < eTgt && _limits[i].eMx > eTgt)
                 {
+                    _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
                     return AimState.Blocked;
                 }
             oobF = 0;
@@ -273,9 +273,8 @@ namespace IngameScript
         {
             if (Status != AimState.Rest)
             {
-                tEID = 0;
+                tEID = -1;
                 _weapons.Hold();
-                var azm = _azimuth.WorldMatrix;
                 Status = MoveToRest();
             }
             return Status;
@@ -305,7 +304,7 @@ namespace IngameScript
                 bool icpt = Interceptable(tgt, ref aim);
                 if (icpt)
                 {
-                    var azm = aziMat;
+                    var azm = _azimuth.WorldMatrix;
                     aim -= azm.Translation;
                     tgtDst = aim.Length();
 
@@ -330,8 +329,7 @@ namespace IngameScript
                 }
                 return;
             }
-            if (Status != AimState.Rest)
-                Status = ResetTurret();
+            else Status = ResetTurret();
         }
     }
 
@@ -363,13 +361,6 @@ namespace IngameScript
             tEID = eid;
         }
 
-        public void CancelLidar()
-        {
-            useLidar = false;
-            if (!CanTarget(tEID))
-                tEID = 0;
-        }
-
         public override void UpdateTurret()
         {
             if (_p.Targets.Count != 0)
@@ -390,7 +381,7 @@ namespace IngameScript
                 bool icpt = Interceptable(tgt, ref aim, useLidar);
                 if (icpt || useLidar) // admittedly not the best way to do this
                 {
-                    var azm = aziMat;
+                    var azm = _azimuth.WorldMatrix;
                     aim -= azm.Translation;
                     tgtDst = aim.Length();
 
@@ -399,20 +390,25 @@ namespace IngameScript
                         e = (_elevation.Angle + Lib.Pi) % Lib.Pi2 - Lib.Pi;
                     Lim2PiLite(ref a);
                     Status = AimAtTarget(ref azm, ref aim, a, e);
-                    if ((oobF > 50 && Status == AimState.Blocked) || tgtDst > TrackRange)
+                    if (oobF > 50 && Status == AimState.Blocked)
                     {
-                        tEID = 0; // test this
+                        if (useLidar)
+                            useLidar = false;
                         Status = ResetTurret();
                         return;
                     }
-                    if (useLidar)
+                    else if (useLidar)
                     {
                         var r = ScanResult.Failed;
                         if (Status == AimState.OnTarget)
                             for (scanCtr = 0; scanCtr < scanMx && r == ScanResult.Failed; scanCtr++)
                                 r = Lidar.Scan(_p, tgt, true);
                     }
-                    if (tgtDst < Range && Status == AimState.OnTarget)
+                    else if (tgtDst > TrackRange)
+                    {
+                        Status = ResetTurret();
+                    }
+                    else if (tgtDst < Range && Status == AimState.OnTarget)
                     {
                         _weapons.Fire(_p.F);
                         switchOfs = _weapons.offsetTicks == 0;
@@ -425,8 +421,7 @@ namespace IngameScript
                     Status = MoveToRest();
                 }
             }
-            else if (Status != AimState.Rest)
-                Status = ResetTurret();
+            else Status = ResetTurret();
         }
     }
 }

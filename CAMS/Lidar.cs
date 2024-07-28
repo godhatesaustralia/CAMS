@@ -2,6 +2,7 @@
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using VRageMath;
 
 namespace IngameScript
@@ -124,13 +125,6 @@ namespace IngameScript
         bool _stopSpin = false;
         public int[] Scans;
 
-        public void DumpAllCameras(ref List<IMyCameraBlock> l)
-        {
-            foreach (var lidar in Lidars)
-                foreach (var cam in lidar.AllCameras)
-                    l.Add(cam);
-        }
-
         public LidarMast(Program p, IMyMotorStator azi, string[] t = null)
         {
             _azimuth = azi;
@@ -211,7 +205,6 @@ namespace IngameScript
             _elevation.UpperLimitRad = _elR;
             _stopSpin = true;
         }
-
 
         public void Designate()
         {

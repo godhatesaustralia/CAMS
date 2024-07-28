@@ -22,7 +22,6 @@ namespace IngameScript
         #region Global Fields
 
         enum GuidanceAlgoType { ProNav, WhipNav, HybridNav, ZeroEffortMiss };
-
         MissileGuidanceBase _selectedGuidance;
         Dictionary<GuidanceAlgoType, MissileGuidanceBase> _guidanceAlgorithms;
 
@@ -70,6 +69,7 @@ namespace IngameScript
             _enableEvasion = false,
             _precisionMode = false,
             _retask = false;
+        long _uID, _master = -1;
 
         enum AntennaNameMode { Empty, MissileName, MissileStatus };
         Random RNGesus = new Random();
@@ -103,8 +103,6 @@ namespace IngameScript
             _camerasRight = new DynamicCircularBuffer<IMyCameraBlock>(),
             _camerasUp = new DynamicCircularBuffer<IMyCameraBlock>(),
             _camerasDown = new DynamicCircularBuffer<IMyCameraBlock>();
-
-        long _master = -1;
 
         IMyShipController _missileReference = null;
         IMyTerminalBlock _offsetReference = null;
@@ -180,7 +178,7 @@ namespace IngameScript
 
         ConfigInt _expectedCount = new ConfigInt(IniSectionMain, "Expected blocks in group", 20);
 
-        ConfigString 
+        ConfigString
             _missileTag = new ConfigString(IniSectionMain, "Missile tag", "MSL"),
             _missilePos = new ConfigString(IniSectionMain, "Missile position", "CC"),
             _offsetReferenceName = new ConfigString(IniSectionMain, "Launch positional spread reference" + " name"),
@@ -198,7 +196,7 @@ namespace IngameScript
 
         ConfigEnum<GuidanceAlgoType> _guidanceAlgoType = new ConfigEnum<GuidanceAlgoType>(IniSectionHoming, "Guidance algorithm", GuidanceAlgoType.ProNav, " Valid guidance algorithms: ProNav, WhipNav, HybridNav, ZeroEffortMiss");
 
-        ConfigDouble 
+        ConfigDouble
             _navConstant = new ConfigDouble(IniSectionHoming, "Navigation constant", 3),
             _accelNavConstant = new ConfigDouble(IniSectionHoming, "Acceleration constant", 1.5),
             _maxAimDispersion = new ConfigDouble(IniSectionHoming, "Max aim dispersion (m)", 0),
@@ -211,7 +209,7 @@ namespace IngameScript
             _evadeWithSpiral = new ConfigBool(IniSectionEvasion, "Use spiral", false),
             _evadeWithRandomizedHeading = new ConfigBool(IniSectionEvasion, "Use random flight path", true, " AKA \"Drunken Missile Mode\"");
 
-        ConfigDouble 
+        ConfigDouble
             _spiralDegrees = new ConfigDouble(IniSectionSpiral, "Spiral angle (deg)", 15),
             _timeMaxSpiral = new ConfigDouble(IniSectionSpiral, "Spiral time (sec)", 3),
             _spiralActivationRange = new ConfigDouble(IniSectionSpiral, "Spiral activation range (m)", 1000),
@@ -220,12 +218,12 @@ namespace IngameScript
 
         ConfigBool _useCamerasForHoming = new ConfigBool(IniSectionRaycast, "Use cameras for homing", true);
 
-        ConfigDouble 
+        ConfigDouble
             _raycastRange = new ConfigDouble(IniSectionRaycast, "Tripwire range (m)", 0.25),
             _raycastMinimumTargetSize = new ConfigDouble(IniSectionRaycast, "Minimum target size (m)", 0),
             _minimumArmingRange = new ConfigDouble(IniSectionRaycast, "Minimum warhead arming range (m)", 100);
 
-        ConfigBool 
+        ConfigBool
             _raycastIgnoreFriends = new ConfigBool(IniSectionRaycast, "Ignore friendlies", false),
             _raycastIgnorePlanetSurface = new ConfigBool(IniSectionRaycast, "Ignore planets", true),
             _ignoreIdForDetonation = new ConfigBool(IniSectionRaycast, "Ignore target ID for detonation", false);
@@ -292,6 +290,7 @@ namespace IngameScript
         #region Main Methods
         Program()
         {
+            _uID = Me.EntityId;
             SetupConfig();
 
             _unicastListener = IGC.UnicastListener;
@@ -365,8 +364,19 @@ namespace IngameScript
 
         void Main(string arg, UpdateType updateSource)
         {
-            if ((updateSource & (UpdateType.Terminal | UpdateType.Trigger | UpdateType.Script)) != 0)
-                ArgumentHandling(arg);
+            if ((updateSource & UpdateType.Script) != 0 && arg != "")
+                {
+                    if (arg.Substring(0, 4) != "setup")
+                        return;
+                    long check;
+                    if (long.TryParse(arg.Remove(0, 4), out check))
+                        {
+                            _master = check != 0 ? check : _master;
+                            _postSetupAction = PostSetupAction.Handshake;
+                            InitiateSetup();
+                        }
+                }
+                //ArgumentHandling(arg);
 
             if ((updateSource & UpdateType.Once) != 0)
             {
@@ -681,7 +691,7 @@ namespace IngameScript
 
         List<IMyBlockGroup> _foundGroups = new List<IMyBlockGroup>();
         List<IMyMechanicalConnectionBlock> _mechConnections = new List<IMyMechanicalConnectionBlock>();
-        enum SetupStatus { None = 0, Running = 1, Done = 2 }
+        enum SetupStatus { None = 0, Waiting = 1, Running = 2, Done = 3 }
         IEnumerator<SetupStatus> SetupStateMachine(bool reload = false)
         {
             string title = GetTitle();
@@ -734,7 +744,7 @@ namespace IngameScript
             _setupBuilder.Append($"\nChecking for firing ship...\n");
 
             var mainframe = GridTerminalSystem.GetBlockWithName(_mainframeName);
-            if (mainframe !=  null)
+            if (mainframe != null)
             {
                 _master = mainframe.EntityId;
             }
@@ -756,6 +766,8 @@ namespace IngameScript
             if (_missileGroup != null)
             {
                 _missileGroup.GetBlocks(_missileBlocks);
+                if (_missileBlocks.Count != _expectedCount)
+                    yield return SetupStatus.Waiting;
             }
             else
             {
@@ -779,7 +791,7 @@ namespace IngameScript
             {
                 bool moreInstructions = _setupStateMachine.MoveNext();
 
-                if (_setupStateMachine.Current == SetupStatus.Running)
+                if (_setupStateMachine.Current != SetupStatus.Done)
                 {
                     Runtime.UpdateFrequency = UpdateFrequency.Once;
                 }
@@ -806,7 +818,7 @@ namespace IngameScript
                     _missileReference = _shipControllers[0];
 
                     _offsetReference = GridTerminalSystem.GetBlockWithName(_offsetReferenceName);
-                  
+
 
                     if ((_postSetupAction & PostSetupAction.Fire) != 0)
                     {
@@ -1198,7 +1210,7 @@ namespace IngameScript
             {
                 pitchSpeed = UpdatesPerSecond * .5 * pitch;
             }
-  
+
             ApplyGyroOverride(pitchSpeed, yawSpeed, rollSpeed, _gyros, ref missileMatrix);
         }
 
@@ -1424,7 +1436,7 @@ namespace IngameScript
         #region Send Status
         void SendStatusUpdate()
         {
-           
+
         }
         #endregion
 
@@ -1534,7 +1546,7 @@ namespace IngameScript
                     if (distanceToTarget < adjustedDetonationRange + closingSpeed * SecondsPerUpdate)
                     {
                         Detonate((distanceToTarget - adjustedDetonationRange) / closingSpeed);
-                        IGC.SendUnicastMessage(_master, IgcTagSplash, _missileNameTag);
+                        IGC.SendUnicastMessage(_master, IgcTagSplash, _uID);
                         return;
                     }
                 }
@@ -1549,7 +1561,7 @@ namespace IngameScript
             if ((_guidanceMode & GuidanceMode.Homing) != 0 && RaycastTripwireInDirection(missileToTargetNorm, closingVelocity, out raycastHitDistance, out closingSpeed))
             {
                 Detonate((raycastHitDistance - _raycastRange) / closingSpeed);
-                IGC.SendUnicastMessage(_master, IgcTagSplash, _missileNameTag);
+                IGC.SendUnicastMessage(_master, IgcTagSplash, _uID);
                 return;
             }
 
@@ -1570,7 +1582,7 @@ namespace IngameScript
                 RaycastTripwireInDirection(closingVelocity, closingVelocity, out raycastHitDistance, out closingSpeed, -perp2))
             {
                 Detonate((raycastHitDistance - _raycastRange) / closingSpeed);
-                IGC.SendUnicastMessage(_master, IgcTagSplash, _missileNameTag);
+                IGC.SendUnicastMessage(_master, IgcTagSplash, _uID);
                 return;
             }
 
@@ -1661,7 +1673,7 @@ namespace IngameScript
                     b.Enabled = false;
             }
             Detonate(0);
-            IGC.SendUnicastMessage(_master, IgcTagSplash, _missileNameTag);
+            IGC.SendUnicastMessage(_master, IgcTagSplash, _uID);
             Runtime.UpdateFrequency = UpdateFrequency.None;
         }
 
@@ -1778,7 +1790,7 @@ namespace IngameScript
         #region Storage Parsing/Saving
         void ParseStorage() //TODO: Add proper ini save/parse for Active guidance
         {
-            if (GridTerminalSystem.GetBlockGroupWithName(_mainframeName) != null)
+            if (GridTerminalSystem.GetBlockWithName(_mainframeName) != null)
             {
                 // This means missile is still attached to firing ship
                 Storage = "";

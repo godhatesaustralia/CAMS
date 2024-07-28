@@ -2,33 +2,33 @@
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using VRage;
 using VRageMath;
 
 namespace IngameScript
 {
-    public interface IMissileRack
-    {
-        int Count { get; }
-        bool NeedsReload { get; }
-        string Launch();
-        void Reload();
-    }
     public static class Datalink
     {
+        public static long ID;
         public static IMyIntergridCommunicationSystem IGC;
+        public static IMyBroadcastListener
+            MissileReady,
+            MissileSplash;
         static IMyRadioAntenna[] _broadcasters;
         public static string
             IgcParams = "IGC_MSL_PAR_MSG",
             IgcHoming = "IGC_MSL_HOM_MSG",
-            IgcIff = "IGC_IFF_PKT",
+            IgcInit = "IGC_MSL_RDY_MSG",
             IgcFire = "IGC_MSL_FIRE_MSG",
             IgcSplash = "IGC_MSL_SPLASH_MSG",
             IgcStatus = "IGC_MSL_STAT_MSG";
-        public static void Setup(Program p) 
+            
+        public static void Setup(Program p)
         {
+            ID = p.Me.EntityId;
             IGC = p.IGC;
+            MissileReady = p.IGC.RegisterBroadcastListener(IgcInit);
+            MissileSplash = p.IGC.RegisterBroadcastListener(IgcSplash);
             var ant = new List<IMyRadioAntenna>();
             using (var q = new iniWrap())
                 if (q.CustomData(p.Me))
@@ -43,7 +43,6 @@ namespace IngameScript
             //if (_broadcasters != null && _broadcasters.Length > 0)
             //    _broadcasters[0].Enabled = _broadcasters[0].EnableBroadcasting = true;
         }
-
 
         public static void FireMissile(long id) => IGC.SendUnicastMessage(id, IgcFire, "");
 
@@ -103,139 +102,243 @@ namespace IngameScript
 
     }
 
-    public class EKVLauncher : IMissileRack
+    public enum LauncherState
     {
-        Program _m;
+        Empty,
+        Boot,
+        ReloadSearch, // gts querying
+        ReloadWait, // waiting for handshake
+        Moving, // moving between positions
+        Ready // at launch angle
+    }
+    public class ArmLauncherWHAM
+    {
+        public LauncherState Status = 0;
         IMyMotorStator _arm;
-        IMyShipWelder[] _welders;
+        IMyShipWelder _welder;
         IMyProjector _proj;
+        SortedSet<EKV>
+            eKVsReload = new SortedSet<EKV>(),
+            eKVsLaunch = new SortedSet<EKV>();
+        float _fireAngle, _tgtAngle, _RPM;
+        public int Total = 0;
+        IMyGridTerminalSystem _gts;
 
-        float
-            _launchAngle,
-            _RPM;
-        bool _loaded = false, _gtsSearchFlag = true;
-        long _reloadWaitTicks, _lastReload;
-        int _reloadPtr = -1;
-        public int Count => Computers.Count;
-        public bool NeedsReload => !_loaded;
-        public List<IMyProgrammableBlock> Computers = new List<IMyProgrammableBlock>();
-        string[] Missiles;
-        float[] _reload;
-        Dictionary<string, IMyShipMergeBlock> _mergeDict = new Dictionary<string, IMyShipMergeBlock>();
+        /// <summary>
+        /// Launcher representation of an EKV (Explosive Kill Vehicle) interceptor running WHAM-C.
+        /// </summary>
+        private class EKV : IComparable<EKV>
+        {
+            public string Name, ComputerName;
+            public IMyShipMergeBlock Hardpoint;
+            public IMyProgrammableBlock Computer;
+            public float Reload;
 
-        public EKVLauncher(IMyMotorStator a, Program p)
+            public EKV(string n, string cn, IMyProgrammableBlock c, IMyShipMergeBlock m, float r)
+            {
+                Name = n;
+                ComputerName = cn;
+                Computer = c;
+                Hardpoint = m;
+                Reload = r;
+            }
+
+            public int CompareTo(EKV o)
+            {
+                if (Reload == o.Reload)
+                    return Computer == null ? -1 : Name.CompareTo(o.Name);
+                else return Reload < o.Reload ? -1 : 1;
+            }
+        }
+        public ArmLauncherWHAM(IMyMotorStator a, Program p)
         {
             _arm = a;
-            _m = p;
+            _gts = p.GridTerminalSystem;
+        }
+
+        /// <summary>
+        /// Parses custom data settings and creates EKVs to be handled by the launcher.
+        /// </summary>
+        /// <returns>Whether launcher initialization was a success or failure.</returns>
+        public bool Init()
+        {
+            if (_arm == null) return false;
+            int c = 0;
             using (var q = new iniWrap())
-                if (q.CustomData(_arm))
+                if (!q.CustomData(_arm)) return false;
+                else
                 {
                     var h = Lib.HDR;
                     var t = q.String(h, "tags", "");
                     var rad = (float)(Lib.Pi / 180);
                     if (t != "")
                     {
-                        Missiles = t.Split('\n');
-                        _reload = new float[Missiles.Length];
-                        if (Missiles != null)
-                            for (int i = 0; i < Missiles.Length; i++)
+                        var tags = t.Split('\n');
+                        if (tags != null)
+                            for (; Total < tags.Length; Total++)
                             {
-                                Missiles[i].Trim('|');
-                                var angle = q.Float(h, "weldAngle" + Missiles[i], float.MinValue);
+                                tags[Total].Trim('|');
+                                var angle = q.Float(h, "weldAngle" + tags[Total], float.MinValue);
                                 if (angle != float.MinValue)
-                                    _reload[i] = angle * rad;
-                                var merge = (IMyShipMergeBlock)p.GridTerminalSystem.GetBlockWithName(q.String(h, "merge" + Missiles[i]));
-                                if (merge != null)
-                                    _mergeDict[Missiles[i]] = merge;
-
-                            }
-                    }
-
-                    var w = q.String(h, "welders");
-                    var weldnames = w.Contains(',') ? w.Split(',') : new string[] { w };
-                    if (weldnames != null)
-                    {
-                        _welders = new IMyShipWelder[weldnames.Length];
-                        for (int i = 0; i < _welders.Length; i++) {
-                            _welders[i] = (IMyShipWelder)p.Terminal.GetBlockWithName(weldnames[i]);
-                            if (_welders[i] != null) _welders[i].Enabled = false;
+                                    angle *= rad;
+                                var merge = (IMyShipMergeBlock)_gts.GetBlockWithName(q.String(h, "merge" + tags[Total]));
+                                if (merge != null && angle != float.MinValue)
+                                {
+                                    var n = q.String(h, "computer" + tags[Total], tags[Total] + " Computer WHAM");
+                                    var cptr = (IMyProgrammableBlock)_gts.GetBlockWithName(n);
+                                    eKVsReload.Add(new EKV(tags[Total], n, cptr, merge, angle));
+                                    if (cptr != null) c++;
                                 }
+                            }
+                        Total++;
                     }
-                    _launchAngle = q.Float(h, "fireAngle", 60) * rad;
+
+                    var w = q.String(h, "welder", "");
+                    _welder = _gts.GetBlockWithName(w) as IMyShipWelder;
+                    if (_welder == null)
+                        return false;
+                    _welder.Enabled = false;
+                    _fireAngle = _tgtAngle = q.Float(h, "fireAngle", 60) * rad;
                     _RPM = q.Float(h, "rpm", 5);
-                    _reloadWaitTicks = q.Int(h, "reloadTicks", 210);
-                    _lastReload = -_reloadWaitTicks; // makes sure reload sequence starts no matter when triggered
-                }
-            p.Terminal.GetBlocksOfType(Computers, b => b.CubeGrid == _arm.TopGrid);
-            p.Terminal.GetBlocksOfType<IMyProjector>(null, b =>
-            {
-                if (b.CubeGrid == _arm.TopGrid)
-                {
-                    b.Enabled = false;
-                    _proj = b;
-                }
-                return false;
-            });
 
-
-            _loaded = Computers.Count == Missiles.Length;
-        }
-
-        public void Reload()
-        {
-            if (Computers.Count == Missiles.Length) return;
-
-            if (_gtsSearchFlag && _reloadPtr >= 0)
-            {
-                _m.Terminal.GetBlocksOfType<IMyProgrammableBlock>(null, b =>
-                {
-                    if (b.CubeGrid == _arm?.TopGrid && b.CustomName.Contains(Missiles[_reloadPtr]))
+                    _gts.GetBlocksOfType<IMyProjector>(null, b =>
                     {
-                        Computers.Add(b);
-                        _gtsSearchFlag = !_gtsSearchFlag;
-                    }
-                    return false;
-                });
-            }
-            if (_m.F - _lastReload >= _reloadWaitTicks)
+                        if (b.CubeGrid == _arm.TopGrid)
+                        {
+                            b.Enabled = false;
+                            _proj = b;
+                        }
+                        return false;
+                    });
+                }
+            if (Total == c)
+                Status = LauncherState.Boot;
+            return _welder != null && _proj != null && eKVsReload.Count > 0;
+        }
+
+        /// <summary>
+        /// Attempts to fire a missile. If none remain after firing, the launcher enters its reload sequence.
+        /// </summary>
+        /// <param name="id">Unique ID of the fired missile.</param>
+        /// <returns>Whether a missile was fired successfully.</returns>
+        public bool Fire(out long id)
+        {
+            id = -1;
+            if (Status == LauncherState.Ready)
             {
-                _loaded = Computers.Count == Missiles.Length;
-                if (_loaded)
+                var e = eKVsLaunch.Max;
+                if (e?.Computer != null)
                 {
-                    _lastReload = -_reloadWaitTicks;
-                    _arm.UpperLimitRad = _launchAngle;
-                    _proj.Enabled = false;
-                    foreach (var w in _welders)
-                        w.Enabled = false;
-                    _reloadPtr = -1;
+                    id = e.Computer.EntityId;
+                    Datalink.FireMissile(id);
+                    e.Computer = null;
+                    eKVsReload.Add(e);
+                    eKVsLaunch.Remove(e);
+                    if (eKVsLaunch.Count == 0)
+                        Status = LauncherState.Empty;
+                    return true;
                 }
+            }
+            return false;
+        }
 
-                if (_reloadPtr == -1)
+        public void Update()
+        {
+            if (Status == LauncherState.Ready || Status == LauncherState.ReloadWait)
+                return;
+            var e = eKVsReload.Min;
+            if (Status == LauncherState.ReloadSearch)
+            {
+                e.Computer = (IMyProgrammableBlock)_gts.GetBlockWithName(e.ComputerName);
+                if (!e.Computer?.IsRunning ?? false && e.Computer.TryRun($"setup{Datalink.ID}"))
+                    Status = LauncherState.ReloadWait;
+            }
+            else if (Status == LauncherState.Moving)
+            {
+                if (Math.Abs(_arm.Angle - _tgtAngle) < 0.01)
                 {
-                    foreach (var m in _mergeDict.Values) m.Enabled = false;
-                    _proj.Enabled = true;
-                    foreach (var w in _welders)
-                        w.Enabled = true;
-                    _reloadPtr++;
-
+                    _arm.TargetVelocityRPM = 0;
+                    if (eKVsReload.Count != 0)
+                    {
+                        e.Hardpoint.Enabled = true;
+                        _welder.Enabled = true;
+                        Status = LauncherState.ReloadSearch;
+                    }
+                    else if (_tgtAngle == _fireAngle)
+                    {
+                        _proj.Enabled = false;
+                        Status = LauncherState.Ready;
+                    }
                 }
-                else if (Computers.Count != 0 && _reloadPtr < _reload.Length - 1)
-                    _reloadPtr++;
-                var tgt = _reload[_reloadPtr];
-                _arm.LowerLimitRad = tgt;
-                _arm.TargetVelocityRPM = Math.Sign(tgt - _arm.Angle) * _RPM;
-                _lastReload = _m.F;
-                _gtsSearchFlag = !_gtsSearchFlag;
-                _mergeDict[Missiles[_reloadPtr]].Enabled = true;
+            }
+            else if (Status == LauncherState.Empty)
+            {
+                foreach (var ekv in eKVsReload)
+                    ekv.Hardpoint.Enabled = false;
+                e.Hardpoint.Enabled = _proj.Enabled = true;
+                _tgtAngle = e.Reload;
+                RotateArm();
+            }
+            else if (Status == LauncherState.Boot)
+            {
+                e.Computer = (IMyProgrammableBlock)_gts.GetBlockWithName(e.ComputerName);
+                if (_arm.Angle != _tgtAngle)
+                {
+                    RotateArm();
+                    Status = LauncherState.Boot;
+                }
+                if (!e.Computer.IsRunning)
+                    e.Computer?.TryRun($"setup{Datalink.ID}");
             }
         }
 
-        public string Launch()
+        void RotateArm()
         {
-            var id = Computers[0].EntityId;
-            Datalink.FireMissile(Computers[0].EntityId);
-            Computers.Remove(Computers[0]);
-            return id.ToString("X");
+            var adj = _arm.Angle;
+
+            if (adj < -MathHelper.PiOver2)
+                adj += MathHelper.Pi;
+            else if (adj > MathHelper.PiOver2)
+                adj -= MathHelper.Pi;
+
+            var next = adj - _tgtAngle;
+            if (next < 0)
+            {
+                _arm.LowerLimitRad = _tgtAngle;
+                _arm.TargetVelocityRPM = -_RPM;
+            }
+            else if (next > 0)
+            {
+                _arm.UpperLimitRad = _tgtAngle;
+                _arm.TargetVelocityRPM = _RPM;
+            }
+            _welder.Enabled = false;
+            Status = LauncherState.Moving;
+        }
+
+        /// <summary>
+        /// Checks if an ID belongs to this launcher.
+        /// If it does, advances the reload sequence to next missile or moves the launcher to reload position if none are left to reload.
+        /// </summary>
+        /// <param name="id">Missile computer entity ID received via IGC.</param>
+        /// <returns>Whether handshake was successfully received by this launcher.</returns>
+        public bool CheckHandshake(long id)
+        {
+            if (Status == LauncherState.Ready || eKVsReload.Count == 0)
+                return false;
+            var e = eKVsReload.Min;
+            bool ok = e.Computer.EntityId == id;
+            if (ok)
+            {
+                Datalink.IGC.SendUnicastMessage(id, Datalink.IgcInit, "");
+                eKVsReload.Remove(e);
+                eKVsLaunch.Add(e);
+                // if reload set is now empty, go to firing position
+                // otherwise go to next reload position
+                _tgtAngle = eKVsReload.Count == 0 ? _fireAngle : eKVsReload.Min.Reload;
+                RotateArm();
+            }
+            return ok;
         }
     }
 }

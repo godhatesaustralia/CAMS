@@ -1,6 +1,6 @@
 is_global = true
-build_property.ProjectDir = C:\Users\daike\Downloads\CAMS\CAMS\
-build_property.ProjectDir = C:\Users\daike\Downloads\CAMS\CAMS\
+build_property.ProjectDir = C:\Users\barred3\Documents\GitHub\CAMS\CAMS\
+build_property.ProjectDir = C:\Users\barred3\Documents\GitHub\CAMS\CAMS\
 build_property.Mdk-IgnorePaths = obj\**\*;MDK\**\*;**\*.debug.cs
 build_property.RootNamespace = IngameScript
 build_property.EnableComHosting = 
