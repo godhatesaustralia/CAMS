@@ -33,7 +33,7 @@ namespace IngameScript
             using (var q = new iniWrap())
                 if (q.CustomData(p.Me))
                 {
-                    var grp = p.Terminal.GetBlockGroupWithName(q.String(Lib.HDR, "antennaGrp"));
+                    var grp = p.Terminal.GetBlockGroupWithName(q.String(Lib.H, "antennaGrp"));
                     if (grp != null)
                         grp.GetBlocksOfType(ant);
                     else p.Terminal.GetBlocksOfType(ant);
@@ -104,16 +104,37 @@ namespace IngameScript
 
     public enum LauncherState
     {
+        /// <summary>
+        /// All missiles depleted
+        /// </summary>
         Empty,
+        /// <summary>
+        /// Used on script startup when all missiles are already present
+        /// </summary>
         Boot,
-        ReloadSearch, // gts querying
-        ReloadWait, // waiting for handshake
-        Moving, // moving between positions
-        Ready // at launch angle
+        /// <summary>
+        /// Searching grid terminal system for next missile computer
+        /// </summary>
+        ReloadSearch,
+        /// <summary>
+        /// Waiting for handshake IGC signal
+        /// </summary>
+        ReloadWait,
+        /// <summary>
+        /// Launcher arm rotating
+        /// </summary>
+        Moving, 
+        /// <summary>
+        /// Launcher able to fire
+        /// </summary>
+        Ready 
     }
     public class ArmLauncherWHAM
     {
         public LauncherState Status = 0;
+        /// <summary>
+        /// Launcher hinge
+        /// </summary>
         IMyMotorStator _arm;
         IMyShipWelder _welder;
         IMyProjector _proj;
@@ -132,6 +153,9 @@ namespace IngameScript
             public string Name, ComputerName;
             public IMyShipMergeBlock Hardpoint;
             public IMyProgrammableBlock Computer;
+            /// <summary>
+            /// Reloading angle of the missile in radians
+            /// </summary>
             public float Reload;
 
             public EKV(string n, string cn, IMyProgrammableBlock c, IMyShipMergeBlock m, float r)
@@ -168,9 +192,9 @@ namespace IngameScript
                 if (!q.CustomData(_arm)) return false;
                 else
                 {
-                    var h = Lib.HDR;
+                    var h = Lib.H;
                     var t = q.String(h, "tags", "");
-                    var rad = (float)(Lib.Pi / 180);
+                    var rad = (float)(Lib.PI / 180);
                     if (t != "")
                     {
                         var tags = t.Split('\n');
@@ -229,11 +253,11 @@ namespace IngameScript
                 var e = eKVsLaunch.Max;
                 if (e?.Computer != null)
                 {
+                    eKVsLaunch.Remove(e);
                     id = e.Computer.EntityId;
                     Datalink.FireMissile(id);
                     e.Computer = null;
                     eKVsReload.Add(e);
-                    eKVsLaunch.Remove(e);
                     if (eKVsLaunch.Count == 0)
                         Status = LauncherState.Empty;
                     return true;

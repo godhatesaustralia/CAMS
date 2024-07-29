@@ -88,7 +88,7 @@ namespace IngameScript
             using (var p = new iniWrap())
                 if (p.CustomData(_azimuth) && _elevation != null)
                 {
-                    var h = Lib.HDR;
+                    var h = Lib.H;
                     Name = p.String(h, "name", inv);
                     if (p.Bool(h, "ctc"))
                         m.Terminal.GetBlocksOfType<IMyTurretControlBlock>(null, b =>
@@ -141,22 +141,22 @@ namespace IngameScript
 
         static void AdjustElevation(ref double val)
         {
-            if (val < -Lib.halfPi)
-                val += Lib.Pi;
-            else if (val > Lib.halfPi)
-                val -= Lib.Pi;
+            if (val < -Lib.HALF_PI)
+                val += Lib.PI;
+            else if (val > Lib.HALF_PI)
+                val -= Lib.PI;
         }
         static void AdjustAzimuth(ref double val)
         {
-            if (val < -Lib.Pi)
+            if (val < -Lib.PI)
             {
-                val += Lib.Pi2;
-                if (val < -Lib.Pi) val += Lib.Pi2;
+                val += Lib.PI2X;
+                if (val < -Lib.PI) val += Lib.PI2X;
             }
-            else if (val > Lib.Pi)
+            else if (val > Lib.PI)
             {
-                val -= Lib.Pi2;
-                if (val > Lib.Pi) val -= Lib.Pi2;
+                val -= Lib.PI2X;
+                if (val > Lib.PI) val -= Lib.PI2X;
             }
         }
 
@@ -190,7 +190,7 @@ namespace IngameScript
             if (test)
                 return test;
 
-            aim += rV * t + 0.375 * rA * t * t;
+            aim += rV * t + 0.375 * rA * t * t + -_p.Gravity;
             return true;
         }
 
@@ -199,20 +199,20 @@ namespace IngameScript
         {
             if (a < 0)
             {
-                if (a <= -Lib.Pi2) a += MathHelperD.FourPi;
-                else a += Lib.Pi2;
+                if (a <= -Lib.PI2X) a += MathHelperD.FourPi;
+                else a += Lib.PI2X;
             }
-            else if (a >= Lib.Pi2)
+            else if (a >= Lib.PI2X)
             {
                 if (a >= MathHelperD.FourPi) a -= MathHelperD.FourPi;
-                else a -= Lib.Pi2;
+                else a -= Lib.PI2X;
             }
         }
         protected AimState MoveToRest()
         {
             double
                 a = _azimuth.Angle,
-                e = (_elevation.Angle + Lib.Pi) % Lib.Pi2 - Lib.Pi;
+                e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
             Lim2PiLite(ref a);
             if (Math.Abs(a - _aRest) < _tol && Math.Abs(e - _eRest) < _tol)
             {
@@ -247,7 +247,7 @@ namespace IngameScript
 
             // elevation target angle
             var eTgt = Lib.AngleBetween(ref aTgtV, ref aim) * Math.Sign(aim.Dot(azm.Up));
-            eCur = (eCur + Lib.Pi) % Lib.Pi2 - Lib.Pi;
+            eCur = (eCur + Lib.PI) % Lib.PI2X - Lib.PI;
             //_p.Debug.DrawGPS($"{Name}\naTgt/Cur {aTgt / rad}°|{aCur / rad}°\neTgt/Cur {eTgt / rad}°|{eCur / rad}°\n{Status}", azm.Translation, Lib.YEL);
             if (eTgt > _eMx || eTgt < _eMn)
                 return AimState.Blocked;
@@ -310,16 +310,26 @@ namespace IngameScript
 
                     double
                         a = _azimuth.Angle,
-                        e = (_elevation.Angle + Lib.Pi) % Lib.Pi2 - Lib.Pi;
+                        e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
                     Lim2PiLite(ref a);
                     Status = AimAtTarget(ref azm, ref aim, a, e);
                     if (oobF > 50 && Status == AimState.Blocked)
                     {
                         Status = ResetTurret();
+                        if (tgt.Engaged)
+                            _p.Targets.MarkLost(tEID);
                         return;
                     }
-                    if (tgtDst < Range && Status == AimState.OnTarget)
+                    else if (tgtDst > TrackRange)
+                    {
+                        Status = ResetTurret();
+                    }
+                    else if (tgtDst < Range && Status == AimState.OnTarget)
+                    {
+                        if (!tgt.Engaged)
+                            _p.Targets.MarkEngaged(tEID);
                         _weapons.Fire(_p.F);
+                    }
                     else _weapons.Hold();
                 }
                 else
@@ -327,7 +337,8 @@ namespace IngameScript
                     _weapons.Hold();
                     Status = MoveToRest();
                 }
-                return;
+                if (tgt.Engaged)
+                    _p.Targets.MarkLost(tEID);
             }
             else Status = ResetTurret();
         }
@@ -387,13 +398,15 @@ namespace IngameScript
 
                     double
                         a = _azimuth.Angle,
-                        e = (_elevation.Angle + Lib.Pi) % Lib.Pi2 - Lib.Pi;
+                        e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
                     Lim2PiLite(ref a);
                     Status = AimAtTarget(ref azm, ref aim, a, e);
                     if (oobF > 50 && Status == AimState.Blocked)
                     {
                         if (useLidar)
                             useLidar = false;
+                        else if (tgt.Engaged)
+                            _p.Targets.MarkLost(tEID);
                         Status = ResetTurret();
                         return;
                     }
@@ -410,8 +423,11 @@ namespace IngameScript
                     }
                     else if (tgtDst < Range && Status == AimState.OnTarget)
                     {
+                        if (!tgt.Engaged)
+                            _p.Targets.MarkEngaged(tEID);
                         _weapons.Fire(_p.F);
                         switchOfs = _weapons.offsetTicks == 0;
+                        return;
                     }
                     else _weapons.Hold();
                 }
@@ -420,6 +436,8 @@ namespace IngameScript
                     _weapons.Hold();
                     Status = MoveToRest();
                 }
+                if (tgt.Engaged)
+                    _p.Targets.MarkLost(tEID);
             }
             else Status = ResetTurret();
         }

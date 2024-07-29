@@ -6,6 +6,20 @@ using VRageMath;
 
 namespace IngameScript
 {
+    public partial class Program : MyGridProgram
+    {
+        public Color
+            PMY = new Color(100, 250, 100),
+            SDY = new Color(50, 125, 50),
+            BKG = new Color(7, 16, 7),
+            RED = new Color(240, 50, 50),
+            YEL = new Color(250, 250, 100),
+            TGT = new Color(155, 255, 155);
+          public const SpriteType
+            TXT = SpriteType.TEXT,
+            SHP = SpriteType.TEXTURE,
+            CLP = SpriteType.CLIP_RECT;
+    }
     public class Display
     {
         Program _m;
@@ -22,7 +36,7 @@ namespace IngameScript
         //static int _oBase = 0;
         Func<int> ptrMax = null;
         public UpdateFrequency Freq = Lib.u1;
-        Color _bg, _main;
+        Color _bg;
         public Display(Program m, IMyTerminalBlock b, string a, bool vcr = true)
         {
             _m = m;
@@ -30,13 +44,13 @@ namespace IngameScript
             using (var p = new iniWrap())
                 if (p.CustomData(b))
                 {
-                    Name = p.String(Lib.HDR, "name", b.CustomName);
+                    Name = p.String(Lib.H, "name", b.CustomName);
 
-                    p.TryReadVector2(Lib.HDR, "size", ref _sz);
-                    _bg = p.Color(Lib.HDR, "colorBG", Color.Black);
-                    _main = p.Color(Lib.HDR, "colorMain", Lib.GRN);
+                    p.TryReadVector2(Lib.H, "size", ref _sz);
+
                     isLarge = b is IMyTextPanel;
-                    _sprites = p.Sprites(Lib.HDR, vcr ? Lib.SPR : Lib.SPR + "_V");
+                    _bg = p.Color(Lib.H, "colorBG", Color.Black);
+                    _sprites = p.Sprites(Lib.H, vcr ? Lib.SPR : Lib.SPR + "_V");
                 }
                 else return;
             SetActive(a ?? Lib.MS);

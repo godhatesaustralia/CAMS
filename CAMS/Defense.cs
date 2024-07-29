@@ -9,6 +9,92 @@ using VRageMath;
 
 namespace IngameScript
 {
+    public partial class Program : MyGridProgram
+    {
+        void UpdateRotorTurrets()
+        {
+            if (Targets.Count > 0)
+            {
+                #region target assignment
+                if (!GlobalPriorityUpdateSwitch)
+                {
+                    RotorTurret tur;
+                    Target temp = null;
+                    GlobalPriorityUpdateSwitch = AssignRR.Next(ref Turrets, out tur);
+                    if (tur.tEID != -1 && tur.CanTarget(tur.tEID))
+                        return;
+
+                    foreach (var tgt in Targets.Prioritized)
+                    {
+                        int type = (int)tgt.Type;
+                        if (tur.CanTarget(tgt.EID))
+                        {
+                            temp = tgt;
+                            if (!tgt.Engaged && ((tur.IsPDT && type == 2) || (!tur.IsPDT && type == 3)))
+                                break;
+                        }
+                    }
+                }
+                #endregion
+
+                for (int i = 0; i < MaxRotorTurretUpdates; i++)
+                    UpdateRR.Next(ref Turrets).UpdateTurret();
+            }
+        }
+
+        void UpdateAMS()
+        {
+            while (Datalink.MissileReady.HasPendingMessage)
+            {
+                var m = Datalink.MissileReady.AcceptMessage();
+                if (m.Data is long)
+                    foreach (var rk in AMSLaunchers)
+                        if (rk.CheckHandshake((long)m.Data)) break;
+            }
+
+            foreach (var rk in AMSLaunchers)
+                rk.Update();
+
+            if (Targets.Count == 0)
+                return;
+
+            Target t;
+            for (int i = 0; i < MaxTgtKillTracks && i < Targets.Prioritized.Count; i++)
+            {
+                long ekv;
+                t = Targets.Prioritized.Min;
+                foreach (var rk in AMSLaunchers)
+                    if (t.PriorityKill && !TargetsEKVsDict.ContainsKey(t.EID))
+                    {
+                        if (rk.Fire(out ekv))
+                            TargetsEKVsDict.Add(t.EID, ekv);
+                    }
+                Targets.Prioritized.Remove(t);
+            }
+
+            if (TargetsEKVsDict.Count == 0)
+                return;
+
+            foreach (var tgt in TargetsEKVsDict.Keys)
+            {
+                t = Targets.Get(tgt);
+                if (!Targets.Prioritized.Contains(t))
+                    Targets.Prioritized.Add(t);
+            }
+
+            PDT tur;
+            foreach (var id in TargetsEKVsDict.Keys)
+                foreach (var n in PDTNames)
+                {
+                    tur = (PDT)Turrets[n];
+                    if (tur.tEID == -1 && !tur.Inoperable)
+                    {
+                        tur.AssignLidarTarget(id);
+                        break;
+                    }
+                }
+        }
+    }
     public class Defense : CompBase // turrets and interceptors
     {
         ArmLauncherWHAM[] Launchers;
@@ -25,7 +111,7 @@ namespace IngameScript
             maxTurUpdates,
             maxKillTracks,
             priCheckTicks = 2;
-        long nextPriCheck = 0;
+        long _nextFrameTgtPriority = 0;
         #endregion
 
         public Defense(string n) : base(n, Lib.u1 | Lib.u10 | Lib.u100)
@@ -42,10 +128,10 @@ namespace IngameScript
             using (var q = new iniWrap())
                 if (q.CustomData(m.Me))
                 {
-                    maxTurUpdates = q.Int(Lib.HDR, "maxTurUpdates", 2);
-                    maxKillTracks = q.Int(Lib.HDR, "maxKillTracks", 3);
+                    maxTurUpdates = q.Int(Lib.H, "maxTurUpdates", 2);
+                    maxKillTracks = q.Int(Lib.H, "maxKillTracks", 3);
                     string
-                        h = Lib.HDR,
+                        h = Lib.H,
                         grp = "RotorGroup",
                         def = " CAMS Azimuths",
                         pdg = q.String(h, "pd" + grp, "PD" + def),
@@ -102,7 +188,6 @@ namespace IngameScript
                     }
 
                     Launchers = l.ToArray();
-
                     TurretNames = Turrets.Keys.ToArray();
                     PDTs = pdn.ToArray();
 
@@ -111,10 +196,10 @@ namespace IngameScript
 
                     #region list-screen
                     MySprite[] spr = {
-                        new MySprite(Lib.TXT, "", new Vector2(20, 112), null, Lib.GRN, Lib.VB, 0, 0.925f),// 1. TUR NAME
-                        new MySprite(Lib.TXT, "AZ\nEL", new Vector2(20, 160), null, Lib.GRN, Lib.VB, 0, 1.825f),// 2. ANGLE HDR
-                        new MySprite(Lib.TXT, "", new Vector2(132, 164), null, Lib.GRN, Lib.VB, 0, 0.9125f),// 3. ANGLE DATA
-                        new MySprite(Lib.TXT, "", new Vector2(20, 348), null, Lib.GRN, Lib.VB, 0, 0.925f)// 5. STATE
+                        new MySprite(Program.TXT, "", new Vector2(20, 112), null, Lib.GRN, Lib.VB, 0, 0.925f),// 1. TUR NAME
+                        new MySprite(Program.TXT, "AZ\nEL", new Vector2(20, 160), null, Lib.GRN, Lib.VB, 0, 1.825f),// 2. ANGLE HDR
+                        new MySprite(Program.TXT, "", new Vector2(132, 164), null, Lib.GRN, Lib.VB, 0, 0.9125f),// 3. ANGLE DATA
+                        new MySprite(Program.TXT, "", new Vector2(20, 348), null, Lib.GRN, Lib.VB, 0, 0.925f)// 5. STATE
                             };
                     m.CtrlScreens.Add(Lib.TR, new Screen(() => TurretNames.Length, spr, (p, s) =>
                     {
@@ -189,7 +274,7 @@ namespace IngameScript
         void AssignPDTTracking()
         {
             if (ekvTrackedTgts.Count == 0)
-            return;
+                return;
 
             PDT tur;
             foreach (var id in ekvTrackedTgts.Keys)
@@ -205,14 +290,14 @@ namespace IngameScript
         {
             if (Main.Targets.Count > 0)
             {
-                if (priUpdateSwitch && Main.F >= nextPriCheck)
+                if (priUpdateSwitch && Main.F >= _nextFrameTgtPriority)
                 {
                     PriorityTargets.Clear();
                     foreach (var t in Main.Targets.AllTargets())
                     {
                         PriorityTargets.Add(t);
                     }
-                    nextPriCheck = Main.F + priCheckTicks;
+                    _nextFrameTgtPriority = Main.F + priCheckTicks;
                     priUpdateSwitch = false;
                 }
                 else if (!priUpdateSwitch)
@@ -247,7 +332,6 @@ namespace IngameScript
 
                 }
             }
-
         }
     }
 }

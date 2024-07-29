@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using VRage;
 using VRage.Game;
 using VRage.Game.GUI.TextPanel;
+using VRage.Game.ModAPI.Ingame.Utilities;
 using VRageMath;
 
 namespace IngameScript
@@ -29,7 +30,7 @@ namespace IngameScript
         public readonly MyDetectedEntityType Type;
         public readonly MyRelationsBetweenPlayerAndBlock IFF; // wham
         public readonly string eIDString, eIDTag;
-        public bool PriorityKill;
+        public bool PriorityKill, Engaged;
         #endregion
 
         public Target(MyDetectedEntityInfo i, long f, long id, double dist)
@@ -60,7 +61,7 @@ namespace IngameScript
             Radius = data.Item2.Item4;
         }
 
-        public double Elapsed(long f) => Lib.tickSec * Math.Max(f - Frame, 1);
+        public double Elapsed(long f) => Lib.TPS * Math.Max(f - Frame, 1);
 
         public Vector3D AdjustedPosition(long f, long offset = 0)
         {
@@ -81,25 +82,21 @@ namespace IngameScript
     public class TargetProvider
     {
         Program _p;
+        long _nextPrioritySortF = 0;
         const double INV_MAX_D = 0.0001, R_SIDE_L = 154;
         const int MAX_LIFETIME = 2; // s
         public int Count => _iEIDs.Count;
+        public SortedSet<Target> Prioritized = new SortedSet<Target>();
         Dictionary<long, Target> _targets = new Dictionary<long, Target>();
+
         List<long> _rmvEIDs = new List<long>(), _iEIDs = new List<long>();
         const float rad = (float)Math.PI / 180, X_MIN = 28, X_MAX = 308, Y_MIN = 96, Y_MAX = 362; // radar
         static Vector2 rdrCNR = Lib.V2(168, 228), tgtSz = Lib.V2(12, 12);
         List<MySprite> _rdrBuffer = new List<MySprite>();
         string[] _rdrData = new string[14];
         // reused sprites
-        MySprite[] _rdrStatic = new MySprite[]
-        {
-            new MySprite(Lib.SHP, Lib.SQS, rdrCNR, Lib.V2(12, 12), Lib.DRG, rotation: rad * 45),
-            new MySprite(Lib.SHP, Lib.SQS, rdrCNR, Lib.V2(4, 428), Lib.DRG, rotation: rad * -45),
-            new MySprite(Lib.SHP, Lib.SQS, rdrCNR, Lib.V2(4, 428), Lib.DRG, rotation: rad * 45),
-            new MySprite(Lib.SHP, Lib.SQS, Lib.V2(320, 228), Lib.V2(8, 308), Lib.GRN),
-            new MySprite(), // special sprite at this index for text display
-            new MySprite(Lib.SHP, Lib.SQH, rdrCNR, Lib.V2(61.6f, 61.6f), Lib.DRG)
-        };
+        MySprite[] _rdrStatic;
+
 
         public HashSet<long>
             ScannedIDs = new HashSet<long>(),
@@ -108,8 +105,36 @@ namespace IngameScript
         public TargetProvider(Program m)
         {
             _p = m;
-            Blacklist.Add(m.Me.CubeGrid.EntityId);
-            m.Terminal.GetBlocksOfType<IMyMotorStator>(null, b =>
+            UpdateBlacklist();
+            m.Commands.Add(Lib.TG, b =>
+            {
+                if (b.ArgumentCount != 2)
+                    return;
+                switch (b.Argument(1))
+                {
+                    default:
+                    case "clear":
+                        {
+                            Clear();
+                            break;
+                        }
+                    case "reset_blacklist":
+                        {
+                            UpdateBlacklist();
+                            break;
+                        }
+                }
+            });
+
+            // _rdrStatic[4]= new MySprite(Lib.TXT, "", Lib.V2(328, 084), null, Lib.GRN, m.Based ? "VCR" : "White", Lib.LFT, m.Based ? .425f : .8f);
+            m.LCDScreens.Add("radar", new Screen(() => Count, null, (p, s) => CreateRadar(p, s)));
+        }
+
+        void UpdateBlacklist()
+        {
+            Blacklist.Clear();
+            Blacklist.Add(_p.Me.CubeGrid.EntityId);
+            _p.Terminal.GetBlocksOfType<IMyMotorStator>(null, b =>
             {
                 if (b.TopGrid == null) return false;
                 var i = b.TopGrid.EntityId;
@@ -117,32 +142,54 @@ namespace IngameScript
                     Blacklist.Add(i);
                 return true;
             });
-            m.CtrlScreens.Add("targets", new Screen(() => Count, new MySprite[]
-            {
-                new MySprite(Lib.TXT, "", Lib.V2(24, 112), null, Lib.GRN, Lib.VB, 0, 1.5f),
-                new MySprite(Lib.TXT, "", Lib.V2(24, 192), null, Lib.GRN, Lib.VB, 0, 0.8195f),
-            }, (p, s) =>
-            {
-                if (Count == 0)
-                {
-                    s.SetData("NO TARGET", 0);
-                    s.SetData("SWITCH TO MASTS SCR\nFOR TGT ACQUISITION", 1);
-                    return;
-                }
-                string ty = "";
-                var t = _targets[_iEIDs[p]];
-                s.SetData($"{t.eIDString}", 0);
-                if ((int)t.Type == 3) ty = "LARGE GRID";
-                else if ((int)t.Type == 2) ty = "SMALL GRID";
-                s.SetData($"DIST {t.Distance / 1000:F2} KM\nASPD {t.Velocity.Length():F0} M/S\nACCL {(t.Accel).Length():F0} M/S\nSIZE {ty}\nNO TGT SELECTED", 1);
-            }));
-            // _rdrStatic[4]= new MySprite(Lib.TXT, "", Lib.V2(328, 084), null, Lib.GRN, m.Based ? "VCR" : "White", Lib.LFT, m.Based ? .425f : .8f);
-            _rdrStatic[4] = new MySprite(Lib.TXT, "", Lib.V2(328, 84), null, Lib.GRN, Lib.V, Lib.LFT, !m.Based ? .425f : .8f);
-            m.LCDScreens.Add("radar", new Screen(() => Count, null, (p, s) => CreateRadar(p, s)));
         }
 
         #region radar
-        void CreateRadar(int p, Screen s)
+
+        public void UpdateRadarSettings(Program m)
+        {
+            _p = m;
+            _rdrStatic = new MySprite[]
+            {
+                new MySprite(Program.SHP, Lib.SQS, rdrCNR, Lib.V2(12, 12), m.SDY, rotation: rad * 45),
+                new MySprite(Program.SHP, Lib.SQS, rdrCNR, Lib.V2(4, 428), m.SDY, rotation: rad * -45),
+                new MySprite(Program.SHP, Lib.SQS, rdrCNR, Lib.V2(4, 428), m.SDY, rotation: rad * 45),
+                new MySprite(Program.SHP, Lib.SQS, Lib.V2(320, 228), Lib.V2(8, 308), m.PMY),
+                new MySprite(Program.TXT, "", Lib.V2(328, 84), null, m.PMY, Lib.V, Lib.LFT, !m.Based ? .425f : .8f),
+                new MySprite(Program.SHP, Lib.SQH, rdrCNR, Lib.V2(61.6f, 61.6f), m.PMY)
+            };
+
+            if (m.CtrlScreens.Remove(Lib.TG))
+                m.CtrlScreens.Add(Lib.TG, new Screen(
+                  () => Count, new MySprite[]
+                  {
+                    new MySprite(Program.TXT, "", Lib.V2(24, 112), null, m.PMY, Lib.VB, 0, 1.5f),
+                    new MySprite(Program.TXT, "", Lib.V2(24, 192), null, m.PMY, Lib.VB, 0, 0.8195f),
+                  },
+                  (p, s) =>
+                  {
+                      if (Count == 0)
+                      {
+                          s.SetData("NO TARGET", 0);
+                          s.SetData("SWITCH TO MASTS SCR\nFOR TGT ACQUISITION", 1);
+                          return;
+                      }
+
+                      var ty = "";
+                      var t = _targets[_iEIDs[p]];
+                      s.SetData($"{t.eIDString}", 0);
+
+                      if ((int)t.Type == 3)
+                          ty = "LARGE GRID";
+                      else if ((int)t.Type == 2)
+                          ty = "SMALL GRID";
+
+                      s.SetData($"DIST {t.Distance / 1000:F2} KM\nASPD {t.Velocity.Length():F0} M/S\nACCL {t.Accel.Length():F0} M/S\nSIZE {ty}\nNO TGT SELECTED", 1);
+                  }));
+
+        }
+
+        public void CreateRadar(int p, Screen s)
         {
             if (Count == 0)
             {
@@ -240,8 +287,8 @@ namespace IngameScript
                 pos = Lib.V2((float)scrX, (float)scrY),
                 txt = (sel ? 2.375F : 1.75f) * tgtSz;
 
-            _rdrBuffer.Add(new MySprite(Lib.TXT, eid, scrX > 2 * X_MIN ? pos - txt : pos + 0.5f * txt, null, Lib.GRN, Lib.V, rotation: 0.375f));
-            return new MySprite(Lib.SHP, sel ? Lib.SQS : Lib.TRI, pos, (sel ? 1.5f : 1) * tgtSz, Lib.GRN, null); // Center
+            _rdrBuffer.Add(new MySprite(Program.TXT, eid, scrX > 2 * X_MIN ? pos - txt : pos + 0.5f * txt, null, _p.PMY, Lib.V, rotation: 0.375f));
+            return new MySprite(Program.SHP, sel ? Lib.SQS : Lib.TRI, pos, (sel ? 1.5f : 1) * tgtSz, _p.PMY, null); // Center
         }
 
         #endregion
@@ -293,6 +340,8 @@ namespace IngameScript
             {
                 tgt.Priority -= (int)Math.Round(tgt.Distance);
                 tgt.PriorityKill = true;
+                if (!tgt.Engaged)
+                    tgt.Priority -= 100;
             }
             if (tgt.Distance > 2E3)
                 tgt.Priority += 500;
@@ -306,6 +355,18 @@ namespace IngameScript
             foreach (var t in _targets.Values)
                 list.Add(t);
             return list;
+        }
+
+        public void MarkEngaged(long eid)
+        {
+            if (_targets.ContainsKey(eid))
+                _targets[eid].Engaged = true;
+        }
+
+        public void MarkLost(long eid)
+        {
+            if (_targets.ContainsKey(eid))
+                _targets[eid].Engaged = false;
         }
 
         public Target Get(long eid) => _targets.ContainsKey(eid) ? _targets[eid] : null;
@@ -327,6 +388,16 @@ namespace IngameScript
                         _iEIDs.Remove(_rmvEIDs[i]);
                     }
                 _rmvEIDs.Clear();
+            }
+            else if (_p.GlobalPriorityUpdateSwitch && _p.F >= _nextPrioritySortF)
+            {
+                Prioritized.Clear();
+                foreach (var t in _targets.Values)
+                {
+                    Prioritized.Add(t);
+                }
+                _nextPrioritySortF = _p.F + _p.PriorityCheckTicks;
+                _p.GlobalPriorityUpdateSwitch = false;
             }
         }
         public bool Exists(long id) => _targets.ContainsKey(id);

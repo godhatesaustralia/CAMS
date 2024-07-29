@@ -8,13 +8,46 @@ using VRageMath;
 
 namespace IngameScript
 {
+    public partial class Program : MyGridProgram
+    {
+        string MastScreen(ref Screen s, int ptr)
+        {
+            string grps = ""; int i = 0;
+            var l = Masts[MastNames[ptr]];
+            for (; i < l.Lidars.Count; i++)
+            {
+                var scan = l.Lidars[i].scanAVG != 0 ? $"{l.Lidars[i].scanAVG:G1}M\n" : "READY\n";
+                grps += $"SCAN {l.Lidars[i].tag[1]} " + scan;
+            }
+            grps += $"TARGETS {Targets.Count:00} CTRL " + (!l.Manual ? "OFF" : "MAN");
+            s.SetData(grps, 1);
+            for (i = 0; i < l.Lidars.Count; ++i)
+                s.SetColor(l.Lidars[i].Scans > 0 ? PMY : SDY, i + 2);
+            return l.Name;
+        }
+
+         void CheckTurret(IMyLargeTurretBase t, bool arty = false)
+        {
+            MyDetectedEntityInfo info;
+            if (t.HasTarget)
+            {
+                info = t.GetTargetedEntity();
+                if (Targets.Exists(info.EntityId))
+                    return;
+                else if (PassTarget(info) && arty && (int)info.Type == 2) // if small, retarget
+                {
+                    t.ResetTargetingToDefault();
+                    t.EnableIdleRotation = false;
+                }
+            }
+        }
+
+    }
     public class Scanner : CompBase
     {
         string[] masts, tags; //= { "[A]", "[B]", "[C]", "[D]" };
 
-        public List<LidarArray> Lidars = new List<LidarArray>();
         public Dictionary<string, LidarMast> Masts = new Dictionary<string, LidarMast>();
-        bool _fixedRange, _useNetwork, _useBackup = false;
         public List<IMyLargeTurretBase> AllTurrets, Artillery;
         int tPtr, tStep, mastCheckInterval;
         const string
@@ -34,7 +67,6 @@ namespace IngameScript
         {
             AllTurrets.Clear();
             Artillery.Clear();
-            Lidars.Clear();
             Masts.Clear();
         }
         // [CAMS]
@@ -57,25 +89,21 @@ namespace IngameScript
             grps += $"TARGETS {Main.Targets.Count:00} CTRL " + (!l.Manual ? "OFF" : "MAN");
             s.SetData(grps, 1);
             for (i = 0; i < l.Lidars.Count; ++i)
-                s.SetColor(l.Lidars[i].Scans > 0 ? Lib.GRN : Lib.DRG, i + 2);
+                s.SetColor(l.Lidars[i].Scans > 0 ? Main.PMY : Main.SDY, i + 2);
             return l.Name;
         }
         public override void Setup(Program m)
         {
             Clear();
             Main = m;
-            _FLT = m.IGC.RegisterBroadcastListener(IgcFleet);
-            _TGT = m.IGC.RegisterBroadcastListener(IgcTgt);
             var lct = "LargeCalibreTurret";
             using (var p = new iniWrap())
                 if (p.CustomData(Main.Me))
                 {
-                    var h = Lib.HDR;
+                    var h = Lib.H;
                     tStep = p.Int(h, "tStep", 4);
                     var tagstr = p.String(h, "lidarTags", "[A]\n[B]\n[C]\n[D]");
                     var a = tagstr.Split('\n');
-                    _fixedRange = p.Bool(h, "fixedAntennaRange", true);
-                    _useNetwork = p.Bool(h, "network", false);
                     for (int i = 0; i < a.Length; i++)
                         a[i] = a[i].Trim('|');
                     tags = a;
@@ -86,7 +114,7 @@ namespace IngameScript
                         if (mtr.CustomName.Contains(Lib.ARY) && mtr.CubeGrid.EntityId == ID)
                         {
                             var tur = new LidarMast(m, mtr, tags);
-                            tur.Setup(ref m);
+                            tur.Setup(m);
                             if (!Masts.ContainsKey(tur.Name))
                                 Masts.Add(tur.Name, tur);
                         }
@@ -101,12 +129,12 @@ namespace IngameScript
             var al = TextAlignment.LEFT;
             var sprites = new MySprite[]
             {
-                new MySprite(Lib.TXT, "", Lib.V2(24, 112), null, Lib.GRN, Lib.VB, 0, 1.75f),// 1. TUR NAME
-                new MySprite(Lib.TXT, "", Lib.V2(24, 200), null, Lib.GRN, Lib.VB, 0, 0.8195f),
-                new MySprite(Lib.SHP, Lib.SQS, sqvpos, sqvsz, Lib.GRN, "", al),
-                new MySprite(Lib.SHP, Lib.SQS, sqvpos + sqoff, sqvsz, Lib.GRN, "", al),
-                new MySprite(Lib.SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, Lib.GRN, "", al),
-                new MySprite(Lib.SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, Lib.GRN, "", al),
+                new MySprite(Program.TXT, "", Lib.V2(24, 112), null, Lib.GRN, Lib.VB, 0, 1.75f),// 1. TUR NAME
+                new MySprite(Program.TXT, "", Lib.V2(24, 200), null, Lib.GRN, Lib.VB, 0, 0.8195f),
+                new MySprite(Program.SHP, Lib.SQS, sqvpos, sqvsz, Lib.GRN, "", al),
+                new MySprite(Program.SHP, Lib.SQS, sqvpos + sqoff, sqvsz, Lib.GRN, "", al),
+                new MySprite(Program.SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, Lib.GRN, "", al),
+                new MySprite(Program.SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, Lib.GRN, "", al),
             };
 
             m.CtrlScreens.Add("masts", new Screen(() => masts.Length, sprites, (p, s) => s.SetData($"{mastUpdate(ref s, p)} {p + 1}/{masts.Length}", 0), 128f));

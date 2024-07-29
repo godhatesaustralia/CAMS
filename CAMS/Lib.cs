@@ -15,7 +15,7 @@ namespace IngameScript
         #region you arent built for these public static fields son
 
         public const string
-            HDR = "CAMS",
+            H = "CAMS",
             ARY = "ARY",
             SPR = "SPRITES",
             TR = "turrets",
@@ -27,42 +27,32 @@ namespace IngameScript
             VB = "VCRBold",
             WH = "White",
             NL = "<n>",
-            SYA = "SYS-A",
-            SYB = "SYS-B",
             SQS = "SquareSimple",
             SQH = "SquareHollow",
             TRI = "Triangle",
             WPN = "Weapons";
 
-        public static UpdateFrequency
+        public const UpdateFrequency
             u1 = UpdateFrequency.Update1,
             u10 = UpdateFrequency.Update10,
             u100 = UpdateFrequency.Update100;
-
-        public static SpriteType
-            TXT = SpriteType.TEXT,
-            SHP = SpriteType.TEXTURE,
-            CLP = SpriteType.CLIP_RECT;
 
         public static TextAlignment
             LFT = TextAlignment.LEFT,
             RGT = TextAlignment.RIGHT;
 
-        public static readonly double
-            tick = 16.6666,//ms
-            tickSec = 0.016666, // sec
-            Pi = Math.PI,
-            halfPi = MathHelperD.PiOver2,
-            Pi2 = MathHelper.TwoPi,
-            radPerTick = 30 / Pi2;
+        public const double
+            TICK = 16.6666,//ms
+            TPS = 0.016666, // sec
+            PI = Math.PI,
+            HALF_PI = MathHelperD.PiOver2,
+            PI2X = MathHelper.TwoPi,
+            RAD_PER_TICK = 30 / PI2X;
 
         public static Color
             GRN = new Color(100, 250, 100),
             RED = new Color(240, 50, 50),
-            YEL = new Color(250, 250, 100),
-            BG = new Color(7, 16, 7),
-            DRG = new Color(50, 125, 50),
-            TGT = new Color(155, 255, 155);
+            YEL = new Color(250, 250, 100);
 
 
         #endregion

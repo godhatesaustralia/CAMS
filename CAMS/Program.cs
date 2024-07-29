@@ -21,15 +21,26 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
+        const string
+            IgcFleet = "[FLT-CA]",
+            IgcTgt = "[FLT-TG]";
         public Program()
         {
             Targets = new TargetProvider(this);
             Debug = new DebugAPI(this, true);
             Datalink.Setup(this);
-            Components.Add(Lib.SN, new Scanner(Lib.SN));
-            Components.Add(Lib.DF, new Defense(Lib.DF));
+            ID = Me.CubeGrid.EntityId;
+            _FLT = IGC.RegisterBroadcastListener(IgcFleet);
+            _TGT = IGC.RegisterBroadcastListener(IgcTgt);
             Runtime.UpdateFrequency |= UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;
-            Start();
+
+            ParseComputerSettings();
+
+            AddSystemCommands();
+
+            AddSystemScreens();
+
+            CacheMainSystems();
         }
 
         public void Save()
@@ -52,10 +63,8 @@ namespace IngameScript
                 _cmd.Clear();
                 if (_cmd.TryParse(argument))
                 {
-                    if (Components.ContainsKey(_cmd.Argument(0)) && Components[_cmd.Argument(0)].Commands.ContainsKey(_cmd.Argument(1)))
-                        Components[_cmd.Argument(0)].Commands[_cmd.Argument(1)].Invoke(_cmd);
-                    else if (_cmd.Argument(0) == "switch" && _cmd.ArgumentCount == 3 && Displays.ContainsKey(_cmd.Argument(2)))
-                        Displays[_cmd.Argument(2)].SetActive(_cmd.Argument(1));
+                    if (Commands.ContainsKey(_cmd.Argument(0)))
+                        Commands[_cmd.Argument(0)].Invoke(_cmd);
                     else
                     {
                         if (Displays.ContainsKey(_cmd.Argument(0)))
@@ -72,16 +81,19 @@ namespace IngameScript
                     }
                 }
             }
+
             var rt = Runtime.LastRunTimeMs;
             if (_worstRT < rt)
             {
                 _worstRT = rt;
                 _worstF = _frame;
             }
-            var u = Lib.UpdateConverter(updateSource);
             if (_runtimes.Count == _rtMax)
                 _runtimes.Dequeue();
             _runtimes.Enqueue(rt);
+            
+
+            var u = Lib.UpdateConverter(updateSource);
             if ((u & UpdateFrequency.Update10) != 0)
             {
                 _avgRT = 0;
@@ -94,13 +106,37 @@ namespace IngameScript
                 Debug.RemoveDraw();
             UpdateFrequency tgtFreq = UpdateFrequency.Update1;
 
-            foreach (var comp in Components.Values)
+            // foreach (var comp in Components.Values)
+            // {
+            //     if ((comp.Frequency & u) != 0)
+            //         comp.Update(tgtFreq);
+            //     tgtFreq |= comp.Frequency;
+            // }
+
+            #region inline scan checks
+            if (F % MastCheckTicks == 0) // guar
+                foreach (var m in Masts.Values)
+                    m.Update();
+
+            int n = Math.Min(AllTurrets.Count, _turCheckPtr + MaxAutoTgtChecks);
+            for (; _turCheckPtr < n; _turCheckPtr++)
+                CheckTurret(AllTurrets[_turCheckPtr]);
+
+            for (int i = 0; i < Artillery.Count; i++)
+                CheckTurret(Artillery[i], true);
+
+            if (n == AllTurrets.Count)
             {
-                if ((comp.Frequency & u) != 0)
-                    comp.Update(tgtFreq);
-                tgtFreq |= comp.Frequency;
+                _turCheckPtr = 0;
             }
+            #endregion
+
             Targets.Update(u);
+
+            UpdateRotorTurrets();
+
+            UpdateAMS();
+
             _totalRT += rt;
             Runtime.UpdateFrequency |= u;
 
@@ -109,7 +145,6 @@ namespace IngameScript
             Runtime.UpdateFrequency = tgtFreq;
             string r = "====<CAMS>====\n\n";
             r += $"RUNS - {_frame}\nRUNTIME - {rt} ms\nAVG - {_avgRT:0.####} ms\nWORST - {_worstRT} ms, F{_worstF}\n";
-            r += Components[Lib.SN].Debug;
             Echo(r);
 
         }

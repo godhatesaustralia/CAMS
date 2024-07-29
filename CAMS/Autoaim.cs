@@ -66,12 +66,12 @@ namespace IngameScript
             using (var p = new iniWrap())
                 if (p.CustomData(m.Me))
                 {
-                    var grp = m.Terminal.GetBlockGroupWithName(p.String(Lib.HDR, "wpnGroup", "CAMS Aim"));
+                    var grp = m.Terminal.GetBlockGroupWithName(p.String(Lib.H, "wpnGroup", "CAMS Aim"));
                     if (grp != null)
                     {
                         var l = new List<IMyUserControllableGun>();
                         grp.GetBlocksOfType(l);
-                        _guns = new Weapons(p.Int(Lib.HDR, "aimSalvoTicks"), l);
+                        _guns = new Weapons(p.Int(Lib.H, "aimSalvoTicks"), l);
                     }
                     else Frequency = UpdateFrequency.None;
                 }

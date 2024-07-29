@@ -132,7 +132,7 @@ namespace IngameScript
             _tags = t;
         }
 
-        public void Setup(ref Program m)
+        public void Setup(Program m)
         {
             bool hasCTC = false;
             using (var p = new iniWrap())
@@ -140,13 +140,13 @@ namespace IngameScript
                 if (p.CustomData(_azimuth))
                 {
                     var rad = (float)(Math.PI / 180);
-                    Name = p.String(Lib.HDR, "name", "ARY");
-                    hasCTC = p.Bool(Lib.HDR, "ctc");
+                    Name = p.String(Lib.H, "name", "ARY");
+                    hasCTC = p.Bool(Lib.H, "ctc");
 
-                    _maxAzD = p.Double(Lib.HDR, "limRayAzDown", 0.134);
-                    _maxCamD = p.Double(Lib.HDR, "limRayCamDown", 0.64);
-                    _azR = rad * p.Float(Lib.HDR, "azR", 360);
-                    _elR = rad * p.Float(Lib.HDR, "elR", 360);
+                    _maxAzD = p.Double(Lib.H, "limRayAzDown", 0.134);
+                    _maxCamD = p.Double(Lib.H, "limRayCamDown", 0.64);
+                    _azR = rad * p.Float(Lib.H, "azR", 360);
+                    _elR = rad * p.Float(Lib.H, "elR", 360);
                 }
             }
             _azimuth.UpperLimitRad = _max;
@@ -208,11 +208,11 @@ namespace IngameScript
 
         public void Designate()
         {
-            if (!_activeCTC || !Main.CanScan(_p.maxRaycast))
+            if (!_activeCTC || !Main.CanScan(_p.ScanDistLimit))
                 return;
             if (Main.IsActive)
             {
-                _p.PassTarget(Main.Raycast(_p.maxRaycast), true);
+                _p.PassTarget(Main.Raycast(_p.ScanDistLimit), true);
             }
         }
 

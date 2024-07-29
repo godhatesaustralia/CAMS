@@ -78,12 +78,11 @@ namespace IngameScript
 
     public partial class Program
     {
+        string[] MastNames, MastAryTags, TurretNames, PDTNames;
         public IMyGridTerminalSystem Terminal => GridTerminalSystem;
         public IMyShipController Controller;
         public DebugAPI Debug;
-        public bool Based;
-        public double PDSpray = -1, maxRaycast;
-        string _tag;
+        public static long ID;
         public Vector3D Center => Controller.WorldMatrix.Translation;
         public Vector3D Velocity => Controller.GetShipVelocities().LinearVelocity;
         public Vector3D Gravity;
@@ -93,66 +92,42 @@ namespace IngameScript
             LCDScreens = new Dictionary<string, Screen>();
         public Dictionary<string, Display> Displays = new Dictionary<string, Display>();
 
-        public Dictionary<string, CompBase> Components = new Dictionary<string, CompBase>();
+        public Dictionary<string, Action<MyCommandLine>> Commands = new Dictionary<string, Action<MyCommandLine>>();
         public Random RNG = new Random();
-
         MyCommandLine _cmd = new MyCommandLine();
         RoundRobin<string, Display> DisplayRR;
         double _totalRT = 0, _worstRT, _avgRT;
-        long _frame = 0, _worstF;
+
+        public bool GlobalPriorityUpdateSwitch = true;
+
+        int 
+            _turCheckPtr = 0;
+        long 
+            _frame = 0, 
+            _worstF;
         const int _rtMax = 10;
         Queue<double> _runtimes = new Queue<double>(_rtMax);
         public double RuntimeMS => _totalRT;
         public long F => _frame;
 
-        void Start()
-        {
-            Targets.Clear();
-            CompBase.ID = Me.CubeGrid.EntityId;
-            var r = new MyIniParseResult();
-            var dspGrp = new List<IMyTerminalBlock>();
-            using (var p = new iniWrap())
-                if (p.CustomData(Me, out r))
-                {
-                    Based = p.Bool(Lib.HDR, "vcr");
-                    _tag = p.String(Lib.HDR, "tag", Lib.HDR);
-                    PDSpray = p.Double(Lib.HDR, "spray", -1);
-                    maxRaycast = p.Double(Lib.HDR, "maxRaycast", 8E3);
-                    string
-                        ctrl = p.String(Lib.HDR, "controller", "Helm");
-                    GridTerminalSystem.GetBlocksOfType<IMyShipController>(null, (b) =>
-                    {
-                        if (b.CubeGrid == Me.CubeGrid && b.CustomName.Contains(ctrl))
-                            Controller = b;
-                        return true;
-                    });
+        #region scanner
+        Dictionary<string, LidarMast> Masts = new Dictionary<string, LidarMast>();
+        List<IMyLargeTurretBase> 
+            AllTurrets = new List<IMyLargeTurretBase>(), 
+            Artillery = new List<IMyLargeTurretBase>();
+        IMyBroadcastListener _FLT, _TGT;
 
-                    foreach (var c in Components)
-                        c.Value.Setup(this);
-
-                    GridTerminalSystem.GetBlockGroupWithName(_tag + ' ' + p.String(Lib.HDR, "displays", "MFD Users")).GetBlocks(dspGrp);
-                    if (dspGrp.Count > 0)
-                    {
-                        foreach (var b in dspGrp)
-                        {
-                            Display d;
-                            if (b is IMyTextPanel)
-                            {
-                                d = new Display(this, b, LCDScreens.First().Key, Based);
-                                Displays.Add(d.Name, d);
-                            }
-                            else if (b is IMyTextSurfaceProvider)
-                            {
-                                d = new Display(this, b, CtrlScreens.First().Key, Based);
-                                Displays.Add(d.Name, d);
-                            }
-                        }
-                        DisplayRR = new RoundRobin<string, Display>(Displays.Keys.ToArray());
-                    }
-
-                }
-            else throw new Exception($"\n{r.Error} at line {r.LineNo} of {Me} custom data.");
-        }
+        #endregion
+        
+        #region defense
+        int TurretCount => TurretNames.Length;
+        ArmLauncherWHAM[] AMSLaunchers;
+        
+        Dictionary<long, long> TargetsEKVsDict = new Dictionary<long, long>();
+        Dictionary<string, RotorTurret> Turrets = new Dictionary<string, RotorTurret>();
+        RoundRobin<string, RotorTurret>
+            AssignRR, UpdateRR;
+        #endregion
 
         public double GaussRNG() => (2 * RNG.NextDouble() - 1 + 2 * RNG.NextDouble() - 1 + 2 * RNG.NextDouble() - 1) / 3;
 
@@ -161,6 +136,7 @@ namespace IngameScript
             ScanResult fake;
             return PassTarget(info, out fake, m);
         }
+
         public bool PassTarget(MyDetectedEntityInfo info, out ScanResult r, bool m = false)
         {
             r = ScanResult.Failed;

@@ -133,7 +133,7 @@ namespace IngameScript
                         RotationOrScale = float.Parse(itm[5]),
                         Color = new Color(Hex(itm[6], 0), Hex(itm[6], 2), Hex(itm[6], 4), 255)
                     };
-                    if (spr.Type == Lib.TXT)
+                    if (spr.Type == Program.TXT)
                         spr.FontId = itm[7];
                     else
                         spr.Size = Lib.V2(float.Parse(itm[7]), float.Parse(itm[8]));
