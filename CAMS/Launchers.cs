@@ -391,6 +391,7 @@ namespace IngameScript
     public class StaticLauncherWHAM
     {
         public int Total = 0;
+        public long NextUpdateF = 0;
         IMyProjector _proj;
         IMyShipWelder[] _welders;
         IMyGridTerminalSystem _gts;
