@@ -167,6 +167,9 @@ namespace IngameScript
         // the target directly and not lead (i.e. we will not be using this)
         protected bool Interceptable(Target tgt, ref Vector3D aim, bool test = false)
         {
+            if (!test)
+                aim -= _p.Gravity;
+
             Vector3D
                 rP = aim - _weapons.AimPos,
                 rV = tgt.Velocity - _p.Velocity,
@@ -190,7 +193,7 @@ namespace IngameScript
             if (test)
                 return test;
 
-            aim += rV * t + 0.375 * rA * t * t + -_p.Gravity;
+            aim += rV * t + 0.375 * rA * t * t;
             return true;
         }
 
@@ -247,7 +250,8 @@ namespace IngameScript
 
             // elevation target angle
             var eTgt = Lib.AngleBetween(ref aTgtV, ref aim) * Math.Sign(aim.Dot(azm.Up));
-            eCur = (eCur + Lib.PI) % Lib.PI2X - Lib.PI;
+            /// !!!!! CHECK HOW THIS FUCKING WORKS !!!!!
+            eTgt = (eTgt + Lib.PI) % Lib.PI2X - Lib.PI;
             //_p.Debug.DrawGPS($"{Name}\naTgt/Cur {aTgt / rad}°|{aCur / rad}°\neTgt/Cur {eTgt / rad}°|{eCur / rad}°\n{Status}", azm.Translation, Lib.YEL);
             if (eTgt > _eMx || eTgt < _eMn)
                 return AimState.Blocked;

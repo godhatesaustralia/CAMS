@@ -22,7 +22,7 @@ namespace IngameScript
             IgcFire = "IGC_MSL_FIRE_MSG",
             IgcSplash = "IGC_MSL_SPLASH_MSG",
             IgcStatus = "IGC_MSL_STAT_MSG";
-            
+
         public static void Setup(Program p)
         {
             ID = p.Me.EntityId;
@@ -102,6 +102,23 @@ namespace IngameScript
 
     }
 
+    /// <summary>
+    /// Launcher representation of a general anti-ship missile running WHAM-C.
+    /// </summary>
+    public class MSL
+    {
+        public string Name, ComputerName;
+        public IMyShipMergeBlock Hardpoint;
+        public IMyProgrammableBlock Computer;
+        public MSL(string n, string cn, IMyProgrammableBlock c, IMyShipMergeBlock m)
+        {
+            Name = n;
+            ComputerName = cn;
+            Computer = c;
+            Hardpoint = m;
+        }
+    }
+
     public enum LauncherState
     {
         /// <summary>
@@ -123,14 +140,17 @@ namespace IngameScript
         /// <summary>
         /// Launcher arm rotating
         /// </summary>
-        Moving, 
+        Moving,
         /// <summary>
         /// Launcher able to fire
         /// </summary>
-        Ready 
+        Ready
     }
+
     public class ArmLauncherWHAM
     {
+        public int Total = 0;
+        public long NextUpdateF = 0;
         public LauncherState Status = 0;
         /// <summary>
         /// Launcher hinge
@@ -142,33 +162,24 @@ namespace IngameScript
             eKVsReload = new SortedSet<EKV>(),
             eKVsLaunch = new SortedSet<EKV>();
         float _fireAngle, _tgtAngle, _RPM;
-        const int 
+        const int
             ACTIVE_T = 5,
             WAIT_T = 20,
             SEARCH_T = 40;
-        public int Total = 0;
-        public long NextUpdateF = 0;
         IMyGridTerminalSystem _gts;
 
         /// <summary>
         /// Launcher representation of an EKV (Explosive Kill Vehicle) interceptor running WHAM-C.
         /// </summary>
-        private class EKV : IComparable<EKV>
+        private class EKV : MSL, IComparable<EKV>
         {
-            public string Name, ComputerName;
-            public IMyShipMergeBlock Hardpoint;
-            public IMyProgrammableBlock Computer;
             /// <summary>
             /// Reloading angle of the missile in radians
             /// </summary>
             public float Reload;
 
-            public EKV(string n, string cn, IMyProgrammableBlock c, IMyShipMergeBlock m, float r)
+            public EKV(string n, string cn, IMyProgrammableBlock c, IMyShipMergeBlock m, float r) : base(n, cn, c ,m)
             {
-                Name = n;
-                ComputerName = cn;
-                Computer = c;
-                Hardpoint = m;
                 Reload = r;
             }
 
@@ -281,7 +292,7 @@ namespace IngameScript
                 e.Computer = (IMyProgrammableBlock)_gts.GetBlockWithName(e.ComputerName);
                 if (!e.Computer?.IsRunning ?? false && e.Computer.TryRun($"setup{Datalink.ID}"))
                     Status = LauncherState.ReloadWait;
-                else 
+                else
                     return SEARCH_T;
                 return WAIT_T;
             }
@@ -374,6 +385,18 @@ namespace IngameScript
                 StartRotation();
             }
             return ok;
+        }
+    }
+
+    public class StaticLauncherWHAM
+    {
+        public int Total = 0;
+        IMyProjector _proj;
+        IMyShipWelder[] _welders;
+        IMyGridTerminalSystem _gts;
+        public StaticLauncherWHAM(Program p)
+        {
+            _gts = p.GridTerminalSystem;
         }
     }
 }

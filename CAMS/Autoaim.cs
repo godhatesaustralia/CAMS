@@ -11,8 +11,95 @@ namespace IngameScript
     {
         //static IMyGridTerminalSystem gridSystem;
         // replace with m
+        class PID
+        {
+            double
+                _kP = 0,
+                _kI = 0,
+                _kD = 0,
+                _intDecayRatio = 0,
+                _lower,
+                _upper,
+                _timestep = 0,
+                _invTS = 0,
+                _errorSum = 0,
+                _lastError = 0;
+            bool
+                _first = true,
+                _decay = false;
+
+            public double Value { get; private set; }
+
+            // turret
+            public PID(double kP, double kI, double kD, double decay, double ts)
+            {
+                _kP = kP;
+                _kI = kI;
+                _kD = kD;
+                _timestep = ts;
+                _invTS = 1 / _timestep;
+                _intDecayRatio = decay;
+                _decay = true;
+            }
+
+            // aimbot
+            public PID(double kP, double kI, double kD, double lBnd, double uBnd, double decay, double ts)
+            {
+                _kP = kP;
+                _kI = kI;
+                _kD = kD;
+                _lower = lBnd;
+                _upper = uBnd;
+                _timestep = ts;
+                _invTS = 1 / _timestep;
+                _intDecayRatio = decay;
+                _decay = true;
+            }
+
+            public double Control(double error)
+            {
+                if (double.IsNaN(error)) return 0;
+
+                //Compute dI term
+                var errorDerivative = (error - _lastError) * _invTS;
+
+                if (_first)
+                {
+                    errorDerivative = 0;
+                    _first = false;
+                }
+
+                //Compute integral term
+                if (!_decay)
+                    _errorSum += error * _timestep;
+                else
+                    _errorSum = _errorSum * (1.0 - _intDecayRatio) + error * _timestep;
+
+                //Store this error as last error
+                _lastError = error;
+
+                //Construct output
+                Value = _kP * error + _kI * _errorSum + _kD * errorDerivative;
+                return Value;
+            }
+
+            public double Control(double error, double timeStep)
+            {
+                _timestep = timeStep;
+                _invTS = 1 / _timestep;
+                return Control(error);
+            }
+
+            public void Reset()
+            {
+                _errorSum = 0;
+                _lastError = 0;
+                _first = true;
+            }
+        }
+
         Program _p;
-        static double 
+        static double
             kP = 16,
             kI = 0,
             kD = 32,
@@ -103,7 +190,7 @@ namespace IngameScript
         public void FaceDirection(ref Vector3D aim)
         {
             var grav = _p.Gravity != Vector3D.Zero;
-            
+
         }
 
         public void Reset()
@@ -142,7 +229,7 @@ namespace IngameScript
             var error = new Vector3D();
             if (forward != Vector3D.Zero)
             {
-                Quaternion 
+                Quaternion
                     quat = Quaternion.CreateFromForwardUp(current.Forward, current.Up),
                     invQuat = Quaternion.Inverse(quat);
                 var ReferenceFrameVector = Vector3D.Transform(forward, invQuat); //Target Vector In Terms Of RC Block
@@ -160,7 +247,7 @@ namespace IngameScript
                     dot = MathHelper.Clamp(Vector3D.Dot(_p.Controller.WorldMatrix.Up, temp), -1, 1),
                     rollAngle = Math.Acos(dot),
                     scalar = temp.Dot(rgt);
-                    scalar = double.IsNaN(scalar) ? 0 : scalar;
+                scalar = double.IsNaN(scalar) ? 0 : scalar;
                 if (scalar > 0)
                     rollAngle *= -1;
                 error.Z = rollAngle;
