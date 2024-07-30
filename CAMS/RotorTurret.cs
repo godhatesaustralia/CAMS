@@ -35,7 +35,7 @@ namespace IngameScript
             _eMx,
             _eMn,
             _eRest; // absolute max and min azi/el for basic check
-        protected double _tol; // last is aim tolerance
+        protected double _tol; // aim tolerance
         public readonly double Range, TrackRange, Speed;
         public IMyTurretControlBlock _ctc;
         PCtrl _aPCtrl, _ePCtrl;
@@ -55,7 +55,7 @@ namespace IngameScript
 
         class SectorCheck
         {
-            public double
+            public readonly double
                 aMn, aMx, eMn, eMx;
 
             public SectorCheck(string s)
@@ -297,7 +297,7 @@ namespace IngameScript
             {
                 var tgt = _p.Targets.Get(tEID);
                 Inoperable = !_azimuth.IsAttached || !_elevation.IsAttached || !_azimuth.IsFunctional || !_elevation.IsFunctional;
-                if (tgt == null || Inoperable)
+                if (Inoperable || tgt == null)
                     return;
                 var aim = tgt.Position;
                 var tgtDst = -1d;
@@ -378,7 +378,7 @@ namespace IngameScript
             {
                 var tgt = _p.Targets.Get(tEID);
                 Inoperable = !_azimuth.IsAttached || !_elevation.IsAttached || !_azimuth.IsFunctional || !_elevation.IsFunctional;
-                if (tgt == null || Inoperable)
+                if (Inoperable || tgt == null)
                     return;
 
                 var aim = tgt.Position;

@@ -117,7 +117,6 @@ namespace IngameScript
         public IMyCameraBlock Main;
         public string Name;
         public List<LidarArray> Lidars = new List<LidarArray>();
-        readonly string[] _tags;
         bool _activeCTC => _ctc?.IsUnderControl ?? false;
         public bool Manual => _stopSpin || _activeCTC;
         double _maxAzD, _maxCamD;
@@ -125,14 +124,13 @@ namespace IngameScript
         bool _stopSpin = false;
         public int[] Scans;
 
-        public LidarMast(Program p, IMyMotorStator azi, string[] t = null)
+        public LidarMast(Program p, IMyMotorStator azi)
         {
             _azimuth = azi;
             _p = p;
-            _tags = t;
         }
 
-        public void Setup(Program m)
+        public void Setup(Program m, ref string[] tags)
         {
             bool hasCTC = false;
             using (var p = new iniWrap())
@@ -174,9 +172,9 @@ namespace IngameScript
                 });
             if (_elevation != null)
             {           
-                if (_tags != null)
+                if (tags != null)
                 {
-                    foreach (var tg in _tags)
+                    foreach (var tg in tags)
                     {
                         var list = new List<IMyCameraBlock>();
                         m.Terminal.GetBlocksOfType(list, (cam) =>

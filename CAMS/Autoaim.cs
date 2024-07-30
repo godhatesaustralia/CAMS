@@ -7,11 +7,11 @@ using System.Runtime.Versioning;
 
 namespace IngameScript
 {
-    public class Autoaim : CompBase
+    public class Autoaim
     {
         //static IMyGridTerminalSystem gridSystem;
         // replace with m
-
+        Program _p;
         static double 
             kP = 16,
             kI = 0,
@@ -26,8 +26,10 @@ namespace IngameScript
         List<IMyGyro> gyros = new List<IMyGyro>();
         PID yaw, pitch, roll;
         // implement for CompBase wip
-        public override void Update(UpdateFrequency f)
+        public void Update()
         {
+            if (doPoint)
+                toPoint = _p.Targets.Prioritized.Min.Position;
             // er what does this even do?
             // it is basically the set of stuff to run each _main loop (primary function of subsyeestem
 
@@ -59,9 +61,9 @@ namespace IngameScript
         }
 
         //under our glorious black sun... our beloved leader big vlad harkonenn... presiding over this spectacle of cringe, and debug
-        public override void Setup(Program m)
+        public void Setup(Program m)
         {
-            Main = m;
+            _p = m;
             m.Terminal.GetBlocksOfType(gyros, b => b.IsSameConstructAs(m.Controller));
             using (var p = new iniWrap())
                 if (p.CustomData(m.Me))
@@ -73,7 +75,6 @@ namespace IngameScript
                         grp.GetBlocksOfType(l);
                         _guns = new Weapons(p.Int(Lib.H, "aimSalvoTicks"), l);
                     }
-                    else Frequency = UpdateFrequency.None;
                 }
             //intialize gyros 
             //initialize guns..?
@@ -82,7 +83,7 @@ namespace IngameScript
             return;
         }
         //end of implement for CompBase
-        public Autoaim(string n) : base(n, Lib.u1 | Lib.u10 | Lib.u100)
+        public Autoaim(string n)
         {
             //guar.....
             yaw = new PID(kP, kI, kD, lowerBound, upperBound, decay, timeStep);
@@ -94,14 +95,14 @@ namespace IngameScript
         {
             // In (pitch, yaw, roll)
             Vector3D
-                error = -GetAngles(Main.Controller.WorldMatrix, ref forward, ref up),
+                error = -GetAngles(_p.Controller.WorldMatrix, ref forward, ref up),
                 angles = new Vector3D(Control(ref error));
-            ApplyOverride(Main.Controller.WorldMatrix, ref angles);
+            ApplyOverride(_p.Controller.WorldMatrix, ref angles);
         }
 
         public void FaceDirection(ref Vector3D aim)
         {
-            var grav = Main.Gravity != Vector3D.Zero;
+            var grav = _p.Gravity != Vector3D.Zero;
             
         }
 
@@ -153,10 +154,10 @@ namespace IngameScript
             if (up != Vector3D.Zero)
             {
                 Vector3D
-                    temp = Vector3D.Normalize(Lib.Rejection(up, Main.Controller.WorldMatrix.Forward)),
-                    rgt = Main.Controller.WorldMatrix.Right;
+                    temp = Vector3D.Normalize(Lib.Rejection(up, _p.Controller.WorldMatrix.Forward)),
+                    rgt = _p.Controller.WorldMatrix.Right;
                 double
-                    dot = MathHelper.Clamp(Vector3D.Dot(Main.Controller.WorldMatrix.Up, temp), -1, 1),
+                    dot = MathHelper.Clamp(Vector3D.Dot(_p.Controller.WorldMatrix.Up, temp), -1, 1),
                     rollAngle = Math.Acos(dot),
                     scalar = temp.Dot(rgt);
                     scalar = double.IsNaN(scalar) ? 0 : scalar;

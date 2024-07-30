@@ -32,10 +32,15 @@ namespace IngameScript
             TRI = "Triangle",
             WPN = "Weapons";
 
-        public const UpdateFrequency
-            u1 = UpdateFrequency.Update1,
-            u10 = UpdateFrequency.Update10,
-            u100 = UpdateFrequency.Update100;
+        // public const UpdateFrequency
+        //     u1 = UpdateFrequency.Update1,
+        //     u10 = UpdateFrequency.Update10,
+        //     u100 = UpdateFrequency.Update100;
+
+        public const UpdateType
+            u1 = UpdateType.Update1,
+            u10 = UpdateType.Update10,
+            u100 = UpdateType.Update100;
 
         public static TextAlignment
             LFT = TextAlignment.LEFT,
@@ -59,14 +64,14 @@ namespace IngameScript
 
         public static Vector2 V2(float x, float y) => new Vector2(x, y);
 
-        public static UpdateFrequency UpdateConverter(UpdateType src)
-        {
-            var updateFrequency = UpdateFrequency.None; //0000
-            if ((src & UpdateType.Update1) != 0) updateFrequency |= u1; //0001
-            if ((src & UpdateType.Update10) != 0) updateFrequency |= u10; //0010
-            if ((src & UpdateType.Update100) != 0) updateFrequency |= u100;//0100
-            return updateFrequency;
-        }
+        // public static UpdateFrequency UpdateConverter(UpdateType src)
+        // {
+        //     var updateFrequency = UpdateFrequency.None; //0000
+        //     if ((src & UpdateType.Update1) != 0) updateFrequency |= u1; //0001
+        //     if ((src & UpdateType.Update10) != 0) updateFrequency |= u10; //0010
+        //     if ((src & UpdateType.Update100) != 0) updateFrequency |= u100;//0100
+        //     return updateFrequency;
+        // }
 
         #region math
 

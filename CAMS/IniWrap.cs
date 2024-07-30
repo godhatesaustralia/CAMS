@@ -19,7 +19,6 @@ namespace IngameScript
         static public int total = 0;
         static public int Count => IniParsers.Count;
         MyIni myIni;
-        string tld = "~";
         MyIniParseResult result;
 
         public iniWrap()

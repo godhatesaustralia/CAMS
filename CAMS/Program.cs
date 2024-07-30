@@ -1,39 +1,22 @@
-﻿using Sandbox.Game.EntityComponents;
-using Sandbox.ModAPI.Ingame;
-using Sandbox.ModAPI.Interfaces;
-using SpaceEngineers.Game.ModAPI.Ingame;
+﻿using Sandbox.ModAPI.Ingame;
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Linq;
-using System.Text;
-using VRage;
-using VRage.Collections;
-using VRage.Game;
-using VRage.Game.Components;
-using VRage.Game.GUI.TextPanel;
-using VRage.Game.ModAPI.Ingame;
-using VRage.Game.ModAPI.Ingame.Utilities;
-using VRage.Game.ObjectBuilders.Definitions;
-using VRageMath;
 namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        const string
-            IgcFleet = "[FLT-CA]",
-            IgcTgt = "[FLT-TG]";
         public Program()
         {
-            Targets = new TargetProvider(this);
-            Debug = new DebugAPI(this, true);
-            Datalink.Setup(this);
+            Runtime.UpdateFrequency |= UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;
             ID = Me.CubeGrid.EntityId;
+            
+            Debug = new DebugAPI(this, true);
+            
+            Targets = new TargetProvider(this);
+            Datalink.Setup(this);
+
             _FLT = IGC.RegisterBroadcastListener(IgcFleet);
             _TGT = IGC.RegisterBroadcastListener(IgcTgt);
-            Runtime.UpdateFrequency |= UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;
-
+            
             ParseComputerSettings();
 
             AddSystemCommands();
@@ -55,46 +38,22 @@ namespace IngameScript
 
         public void Main(string argument, UpdateType updateSource)
         {
+            #region core-clock
             _frame++;
             _totalRT += Runtime.TimeSinceLastRun.TotalMilliseconds;
+            _lastRT = Runtime.LastRunTimeMs;
 
-            if (argument != "")
+            if (_worstRT < _lastRT)
             {
-                _cmd.Clear();
-                if (_cmd.TryParse(argument))
-                {
-                    if (Commands.ContainsKey(_cmd.Argument(0)))
-                        Commands[_cmd.Argument(0)].Invoke(_cmd);
-                    else
-                    {
-                        if (Displays.ContainsKey(_cmd.Argument(0)))
-                        {
-                            if (_cmd.Argument(1) == "up")
-                                Displays[_cmd.Argument(0)].Up();
-                            else if (_cmd.Argument(1) == "down")
-                                Displays[_cmd.Argument(0)].Down();
-                            //else if (_cmd.Argument(0) == "select")
-                            //    Displays[_cmd.Argument(0)].Select.Invoke(s);
-                            //else if (_cmd.Argument(0) == "back")
-                            //    Displays[_cmd.Argument(0)].Back.Invoke(s);
-                        }
-                    }
-                }
-            }
-
-            var rt = Runtime.LastRunTimeMs;
-            if (_worstRT < rt)
-            {
-                _worstRT = rt;
+                _worstRT = _lastRT;
                 _worstF = _frame;
             }
+
             if (_runtimes.Count == _rtMax)
                 _runtimes.Dequeue();
-            _runtimes.Enqueue(rt);
-            
+            _runtimes.Enqueue(_lastRT);
 
-            var u = Lib.UpdateConverter(updateSource);
-            if ((u & UpdateFrequency.Update10) != 0)
+            if ((updateSource & Lib.u10) != 0)
             {
                 _avgRT = 0;
                 foreach (var qr in _runtimes)
@@ -102,16 +61,50 @@ namespace IngameScript
                 _avgRT /= _rtMax;
                 Gravity = Controller.GetNaturalGravity();
             }
-            if ((u & UpdateFrequency.Update100) != 0)
-                Debug.RemoveDraw();
-            UpdateFrequency tgtFreq = UpdateFrequency.Update1;
 
-            // foreach (var comp in Components.Values)
-            // {
-            //     if ((comp.Frequency & u) != 0)
-            //         comp.Update(tgtFreq);
-            //     tgtFreq |= comp.Frequency;
-            // }
+            if ((updateSource & Lib.u100) != 0)
+                Debug.RemoveDraw();
+            #endregion
+
+            #region argument-parsing
+            if (argument != "")
+            {
+                _cmd.Clear();
+                if (_cmd.TryParse(argument))
+                {
+                    if (Commands.ContainsKey(_cmd.Argument(0)))
+                        Commands[_cmd.Argument(0)].Invoke(_cmd);
+                    else if (Displays.ContainsKey(_cmd.Argument(0)) && _cmd.ArgumentCount == 2)
+                    {
+                        // allegedly this is some kind of table or something so
+                        switch (_cmd.Argument(1))
+                        {
+                            case "up":
+                            {
+                                Displays[_cmd.Argument(0)].Up();
+                                break;
+                            }
+                            case "down":
+                            {
+                                Displays[_cmd.Argument(0)].Down();
+                                break;
+                            }
+                            case "select":
+                            {
+                                Displays[_cmd.Argument(0)].Select();
+                                break;
+                            }
+                            case "back":
+                            default:
+                            {
+                                Displays[_cmd.Argument(0)].Back();
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            #endregion
 
             #region inline scan checks
             if (F % MastCheckTicks == 0) // guar
@@ -120,31 +113,28 @@ namespace IngameScript
 
             int n = Math.Min(AllTurrets.Count, _turCheckPtr + MaxAutoTgtChecks);
             for (; _turCheckPtr < n; _turCheckPtr++)
-                CheckTurret(AllTurrets[_turCheckPtr]);
+                GetTurretTgt(AllTurrets[_turCheckPtr]);
+                
+            if (n == AllTurrets.Count)
+                _turCheckPtr = 0;
 
             for (int i = 0; i < Artillery.Count; i++)
-                CheckTurret(Artillery[i], true);
+                GetTurretTgt(Artillery[i], true);
 
-            if (n == AllTurrets.Count)
-            {
-                _turCheckPtr = 0;
-            }
             #endregion
 
-            Targets.Update(u);
+            #region main-sys-update
+            Targets.Update(updateSource);
 
             UpdateRotorTurrets();
 
             UpdateAMS();
 
-            _totalRT += rt;
-            Runtime.UpdateFrequency |= u;
-
             DisplayRR.Next(ref Displays).Update();
+            #endregion
 
-            Runtime.UpdateFrequency = tgtFreq;
             string r = "====<CAMS>====\n\n";
-            r += $"RUNS - {_frame}\nRUNTIME - {rt} ms\nAVG - {_avgRT:0.####} ms\nWORST - {_worstRT} ms, F{_worstF}\n";
+            r += $"RUNS - {_frame}\nRUNTIME - {_lastRT} ms\nAVG - {_avgRT:0.####} ms\nWORST - {_worstRT} ms, F{_worstF}\n";
             Echo(r);
 
         }

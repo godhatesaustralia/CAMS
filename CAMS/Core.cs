@@ -1,14 +1,8 @@
-﻿using Sandbox.Game;
-using Sandbox.ModAPI.Ingame;
+﻿using Sandbox.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using System.Runtime.InteropServices;
-using VRage;
-using VRage.Game;
 using VRage.Game.ModAPI.Ingame.Utilities;
-using VRage.Noise.Combiners;
 using VRageMath;
 
 namespace IngameScript
@@ -16,64 +10,44 @@ namespace IngameScript
     public class RoundRobin<K, V>
     {
         public readonly K[] IDs;
-        int start, current;
+        int _start, _current;
 
         public RoundRobin(K[] ks, int s = 0)
         {
-            start = s;
+            _start = s;
             IDs = ks;
             Reset();
         }
 
         public RoundRobin(ref Dictionary<K, V> dict, int s = 0)
         {
-            start = s;
+            _start = s;
             IDs = dict.Keys.ToArray();
             Reset();
         }
 
         public V Next(ref Dictionary<K, V> dict)
         {
-            if (current < IDs.Length)
-                current++;
-            if (current == IDs.Length)
-                current = start;
-            return dict[IDs[current]];
+            if (_current < IDs.Length)
+                _current++;
+            if (_current == IDs.Length)
+                _current = _start;
+            return dict[IDs[_current]];
         }
 
         // checks whether end of the key collection has been reached+
         public bool Next(ref Dictionary<K, V> dict, out V val)
         {
-            if (current < IDs.Length)
-                current++;
-            if (current == IDs.Length)
-                current = start;
-            val = dict[IDs[current]];
-            return current < IDs.Length - (start + 1);
+            if (_current < IDs.Length)
+                _current++;
+            if (_current == IDs.Length)
+                _current = _start;
+            val = dict[IDs[_current]];
+            return _current < IDs.Length - (_start + 1);
         }
 
-        public void Reset() => start = current = 0;
+        public void Reset() => _start = _current = 0;
 
-    }
-
-    public abstract class CompBase
-    {
-        public readonly string Name;
-        public static long ID;
-        public virtual string Debug { get; protected set; }
-
-        public Dictionary<string, Action<MyCommandLine>> Commands = new Dictionary<string, Action<MyCommandLine>>();
-        public Program Main;
-
-        public UpdateFrequency Frequency;
-        public CompBase(string n, UpdateFrequency u)
-        {
-            Name = n;
-            Frequency = u;
-        }
-
-        public abstract void Setup(Program prog);
-        public abstract void Update(UpdateFrequency u);
     }
 
     public partial class Program
@@ -96,7 +70,7 @@ namespace IngameScript
         public Random RNG = new Random();
         MyCommandLine _cmd = new MyCommandLine();
         RoundRobin<string, Display> DisplayRR;
-        double _totalRT = 0, _worstRT, _avgRT;
+        double _lastRT, _totalRT = 0, _worstRT, _avgRT;
 
         public bool GlobalPriorityUpdateSwitch = true;
 
@@ -123,7 +97,7 @@ namespace IngameScript
         int TurretCount => TurretNames.Length;
         ArmLauncherWHAM[] AMSLaunchers;
         
-        Dictionary<long, long> TargetsEKVsDict = new Dictionary<long, long>();
+        Dictionary<long, long> TargetsKillDict = new Dictionary<long, long>();
         Dictionary<string, RotorTurret> Turrets = new Dictionary<string, RotorTurret>();
         RoundRobin<string, RotorTurret>
             AssignRR, UpdateRR;
@@ -151,7 +125,7 @@ namespace IngameScript
                 return false;
             if (info.BoundingBox.Size.Length() < 1.5)
                 return false;
-            r = Targets.AddOrUpdate(ref info, CompBase.ID);
+            r = Targets.AddOrUpdate(ref info, ID);
             if (!m)
                 Targets.ScannedIDs.Add(info.EntityId);
             return true;

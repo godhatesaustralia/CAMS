@@ -142,7 +142,12 @@ namespace IngameScript
             eKVsReload = new SortedSet<EKV>(),
             eKVsLaunch = new SortedSet<EKV>();
         float _fireAngle, _tgtAngle, _RPM;
+        const int 
+            ACTIVE_T = 5,
+            WAIT_T = 20,
+            SEARCH_T = 40;
         public int Total = 0;
+        public long NextUpdateF = 0;
         IMyGridTerminalSystem _gts;
 
         /// <summary>
@@ -266,16 +271,19 @@ namespace IngameScript
             return false;
         }
 
-        public void Update()
+        public int Update()
         {
             if (Status == LauncherState.Ready || Status == LauncherState.ReloadWait)
-                return;
+                return WAIT_T;
             var e = eKVsReload.Min;
             if (Status == LauncherState.ReloadSearch)
             {
                 e.Computer = (IMyProgrammableBlock)_gts.GetBlockWithName(e.ComputerName);
                 if (!e.Computer?.IsRunning ?? false && e.Computer.TryRun($"setup{Datalink.ID}"))
                     Status = LauncherState.ReloadWait;
+                else 
+                    return SEARCH_T;
+                return WAIT_T;
             }
             else if (Status == LauncherState.Moving)
             {
@@ -293,7 +301,9 @@ namespace IngameScript
                         _proj.Enabled = false;
                         Status = LauncherState.Ready;
                     }
+                    return SEARCH_T;
                 }
+                return ACTIVE_T;
             }
             else if (Status == LauncherState.Empty)
             {
@@ -301,22 +311,23 @@ namespace IngameScript
                     ekv.Hardpoint.Enabled = false;
                 e.Hardpoint.Enabled = _proj.Enabled = true;
                 _tgtAngle = e.Reload;
-                RotateArm();
+                StartRotation();
             }
             else if (Status == LauncherState.Boot)
             {
                 e.Computer = (IMyProgrammableBlock)_gts.GetBlockWithName(e.ComputerName);
                 if (_arm.Angle != _tgtAngle)
                 {
-                    RotateArm();
+                    StartRotation();
                     Status = LauncherState.Boot;
                 }
                 if (!e.Computer.IsRunning)
                     e.Computer?.TryRun($"setup{Datalink.ID}");
             }
+            return ACTIVE_T;
         }
 
-        void RotateArm()
+        void StartRotation()
         {
             var adj = _arm.Angle;
 
@@ -360,7 +371,7 @@ namespace IngameScript
                 // if reload set is now empty, go to firing position
                 // otherwise go to next reload position
                 _tgtAngle = eKVsReload.Count == 0 ? _fireAngle : eKVsReload.Min.Reload;
-                RotateArm();
+                StartRotation();
             }
             return ok;
         }

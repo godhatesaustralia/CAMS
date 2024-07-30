@@ -11,7 +11,9 @@ namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        public const string H = "CAMS";
+        public const string H = "CAMS", IgcFleet = "[FLT-CA]", IgcTgt = "[FLT-TG]";
+        public Color PMY, SDY, BKG;
+        public const SpriteType TXT = SpriteType.TEXT, SHP = SpriteType.TEXTURE, CLP = SpriteType.CLIP_RECT;
         public bool Based, ReceiveIGC, SendIGC;
         public double
             PDSpray,
@@ -123,8 +125,8 @@ namespace IngameScript
             {
                 if (mtr.CustomName.Contains(Lib.ARY) && mtr.CubeGrid.EntityId == ID)
                 {
-                    var tur = new LidarMast(this, mtr, MastAryTags);
-                    tur.Setup(this);
+                    var tur = new LidarMast(this, mtr);
+                    tur.Setup(this, ref MastAryTags);
                     if (!Masts.ContainsKey(tur.Name))
                         Masts.Add(tur.Name, tur);
                 }

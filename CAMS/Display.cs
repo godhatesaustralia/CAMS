@@ -6,20 +6,6 @@ using VRageMath;
 
 namespace IngameScript
 {
-    public partial class Program : MyGridProgram
-    {
-        public Color
-            PMY = new Color(100, 250, 100),
-            SDY = new Color(50, 125, 50),
-            BKG = new Color(7, 16, 7),
-            RED = new Color(240, 50, 50),
-            YEL = new Color(250, 250, 100),
-            TGT = new Color(155, 255, 155);
-          public const SpriteType
-            TXT = SpriteType.TEXT,
-            SHP = SpriteType.TEXTURE,
-            CLP = SpriteType.CLIP_RECT;
-    }
     public class Display
     {
         Program _m;
@@ -35,7 +21,6 @@ namespace IngameScript
         //readonly int _offset;
         //static int _oBase = 0;
         Func<int> ptrMax = null;
-        public UpdateFrequency Freq = Lib.u1;
         Color _bg;
         public Display(Program m, IMyTerminalBlock b, string a, bool vcr = true)
         {
@@ -62,7 +47,6 @@ namespace IngameScript
             if (!_screens.ContainsKey(a)) return;
             ptr = 0;
             ptrMax = _screens[a].pMax;
-            Freq = _screens[a].Update;
             _active = a;
         }
 
@@ -105,15 +89,15 @@ namespace IngameScript
         Action<int, Screen> Data = null; 
         public Action<int> Select = null, Back = null;
         protected readonly float graphLength;
-        public readonly UpdateFrequency Update;
-        public Screen(Func<int> m, MySprite[] s, Action<int, Screen> d = null, float g = 0, UpdateFrequency u = UpdateFrequency.Update10)
+        public readonly int MinTicks;
+        public Screen(Func<int> m, MySprite[] s, Action<int, Screen> d = null, float g = 0, int t = 0)
         {
             ptr = 0;
             sprites = s;
             pMax = m;
             Data = d;
             graphLength = g;
-            Update = u;
+            MinTicks = t;
         }
 
         public void GetData(int p) => Data(p, this);
@@ -125,7 +109,7 @@ namespace IngameScript
     {
         public int pgs, cur, cnt; // pages #, current page, allowed items count (def 4)
 
-        public ListScreen(Func<int> m, int mx = 4, MySprite[] spr = null, Action<int, Screen> a = null, float g = 0, UpdateFrequency u = UpdateFrequency.Update10) : base(m, spr, a, g, u)
+        public ListScreen(Func<int> m, int mx = 4, MySprite[] spr = null, Action<int, Screen> a = null, float g = 0, int t = 0) : base(m, spr, a, g, t)
         {
             cur = 1;
             cnt = mx - 1;

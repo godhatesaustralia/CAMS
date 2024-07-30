@@ -201,7 +201,7 @@ namespace IngameScript
             int i = 0;
             for (; i < _rdrData.Length; i++)
                 _rdrData[i] = "";
-            i = 1;
+
             // todo: fix
             if (Count > 1)
             {
@@ -217,7 +217,7 @@ namespace IngameScript
             RadarText(p, false);
 
             _rdrStatic[4].Data = _rdrData[0];
-            for (; i < _rdrData.Length; i++)
+            for (i = 1; i < _rdrData.Length; i++)
                 _rdrStatic[4].Data += $"\n{_rdrData[i]}";
             _rdrBuffer.Clear();
             for (i = 0; i < Count; i++)
@@ -371,7 +371,7 @@ namespace IngameScript
 
         public Target Get(long eid) => _targets.ContainsKey(eid) ? _targets[eid] : null;
 
-        public void Update(UpdateFrequency u)
+        public void Update(UpdateType u)
         {
             ScannedIDs.Clear();
             if ((u & Lib.u100) != 0)
