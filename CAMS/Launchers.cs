@@ -178,7 +178,7 @@ namespace IngameScript
             /// </summary>
             public float Reload;
 
-            public EKV(string n, string cn, IMyProgrammableBlock c, IMyShipMergeBlock m, float r) : base(n, cn, c ,m)
+            public EKV(string n, string cn, IMyProgrammableBlock c, IMyShipMergeBlock m, float r) : base(n, cn, c, m)
             {
                 Reload = r;
             }
@@ -395,9 +395,43 @@ namespace IngameScript
         IMyProjector _proj;
         IMyShipWelder[] _welders;
         IMyGridTerminalSystem _gts;
+        SortedSet<MSL> reload = new SortedSet<MSL>();
+        
         public StaticLauncherWHAM(Program p)
         {
             _gts = p.GridTerminalSystem;
         }
+
+        public bool Init(IMyMotorStator a)
+        {
+            using (var q = new iniWrap())
+                if (!q.CustomData(a))
+                    return false;
+                else
+                {
+                    var h = Lib.H;
+                    var t = q.String(h, "tags", "");
+                    if (t != "")
+                    {
+                        var tags = t.Split('\n');
+                        if (tags != null)
+                            for (; Total < tags.Length; Total++)
+                            {
+                                tags[Total].Trim('|');
+                                  var merge = (IMyShipMergeBlock)_gts.GetBlockWithName(q.String(h, "merge" + tags[Total]));
+                                if (merge != null)
+                                {
+                                    var n = q.String(h, "computer" + tags[Total], tags[Total] + " Computer WHAM");
+                                    var cptr = (IMyProgrammableBlock)_gts.GetBlockWithName(n);
+                                    
+                                }
+                            }
+                        Total++;
+                        return true;
+                    }
+                }
+                return false;
+        }
+
     }
 }

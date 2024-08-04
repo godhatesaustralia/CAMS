@@ -371,6 +371,8 @@ namespace IngameScript
 
         public Target Get(long eid) => _targets.ContainsKey(eid) ? _targets[eid] : null;
 
+        public void Add(MyDetectedEntityInfo info) => _targets[info.EntityId] = new Target(info, _p.F, Program.ID, (_p.Center - info.Position).Length());
+
         public void Update(UpdateType u)
         {
             ScannedIDs.Clear();

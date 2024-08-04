@@ -40,7 +40,7 @@ namespace IngameScript
         public IMyTurretControlBlock _ctc;
         PCtrl _aPCtrl, _ePCtrl;
         SectorCheck[] _limits;
-        protected Weapons _weapons;
+        protected IWeapons _weapons;
         protected Program _p;
         public long tEID = -1, lastUpdate = 0, oobF = 0;
         public bool Inoperable = false, IsPDT;
@@ -430,7 +430,7 @@ namespace IngameScript
                         if (!tgt.Engaged)
                             _p.Targets.MarkEngaged(tEID);
                         _weapons.Fire(_p.F);
-                        switchOfs = _weapons.offsetTicks == 0;
+                        switchOfs = _weapons.Offset == 0;
                         return;
                     }
                     else _weapons.Hold();

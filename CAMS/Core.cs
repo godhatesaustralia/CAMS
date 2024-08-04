@@ -123,7 +123,7 @@ namespace IngameScript
                 return false;
             if (t != 2 && t != 3) // small grid and large grid respectively
                 return false;
-            if (info.BoundingBox.Size.Length() < 1.5)
+            if (info.BoundingBox.Size.Length() < 0.5)
                 return false;
             r = Targets.AddOrUpdate(ref info, ID);
             if (!m)
