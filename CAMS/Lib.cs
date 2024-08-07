@@ -6,6 +6,7 @@ using System.Data;
 using VRage;
 using VRage.Game.GUI.TextPanel;
 using VRageMath;
+using VRage.Game.ModAPI.Ingame;
 
 namespace IngameScript
 {
@@ -31,11 +32,6 @@ namespace IngameScript
             SQH = "SquareHollow",
             TRI = "Triangle",
             WPN = "Weapons";
-
-        // public const UpdateFrequency
-        //     u1 = UpdateFrequency.Update1,
-        //     u10 = UpdateFrequency.Update10,
-        //     u100 = UpdateFrequency.Update100;
 
         public const UpdateType
             u1 = UpdateType.Update1,
@@ -112,20 +108,9 @@ namespace IngameScript
             return a.Dot(b) / b.LengthSquared() * b;
         }
 
-
-        /// <summary>
-        /// Rejects vector a from vector b.
-        /// </summary>
-        public static Vector3D Rejection(Vector3D a, Vector3D b) //reject a on b
-        {
-            if (Vector3D.IsZero(a) || Vector3D.IsZero(b))
-                return Vector3D.Zero;
-
-            return a - a.Dot(b) / b.LengthSquared() * b;
-        }
         public static Vector3D RandomOffset(ref Random r, double scat)
         {
-            return new Vector3D(((r.NextDouble() * 2) - 1), ((r.NextDouble() * 2) - 1), ((r.NextDouble() * 2) - 1)) * scat;
+            return new Vector3D((r.NextDouble() * 2) - 1, (r.NextDouble() * 2) - 1, (r.NextDouble() * 2) - 1) * scat;
         }
         #endregion
     }

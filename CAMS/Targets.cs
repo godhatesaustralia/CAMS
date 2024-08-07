@@ -1,11 +1,9 @@
 ﻿using Sandbox.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using VRage;
 using VRage.Game;
 using VRage.Game.GUI.TextPanel;
-using VRage.Game.ModAPI.Ingame.Utilities;
 using VRageMath;
 
 namespace IngameScript
@@ -370,8 +368,6 @@ namespace IngameScript
         }
 
         public Target Get(long eid) => _targets.ContainsKey(eid) ? _targets[eid] : null;
-
-        public void Add(MyDetectedEntityInfo info) => _targets[info.EntityId] = new Target(info, _p.F, Program.ID, (_p.Center - info.Position).Length());
 
         public void Update(UpdateType u)
         {

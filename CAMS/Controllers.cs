@@ -3,7 +3,7 @@ using VRageMath;
 
 namespace IngameScript
 {   
-    public class PDController
+    public class PDCtrl
     {
         public double 
             gain_p,
@@ -13,7 +13,7 @@ namespace IngameScript
             second,
             lastInput;
 
-        public PDController(double pGain, double dGain, float hz = 60f)
+        public PDCtrl(double pGain, double dGain, float hz = 60f)
         {
             gain_p = pGain;
             gain_d = dGain;

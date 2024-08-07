@@ -19,10 +19,9 @@ namespace IngameScript
         public double scanAVG;
         const float SCAT = 0.2f;
         public int Scans = 0;
-        bool _isMast, _useRand = false;
+        bool _useRand = false;
         public int _ct => _cameras.Length;
-        const int BVR = 1900;
-        public LidarArray(List<IMyCameraBlock> c, string t = "", bool m = false)
+        public LidarArray(List<IMyCameraBlock> c, string t = "")
         {
             if (c != null)
             {
@@ -31,7 +30,6 @@ namespace IngameScript
                     _cameras[j] = c[j];
             }
             tag = t;
-            _isMast = m;
             foreach (var c2 in _cameras)
                 c2.EnableRaycast = true;
         }
@@ -39,7 +37,7 @@ namespace IngameScript
         {
             public int Compare(IMyCameraBlock x, IMyCameraBlock y)
             {
-                if (x.Closed) return (y.Closed ? 0 : 1);
+                if (x.Closed) return y.Closed ? 0 : 1;
                 else if (y.Closed) return -1;
                 else return x.AvailableScanRange > y.AvailableScanRange ? -1 : (x.AvailableScanRange < y.AvailableScanRange ? 1 : (x.EntityId > y.EntityId ? -1 : (x.EntityId < y.EntityId ? 1 : 0)));
             }
@@ -49,8 +47,8 @@ namespace IngameScript
         {
             var dT = t.Elapsed(p.F);
             var tPos = t.AdjustedPosition(p.F);
-            //tPos += t.Velocity * dT;
             var tDir = (tPos - srcPos).Normalized();
+
             if (_lastScan == ScanResult.Failed)
             {
                 _useRand = !_useRand;
@@ -69,8 +67,10 @@ namespace IngameScript
         {
             var r = _lastScan = ScanResult.Failed;
             int i = Scans = 0;
+
             if (p.Targets.ScannedIDs.Contains(t.EID))
                 return r;
+
             _camerasByRange.Clear();
             scanAVG = 0;
             for (; i < _cameras.Length; i++)
@@ -82,21 +82,13 @@ namespace IngameScript
 
             foreach (var c in _camerasByRange)
             {
-                if (!c.IsWorking)
+                if (!c.IsWorking || !c.CanScan(t.Distance))
                     continue;
-                if (!c.CanScan(t.Distance))
-                    continue;
+                    
                 var pos = RaycastLead(ref t, c.WorldMatrix.Translation, p);
                 pos += spread ? Lib.RandomOffset(ref p.RNG, SCAT * t.Radius) : Vector3D.Zero;
                 if (!c.CanScan(pos) || pos == Vector3D.Zero)
                     continue;
-                if (_isMast)
-                {
-                    var dir = pos - c.WorldMatrix.Translation;
-                    dir.Normalize();
-                    if (c.WorldMatrix.Down.Dot(dir) > 0.58)
-                        continue;
-                }
                 if (p.PassTarget(c.Raycast(pos), out r))
                 {
                     Scans++;
@@ -108,7 +100,7 @@ namespace IngameScript
             return r;
         }
     }
-    // _tags = {"[A]", "[B]", "[C]", "[D]"}
+
     public class LidarMast
     {
         IMyMotorStator _azimuth, _elevation;
@@ -142,7 +134,7 @@ namespace IngameScript
                     hasCTC = p.Bool(Lib.H, "ctc");
 
                     _maxAzD = p.Double(Lib.H, "limRayAzDown", 0.134);
-                    _maxCamD = p.Double(Lib.H, "limRayCamDown", 0.64);
+                    _maxCamD = p.Double(Lib.H, "limRayCamDown", 0.6025);
                     _azR = rad * p.Float(Lib.H, "azR", 360);
                     _elR = rad * p.Float(Lib.H, "elR", 360);
                 }
@@ -188,7 +180,7 @@ namespace IngameScript
                             }
                             return b && cam.CustomName.Contains(tg);
                         });
-                        Lidars.Add(new LidarArray(list, tg, true));
+                        Lidars.Add(new LidarArray(list, tg));
                     }
                 }
                 _elevation.LowerLimitRad = _min;
@@ -206,12 +198,8 @@ namespace IngameScript
 
         public void Designate()
         {
-            if (!_activeCTC || !Main.CanScan(_p.ScanDistLimit))
-                return;
-            if (Main.IsActive)
-            {
+            if (_activeCTC && Main.CanScan(_p.ScanDistLimit) && Main.IsActive)
                 _p.PassTarget(Main.Raycast(_p.ScanDistLimit), true);
-            }
         }
 
         public void Update()
@@ -233,12 +221,9 @@ namespace IngameScript
             }
             else
             {
-                bool 
-                    ar = Math.Abs(_azimuth.Angle - _azR) < 0.05, 
-                    er = Math.Abs(_elevation.Angle - _elR) < 0.05;
-                if (ar)
+                if (Math.Abs(_azimuth.Angle - _azR) < 0.05)
                     _azimuth.TargetVelocityRPM = 0;
-                if (er)
+                if (Math.Abs(_elevation.Angle - _elR) < 0.05)
                     _elevation.TargetVelocityRPM = 0;
             }
 
@@ -248,13 +233,13 @@ namespace IngameScript
                     {
                         var icpt = t.Position + t.Elapsed(_p.F) * t.Velocity - Main.WorldMatrix.Translation;
                         icpt.Normalize();
-                        if (icpt.Dot(_azimuth.WorldMatrix.Down) > _maxAzD)
-                            continue;
-                        if (icpt.Dot(Lidars[i].First.WorldMatrix.Backward) > 0 || icpt.Dot(Lidars[i].First.WorldMatrix.Down) > _maxCamD)
+                        if (icpt.Dot(_azimuth.WorldMatrix.Down) > _maxAzD ||
+                            icpt.Dot(Lidars[i].First.WorldMatrix.Backward) > 0 ||
+                            icpt.Dot(Lidars[i].First.WorldMatrix.Down) > _maxCamD)
                             continue;
                         if (Lidars[i].Scan(_p, t) != ScanResult.Failed)
                             Scans[i] = Lidars[i].Scans;
-                        Scans[i] = 0;
+                        else Scans[i] = 0;
                     }
         }
     }

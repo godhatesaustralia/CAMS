@@ -138,6 +138,7 @@ namespace IngameScript
             #region turrets and racks
             var r = new List<IMyMotorStator>();
             var l = new List<ArmLauncherWHAM>();
+            
             Terminal.GetBlockGroupWithName(TurPDLRGroup).GetBlocks(null, b =>
             {
                 var a = b as IMyMotorStator;
