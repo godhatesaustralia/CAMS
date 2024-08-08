@@ -62,6 +62,41 @@ namespace IngameScript
 
         public static Vector2 V2(float x, float y) => new Vector2(x, y);
 
+        #region gyro
+
+        public static Action<IMyGyro, float>[] Profiles =
+		{
+			(g, v) => { g.Yaw = -v; },
+			(g, v) => { g.Yaw = v; },
+			(g, v) => { g.Pitch = -v; },
+			(g, v) => { g.Pitch = v; },
+			(g, v) => { g.Roll = -v; },
+			(g, v) => { g.Roll = v; }
+		};
+
+        public static byte SetGyroRelDir(Base6Directions.Direction dir)
+		{
+			switch (dir)
+			{
+				case Base6Directions.Direction.Up:
+					return 1;
+				default:
+				case Base6Directions.Direction.Down:
+					return 0;
+				case Base6Directions.Direction.Left:
+					return 2;
+				case Base6Directions.Direction.Right:
+					return 3;
+				case Base6Directions.Direction.Forward:
+					return 4;
+				case Base6Directions.Direction.Backward:
+					return 5;
+			}
+		}
+
+
+        #endregion
+
         #region math
 
         public static double Clamp(double val, double min, double max) => MathHelperD.Clamp(val, min, max);

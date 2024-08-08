@@ -34,8 +34,8 @@ namespace IngameScript
 			{
 				case Base6Directions.Direction.Up:
 					return 1;
-				case Base6Directions.Direction.Down:
 				default:
+				case Base6Directions.Direction.Down:
 					return 0;
 				case Base6Directions.Direction.Left:
 					return 2;
@@ -232,16 +232,17 @@ namespace IngameScript
 		IMyShipMergeBlock _merge;
 		IMyBatteryBlock _batt;
 		IMyGasTank _tank;
-		GyroCtrl _gyro = new GyroCtrl();
 
+		IMyGyro _gyro;
+		byte _gYaw, _gPitch, _gRoll;
 		int _cachePtr = 0;
 		Vector3I[] _blockPosCache;
 		IMyTerminalBlock[] _partsCache;
 
-		List<IMyCameraBlock> _sensors = new List<IMyCameraBlock>();
+		//List<IMyCameraBlock> _sensors = new List<IMyCameraBlock>();
 		List<IMyThrust> _thrust = new List<IMyThrust>();
 		List<IMyWarhead> _warhead = new List<IMyWarhead>();
-		PDCtrl _yaw, pitch;
+		PDCtrl _yaw, _pitch;
 
 		public Missile(Program p, IMyTerminalBlock b)
 		{
@@ -259,13 +260,13 @@ namespace IngameScript
 					// note - this setup makes it necessary to have controller as very item in both cache arrays
 					// setup program MUST take this into account
 					if (t is IMyRemoteControl) _ctrl = (IMyRemoteControl)t;
-					else if (t is IMyBatteryBlock) {_batt = (IMyBatteryBlock)t; _batt.ChargeMode = ChargeMode.Recharge;}
+					else if (t is IMyGyro) _gyro = (IMyGyro)t;
+					else if (t is IMyBatteryBlock) { _batt = (IMyBatteryBlock)t; _batt.ChargeMode = ChargeMode.Recharge; }
 					else if (t is IMyThrust) _thrust.Add((IMyThrust)t);
 					else if (t is IMyWarhead) _warhead.Add((IMyWarhead)t);
-					else if (_ctrl != null && t is IMyGyro) _gyro.Init((IMyGyro)t, _ctrl);
-					else if (t is IMyShipConnector) {_ctor = (IMyShipConnector)t; _ctor.Connect();}
+					else if (t is IMyShipConnector) { _ctor = (IMyShipConnector)t; _ctor.Connect(); }
 					else if (t is IMyShipMergeBlock) _merge = (IMyShipMergeBlock)t;
-					else if (t is IMyGasTank) {_tank = (IMyGasTank)t; _tank.Stockpile = true;}
+					else if (t is IMyGasTank) { _tank = (IMyGasTank)t; _tank.Stockpile = true; }
 				}
 				_cachePtr = 0;
 			}
@@ -288,45 +289,75 @@ namespace IngameScript
 			return true;
 		}
 
-		public bool Init(IMyTerminalBlock o)
+		void Clear()
 		{
-			if (string.IsNullOrEmpty(o.CustomData))
-				return false;
-
-			var l = new List<Vector3I>();
-			foreach (string line in o.CustomData.Split('\n'))
-			{
-				if (string.IsNullOrEmpty(line)) continue;
-				line.Trim('|');
-
-				var v = line.Split('.');
-				int x, y, z;
-
-				if (!int.TryParse(v[0], out x) || !int.TryParse(v[1], out y) || !int.TryParse(v[2], out z))
-					return false;
-
-				Vector3I[] vec =
-			   {
-					-Base6Directions.GetIntVector(o.Orientation.Left),
-					Base6Directions.GetIntVector(o.Orientation.Up),
-					-Base6Directions.GetIntVector(o.Orientation.Forward)
-				};
-
-				l.Add((x * vec[0]) + (y * vec[1]) + (z * vec[2]) + o.Position);
-			}
-
-			_blockPosCache = new Vector3I[l.Count];
-			_partsCache = new IMyTerminalBlock[l.Count];
-
-			for (int i = 0; i < l.Count; i++)
-				_blockPosCache[i] = l[i];
-
-			return CollectMissileBlocks(o);
+			_ctrl = null;
+			_warhead.Clear();
+			_thrust.Clear();
 		}
 
+		public bool Init(IMyTerminalBlock o)
+		{
+			using (var q = new iniWrap())
+				if (!q.CustomData(o))
+					return false;
+				else
+				{
+					int 
+						pg = q.Int(Lib.H, "pGain", 10),
+						dg = q.Int(Lib.H, "dGain", 5);
 
-		
-		
+					_yaw = new PDCtrl(pg, dg, 10);
+					_pitch = new PDCtrl(pg, dg, 10);
 
+					var p = q.String(Lib.H, "cache");
+					if (string.IsNullOrEmpty(p))
+						return false;
+
+					var l = new List<Vector3I>();
+					foreach (string line in o.CustomData.Split('\n'))
+					{
+						if (string.IsNullOrEmpty(line)) continue;
+						line.Trim('|');
+
+						var v = line.Split('.');
+						int x, y, z;
+
+						if (!int.TryParse(v[0], out x) || !int.TryParse(v[1], out y) || !int.TryParse(v[2], out z))
+							return false;
+
+						Vector3I[] vec =
+						{
+							-Base6Directions.GetIntVector(o.Orientation.Left),
+							Base6Directions.GetIntVector(o.Orientation.Up),
+							-Base6Directions.GetIntVector(o.Orientation.Forward)
+						};
+
+						l.Add((x * vec[0]) + (y * vec[1]) + (z * vec[2]) + o.Position);
+					}
+
+					_blockPosCache = new Vector3I[l.Count];
+					_partsCache = new IMyTerminalBlock[l.Count];
+
+					for (int i = 0; i < l.Count; i++)
+						_blockPosCache[i] = l[i];
+					// temporary. need to find a better way
+					// of switching behavior to do proper setup
+					// -- need to set gyro profiles only once.
+					var ok = CollectMissileBlocks(o);
+					if (ok)
+					{
+						ReloadMissile(o);
+						if (_ctrl != null && _gyro == null)
+						{
+							_gYaw = Lib.SetGyroRelDir(_gyro.WorldMatrix.GetClosestDirection(_ctrl.WorldMatrix.Up));
+							_gPitch =Lib.SetGyroRelDir(_gyro.WorldMatrix.GetClosestDirection(_ctrl.WorldMatrix.Left));
+							_gRoll = Lib.SetGyroRelDir(_gyro.WorldMatrix.GetClosestDirection(_ctrl.WorldMatrix.Forward));
+
+						}
+					}
+					return ok;
+				}
+			}
+		}
 	}
-}
