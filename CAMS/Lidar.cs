@@ -84,11 +84,12 @@ namespace IngameScript
             {
                 if (!c.IsWorking || !c.CanScan(t.Distance))
                     continue;
-                    
+
                 var pos = RaycastLead(ref t, c.WorldMatrix.Translation, p);
                 pos += spread ? Lib.RandomOffset(ref p.RNG, SCAT * t.Radius) : Vector3D.Zero;
                 if (!c.CanScan(pos) || pos == Vector3D.Zero)
                     continue;
+                    
                 if (p.PassTarget(c.Raycast(pos), out r))
                 {
                     Scans++;
@@ -139,17 +140,22 @@ namespace IngameScript
                     _elR = rad * p.Float(Lib.H, "elR", 360);
                 }
             }
+
             _azimuth.UpperLimitRad = _max;
             _azimuth.LowerLimitRad = _min;
+
             var azTop = _azimuth.TopGrid;
             m.Terminal.GetBlocksOfType<IMyMotorStator>(null, b =>
             {
                 if (b.CustomName.Contains(Name))
                     _elevation = b;
+
                 if (b.CubeGrid == azTop)
                     _elevation = b;
+
                 return false;
             });
+
             var elTop = _elevation?.TopGrid;
             if (hasCTC)
                 m.Terminal.GetBlocksOfType<IMyTurretControlBlock>(null, b =>
@@ -162,27 +168,26 @@ namespace IngameScript
                         _ctc = b;
                     return false;
                 });
-            if (_elevation != null)
-            {           
-                if (tags != null)
+
+            if (_elevation != null && tags != null)
+            {
+                foreach (var tg in tags)
                 {
-                    foreach (var tg in tags)
+                    var list = new List<IMyCameraBlock>();
+                    m.Terminal.GetBlocksOfType(list, (cam) =>
                     {
-                        var list = new List<IMyCameraBlock>();
-                        m.Terminal.GetBlocksOfType(list, (cam) =>
+                        bool b = cam.CubeGrid == elTop;
+                        if (b && cam.CustomName.ToUpper().Contains("MAIN"))
                         {
-                            bool b = cam.CubeGrid == elTop;
-                            if (b && cam.CustomName.ToUpper().Contains("MAIN"))
-                            {
-                                Main = cam;
-                                Main.EnableRaycast = true;
-                                //_mainName = cam.CustomName;
-                            }
-                            return b && cam.CustomName.Contains(tg);
-                        });
-                        Lidars.Add(new LidarArray(list, tg));
-                    }
+                            Main = cam;
+                            Main.EnableRaycast = true;
+                            //_mainName = cam.CustomName;
+                        }
+                        return b && cam.CustomName.Contains(tg);
+                    });
+                    Lidars.Add(new LidarArray(list, tg));
                 }
+
                 _elevation.LowerLimitRad = _min;
                 _elevation.UpperLimitRad = _max;
                 Scans = new int[Lidars.Count];
@@ -223,6 +228,7 @@ namespace IngameScript
             {
                 if (Math.Abs(_azimuth.Angle - _azR) < 0.05)
                     _azimuth.TargetVelocityRPM = 0;
+
                 if (Math.Abs(_elevation.Angle - _elR) < 0.05)
                     _elevation.TargetVelocityRPM = 0;
             }
@@ -233,10 +239,12 @@ namespace IngameScript
                     {
                         var icpt = t.Position + t.Elapsed(_p.F) * t.Velocity - Main.WorldMatrix.Translation;
                         icpt.Normalize();
+
                         if (icpt.Dot(_azimuth.WorldMatrix.Down) > _maxAzD ||
                             icpt.Dot(Lidars[i].First.WorldMatrix.Backward) > 0 ||
                             icpt.Dot(Lidars[i].First.WorldMatrix.Down) > _maxCamD)
                             continue;
+
                         if (Lidars[i].Scan(_p, t) != ScanResult.Failed)
                             Scans[i] = Lidars[i].Scans;
                         else Scans[i] = 0;

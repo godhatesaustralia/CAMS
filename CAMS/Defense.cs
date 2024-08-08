@@ -63,6 +63,7 @@ namespace IngameScript
                         if (rk.Fire(out ekv))
                             TargetsKillDict.Add(t.EID, ekv);
                     }
+                    
                 Targets.Prioritized.Remove(t);
             }
 

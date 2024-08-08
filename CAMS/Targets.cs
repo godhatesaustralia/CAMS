@@ -67,14 +67,12 @@ namespace IngameScript
             var dT = Elapsed(f);
             if (Velocity.Length() < 0.5 && Accel.Length() <= 1)
                 return Position;
+
             return Position + Velocity * dT + Accel * 0.5 * dT * dT;
         }
 
         public int CompareTo(Target t) => t.Priority <= Priority ? -1 : 1;
-        public bool Equals(Target t)
-        {
-            return EID == t.EID;
-        }
+        public bool Equals(Target t) => EID == t.EID;
     }
 
     public class TargetProvider
@@ -135,6 +133,7 @@ namespace IngameScript
             _p.Terminal.GetBlocksOfType<IMyMotorStator>(null, b =>
             {
                 if (b.TopGrid == null) return false;
+
                 var i = b.TopGrid.EntityId;
                 if (!Blacklist.Contains(i))
                     Blacklist.Add(i);
@@ -196,6 +195,7 @@ namespace IngameScript
                 s.sprites = _rdrStatic;
                 return;
             }
+
             int i = 0;
             for (; i < _rdrData.Length; i++)
                 _rdrData[i] = "";
@@ -212,11 +212,13 @@ namespace IngameScript
                 }
                 else RadarText(p, true);
             }
+
             RadarText(p, false);
 
             _rdrStatic[4].Data = _rdrData[0];
             for (i = 1; i < _rdrData.Length; i++)
                 _rdrStatic[4].Data += $"\n{_rdrData[i]}";
+
             _rdrBuffer.Clear();
             for (i = 0; i < Count; i++)
             {
@@ -224,6 +226,7 @@ namespace IngameScript
                 var rPos = _p.Center - _targets[_iEIDs[i]].Position;
                 _rdrBuffer.Add(DisplayTarget(ref rPos, ref mat, _targets[_iEIDs[i]].eIDTag, p == i));
             }
+
             s.sprites = null;
             s.sprites = new MySprite[_rdrBuffer.Count + _rdrStatic.Length];
             for (i = 0; i < s.sprites.Length; i++)
@@ -245,6 +248,7 @@ namespace IngameScript
             Vector3D
                 rpos = _targets[eid].Position - _p.Controller.WorldMatrix.Translation,
                 up = _p.Controller.WorldMatrix.Up;
+
             var typ = (int)_targets[eid].Type == 3 ? "LARGE" : "SMALL";
 
             _rdrData[i] = _targets[eid].eIDString;
@@ -311,14 +315,18 @@ namespace IngameScript
 
                 t.Radius = i.BoundingBox.Size.Length();
                 t.Distance = (_p.Center - i.Position).Length();
+
                 SetPriority(t);
+
                 return ScanResult.Update;
             }
             else
             {
                 _targets[id] = new Target(i, _p.F, src, (_p.Center - i.Position).Length());
                 _iEIDs.Add(id);
+
                 SetPriority(_targets[id]);
+                
                 return ScanResult.Added;
             }
         }
@@ -376,8 +384,10 @@ namespace IngameScript
             {
                 foreach (var k in _targets.Keys)
                     _rmvEIDs.Add(k);
+
                 if (Count == 0)
                     return;
+
                 for (int i = Count - 1; i >= 0; i--)
                     if (_targets[_rmvEIDs[i]].Elapsed(_p.F) >= MAX_LIFETIME)
                     {
@@ -385,6 +395,7 @@ namespace IngameScript
                         _targets.Remove(_rmvEIDs[i]);
                         _iEIDs.Remove(_rmvEIDs[i]);
                     }
+
                 _rmvEIDs.Clear();
             }
             else if (_p.GlobalPriorityUpdateSwitch && _p.F >= _nextPrioritySortF)
@@ -394,6 +405,7 @@ namespace IngameScript
                 {
                     Prioritized.Add(t);
                 }
+                
                 _nextPrioritySortF = _p.F + _p.PriorityCheckTicks;
                 _p.GlobalPriorityUpdateSwitch = false;
             }

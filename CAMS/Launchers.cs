@@ -221,6 +221,7 @@ namespace IngameScript
                                 var angle = q.Float(h, "weldAngle" + tags[Total], float.MinValue);
                                 if (angle != float.MinValue)
                                     angle *= rad;
+
                                 var merge = (IMyShipMergeBlock)_gts.GetBlockWithName(q.String(h, "merge" + tags[Total]));
                                 if (merge != null && angle != float.MinValue)
                                 {
@@ -237,6 +238,7 @@ namespace IngameScript
                     _welder = _gts.GetBlockWithName(w) as IMyShipWelder;
                     if (_welder == null)
                         return false;
+
                     _welder.Enabled = false;
                     _fireAngle = _tgtAngle = q.Float(h, "fireAngle", 60) * rad;
                     _RPM = q.Float(h, "rpm", 5);
@@ -274,6 +276,7 @@ namespace IngameScript
                     Datalink.FireMissile(id);
                     e.Computer = null;
                     eKVsReload.Add(e);
+
                     if (eKVsLaunch.Count == 0)
                         Status = LauncherState.Empty;
                     return true;
@@ -286,14 +289,15 @@ namespace IngameScript
         {
             if (Status == LauncherState.Ready || Status == LauncherState.ReloadWait)
                 return WAIT_T;
+
             var e = eKVsReload.Min;
             if (Status == LauncherState.ReloadSearch)
             {
                 e.Computer = (IMyProgrammableBlock)_gts.GetBlockWithName(e.ComputerName);
                 if (!e.Computer?.IsRunning ?? false && e.Computer.TryRun($"setup{Datalink.ID}"))
                     Status = LauncherState.ReloadWait;
-                else
-                    return SEARCH_T;
+                else return SEARCH_T;
+
                 return WAIT_T;
             }
             else if (Status == LauncherState.Moving)
@@ -320,8 +324,10 @@ namespace IngameScript
             {
                 foreach (var ekv in eKVsReload)
                     ekv.Hardpoint.Enabled = false;
+
                 e.Hardpoint.Enabled = _proj.Enabled = true;
                 _tgtAngle = e.Reload;
+
                 StartRotation();
             }
             else if (Status == LauncherState.Boot)
@@ -330,6 +336,7 @@ namespace IngameScript
                 if (_arm.Angle != _tgtAngle)
                 {
                     StartRotation();
+
                     Status = LauncherState.Boot;
                 }
                 if (!e.Computer.IsRunning)
@@ -358,6 +365,7 @@ namespace IngameScript
                 _arm.UpperLimitRad = _tgtAngle;
                 _arm.TargetVelocityRPM = _RPM;
             }
+
             _welder.Enabled = false;
             Status = LauncherState.Moving;
         }
@@ -372,6 +380,7 @@ namespace IngameScript
         {
             if (Status == LauncherState.Ready || eKVsReload.Count == 0)
                 return false;
+
             var e = eKVsReload.Min;
             bool ok = e.Computer.EntityId == id;
             if (ok)
@@ -379,6 +388,7 @@ namespace IngameScript
                 Datalink.IGC.SendUnicastMessage(id, Datalink.IgcInit, "");
                 eKVsReload.Remove(e);
                 eKVsLaunch.Add(e);
+                
                 // if reload set is now empty, go to firing position
                 // otherwise go to next reload position
                 _tgtAngle = eKVsReload.Count == 0 ? _fireAngle : eKVsReload.Min.Reload;

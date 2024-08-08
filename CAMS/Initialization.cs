@@ -204,16 +204,19 @@ namespace IngameScript
                 if (_cmd.ArgumentCount == 3 && Displays.ContainsKey(_cmd.Argument(2)))
                     Displays[_cmd.Argument(2)].SetActive(_cmd.Argument(1));
             });
+
             Commands.Add("designate", b =>
             {
                 if (b.ArgumentCount == 2 && Masts.ContainsKey(b.Argument(1)))
                     Masts[b.Argument(1)].Designate();
             });
+
             Commands.Add("manual", b =>
             {
                 if (b.ArgumentCount == 2 && Masts.ContainsKey(b.Argument(1)))
                     Masts[b.Argument(1)].Retvrn();
             });
+
             Commands.Add("turret_reset", b =>
             {
                 foreach (var t in AllTurrets)
@@ -227,6 +230,7 @@ namespace IngameScript
                     t.Elevation = 0;
                 }
             });
+
             Commands.Add("system_update", b =>
             {
                 if (b.ArgumentCount != 2)
@@ -245,7 +249,9 @@ namespace IngameScript
                 sqvpos = Lib.V2(356, 222), // standard rect pos
                 sqvsz = Lib.V2(128, 28), // standard rect size
                 sqoff = Lib.V2(0, 40); // standard rect offset
+
             var al = Lib.LFT;
+
             CtrlScreens.Add(Lib.MS, new Screen
             (
                 () => MastNames.Length, 
@@ -268,10 +274,10 @@ namespace IngameScript
                 () => TurretNames.Length,
                 new MySprite[]
                 {
-                new MySprite(TXT, "", new Vector2(20, 112), null, PMY, Lib.VB, 0, 0.925f),// 1. TUR NAME
-                new MySprite(TXT, "AZ\nEL", new Vector2(20, 160), null, PMY, Lib.VB, 0, 1.825f),// 2. ANGLE HDR
-                new MySprite(TXT, "", new Vector2(132, 164), null, PMY, Lib.VB, 0, 0.9125f),// 3. ANGLE DATA
-                new MySprite(TXT, "", new Vector2(20, 348), null, PMY, Lib.VB, 0, 0.925f)// 5. STATE
+                    new MySprite(TXT, "", new Vector2(20, 112), null, PMY, Lib.VB, 0, 0.925f),// 1. TUR NAME
+                    new MySprite(TXT, "AZ\nEL", new Vector2(20, 160), null, PMY, Lib.VB, 0, 1.825f),// 2. ANGLE HDR
+                    new MySprite(TXT, "", new Vector2(132, 164), null, PMY, Lib.VB, 0, 0.9125f),// 3. ANGLE DATA
+                    new MySprite(TXT, "", new Vector2(20, 348), null, PMY, Lib.VB, 0, 0.925f)// 5. STATE
                 },
                 (p, s) =>
                 {
@@ -279,8 +285,10 @@ namespace IngameScript
                     string n = turret.Name, st = turret.Status.ToString().ToUpper();
                     int ct = p >= 9 ? 12 : 13;
                     ct -= turret.Name.Length;
+
                     for (; ct-- > 0;)
                         n += " ";
+                        
                     s.SetData(n + $"{p + 1}/{TurretCount}", 0);
                     s.SetData($"RPM {turret.aRPM:00.0}\nCUR {turret.aCur:000}°\nRPM {turret.eRPM:00.0}\nCUR {turret.eCur:000}°", 2);
                     s.SetData(st, 3);

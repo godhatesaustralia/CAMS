@@ -2,10 +2,7 @@
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using VRage.Game;
 using VRageMath;
-using VRageRender;
 
 namespace IngameScript
 {
@@ -146,6 +143,7 @@ namespace IngameScript
             else if (val > Lib.HALF_PI)
                 val -= Lib.PI;
         }
+
         static void AdjustAzimuth(ref double val)
         {
             if (val < -Lib.PI)
@@ -183,6 +181,7 @@ namespace IngameScript
             if (d < 0) return false; // this indicates bad determinant for quadratic formula
 
             d = Math.Sqrt(d);
+
             double
                 t1 = (-b + d) / (2 * a),
                 t2 = (-b - d) / (2 * a),
@@ -190,10 +189,9 @@ namespace IngameScript
 
             if (double.IsNaN(t)) return false;
 
-            if (test)
-                return test;
+            if (!test)
+                aim += rV * t + 0.375 * rA * t * t;
 
-            aim += rV * t + 0.375 * rA * t * t;
             return true;
         }
 
@@ -216,12 +214,15 @@ namespace IngameScript
             double
                 a = _azimuth.Angle,
                 e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
+
             Lim2PiLite(ref a);
+
             if (Math.Abs(a - _aRest) < _tol && Math.Abs(e - _eRest) < _tol)
             {
                 _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
                 return AimState.Rest;
             }
+
             _p.Debug.DrawGPS($"{Name}\naCur {aCur / rad}°\neCur {eCur / rad}°\n{Status}", _azimuth.WorldMatrix.Translation, Lib.YEL);
             _azimuth.TargetVelocityRad = _aPCtrl.Filter(a, _aRest, _p.F);
             _elevation.TargetVelocityRad = _ePCtrl.Filter(e, _eRest, _p.F);
@@ -263,6 +264,7 @@ namespace IngameScript
                     _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
                     return AimState.Blocked;
                 }
+
             oobF = 0;
             _azimuth.TargetVelocityRad = _aPCtrl.Filter(aCur, aTgt, _p.F);
             _elevation.TargetVelocityRad = _ePCtrl.Filter(eCur, eTgt, _p.F);
@@ -288,6 +290,7 @@ namespace IngameScript
         {
             if (Inoperable)
                 return false;
+
             var tgt = _p.Targets.Get(eid);
             if (tgt == null || tgt.Distance > TrackRange)
                 return false;
@@ -303,6 +306,7 @@ namespace IngameScript
                 Inoperable = !_azimuth.IsAttached || !_elevation.IsAttached || !_azimuth.IsFunctional || !_elevation.IsFunctional;
                 if (Inoperable || tgt == null)
                     return;
+
                 var aim = tgt.Position;
                 var tgtDst = -1d;
                 bool icpt = Interceptable(tgt, ref aim);
@@ -315,7 +319,9 @@ namespace IngameScript
                     double
                         a = _azimuth.Angle,
                         e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
+
                     Lim2PiLite(ref a);
+                    
                     Status = AimAtTarget(ref azm, ref aim, a, e);
                     if (oobF > 50 && Status == AimState.Blocked)
                     {
@@ -332,6 +338,7 @@ namespace IngameScript
                     {
                         if (!tgt.Engaged)
                             _p.Targets.MarkEngaged(tEID);
+
                         _weapons.Fire(_p.F);
                     }
                     else _weapons.Hold();
@@ -390,8 +397,10 @@ namespace IngameScript
                 {
                     if (switchOfs)
                         _sprayOfs = Lib.RandomOffset(ref _p.RNG, _spray) * tgt.Radius / tgt.Distance;
+
                     aim += _sprayOfs;
                 }
+
                 var tgtDst = -1d;
                 bool icpt = Interceptable(tgt, ref aim, useLidar);
                 if (icpt || useLidar) // admittedly not the best way to do this
@@ -403,7 +412,9 @@ namespace IngameScript
                     double
                         a = _azimuth.Angle,
                         e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
+
                     Lim2PiLite(ref a);
+
                     Status = AimAtTarget(ref azm, ref aim, a, e);
                     if (oobF > 50 && Status == AimState.Blocked)
                     {
@@ -411,6 +422,7 @@ namespace IngameScript
                             useLidar = false;
                         else if (tgt.Engaged)
                             _p.Targets.MarkLost(tEID);
+
                         Status = ResetTurret();
                         return;
                     }
@@ -429,6 +441,7 @@ namespace IngameScript
                     {
                         if (!tgt.Engaged)
                             _p.Targets.MarkEngaged(tEID);
+
                         _weapons.Fire(_p.F);
                         switchOfs = _weapons.Offset == 0;
                         return;

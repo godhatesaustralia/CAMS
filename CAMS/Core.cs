@@ -30,8 +30,10 @@ namespace IngameScript
         {
             if (_current < IDs.Length)
                 _current++;
+
             if (_current == IDs.Length)
                 _current = _start;
+                
             return dict[IDs[_current]];
         }
 
@@ -40,8 +42,10 @@ namespace IngameScript
         {
             if (_current < IDs.Length)
                 _current++;
+
             if (_current == IDs.Length)
                 _current = _start;
+
             val = dict[IDs[_current]];
             return _current < IDs.Length - (_start + 1);
         }
@@ -114,17 +118,14 @@ namespace IngameScript
         public bool PassTarget(MyDetectedEntityInfo info, out ScanResult r, bool m = false)
         {
             r = ScanResult.Failed;
-            if (info.IsEmpty())
+            if (info.IsEmpty() || Targets.Blacklist.Contains(info.EntityId))
                 return false;
-            if (Targets.Blacklist.Contains(info.EntityId))
-                return false;
+
+            // owner or friends, then check if either small or large grid
             int rel = (int)info.Relationship, t = (int)info.Type;
-            if (rel == 1 || rel == 5) // owner or friends
+            if (rel == 1 || rel == 5 || (t != 2 && t != 3)) 
                 return false;
-            if (t != 2 && t != 3) // small grid and large grid respectively
-                return false;
-            if (info.BoundingBox.Size.Length() < 0.5)
-                return false;
+
             r = Targets.AddOrUpdate(ref info, ID);
             if (!m)
                 Targets.ScannedIDs.Add(info.EntityId);

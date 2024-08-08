@@ -1,5 +1,6 @@
 ﻿using Sandbox.ModAPI.Ingame;
 using System;
+
 namespace IngameScript
 {
     partial class Program : MyGridProgram
@@ -136,7 +137,6 @@ namespace IngameScript
             string r = "====<CAMS>====\n\n";
             r += $"RUNS - {_frame}\nRUNTIME - {_lastRT} ms\nAVG - {_avgRT:0.####} ms\nWORST - {_worstRT} ms, F{_worstF}\n";
             Echo(r);
-
         }
     }
 }

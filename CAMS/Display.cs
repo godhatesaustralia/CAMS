@@ -17,9 +17,6 @@ namespace IngameScript
         public readonly bool isLarge = false;
         Dictionary<string, Screen> _screens => isLarge ? _m.LCDScreens : _m.CtrlScreens;
         public int ptr { get; private set; }
-        // just keep everything to d minimum for now
-        //readonly int _offset;
-        //static int _oBase = 0;
         Func<int> ptrMax = null;
         Color _bg;
         public Display(Program m, IMyTerminalBlock b, string a, bool vcr = true)
@@ -45,6 +42,7 @@ namespace IngameScript
         public void SetActive(string a)
         {
             if (!_screens.ContainsKey(a)) return;
+
             ptr = 0;
             ptrMax = _screens[a].pMax;
             _active = a;
@@ -73,11 +71,14 @@ namespace IngameScript
             int i = 0;
             _surf.ScriptBackgroundColor = _bg;
             _screens[_active].GetData(ptr);
+
             var f = _surf.DrawFrame();
             for (; i < _screens[_active].sprites.Length; i++)
                 f.Add(_screens[_active].sprites[i]);
+
             for (i = 0; i < _sprites.Length; i++)
                 f.Add(_sprites[i]);
+                
             f.Dispose();
         }
     }

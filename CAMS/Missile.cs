@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Sandbox.ModAPI.Ingame;
 using SpaceEngineers.Game.ModAPI.Ingame;
 using VRageMath;
-using VRage.Game;
 using VRage.Game.ModAPI.Ingame;
 
 namespace IngameScript
@@ -67,6 +66,7 @@ namespace IngameScript
 		}
 	}
 
+	// this is all alysius i have no fucking idea how it works
 	public class FastSolver
 	{
 		public const double
