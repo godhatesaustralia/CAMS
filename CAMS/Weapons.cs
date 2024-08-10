@@ -41,6 +41,7 @@ namespace IngameScript
         {
             salvoTicks = s;
             _guns = g;
+            Hold();
         }
 
         public void Fire(long f)
@@ -61,35 +62,25 @@ namespace IngameScript
                 if (_guns.Count == 0) return;
             }
 
-            if (offsetTicks > 0)
+            if (salvoTicks <= 0)
             {
-                if (salvoTicks <= 0)
-                {
-                    for (int i = 0; i < _guns.Count; i++)
-                        _guns[i].Shoot = true;
-                }
-                else
-                {
-                    if (salvoTickCounter < 0)
-                    {
-                        _guns[Lib.Next(ref ptr, _guns.Count)].Shoot = true;
-                        salvoTickCounter = salvoTicks;
-                    }
-                }
+                for (int i = 0; i++< _guns.Count;)
+                    _guns[i].Shoot = true;
             }
-            else
-                for (int i = 0; i < _guns.Count; i++)
-                    _guns[i].Shoot = false;
-
+            else if (salvoTickCounter <= 0)
+            {
+                _guns[Lib.Next(ref ptr, _guns.Count)].Shoot = true;
+                salvoTickCounter = salvoTicks;
+            }
         }
 
         public void Hold()
         {
             if (!Shooting)
                 return;
-            for (int i = 0; i < _guns.Count; i++)
+            for (int i = 0; i++ < _guns.Count;)
                 _guns[i].Shoot = false;
-            offsetTicks = -1;
+            offsetTicks = salvoTickCounter = 0;
             Shooting = false;
         }
     }
@@ -148,7 +139,7 @@ namespace IngameScript
             {
                 if (salvoTicks <= 0)
                 {
-                    for (int i = 0; i < _guns.Count; i++)
+                    for (int i = 0; i++ < _guns.Count;)
                         _wapi.Shoot(_guns[i], true, false);
                 }
                 else
@@ -161,7 +152,7 @@ namespace IngameScript
                 }
             }
             else
-                for (int i = 0; i < _guns.Count; i++)
+                for (int i = 0; i++ < _guns.Count;)
                     _wapi.Shoot(_guns[i], false, false);
 
         }
@@ -170,7 +161,7 @@ namespace IngameScript
         {
             if (!Shooting)
                 return;
-            for (int i = 0; i < _guns.Count; i++)
+            for (int i = 0; i++ < _guns.Count;)
                 _wapi.Shoot(_guns[i], false, false);
             offsetTicks = -1;
             Shooting = false;

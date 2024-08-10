@@ -81,13 +81,13 @@ namespace IngameScript
         void CacheMainSystems()
         {
             #region controller and displays
-            var dspGrp = new List<IMyTerminalBlock>();
             Terminal.GetBlocksOfType<IMyShipController>(null, (b) =>
             {
                 if (b.CubeGrid == Me.CubeGrid && b.CustomName.Contains(ControllerTag))
                     Controller = b;
                 return false;
             });
+            var dspGrp = new List<IMyTerminalBlock>();
             Terminal.GetBlockGroupWithName(DisplayGroup).GetBlocks(dspGrp);
             if (dspGrp.Count > 0)
             {
@@ -244,7 +244,7 @@ namespace IngameScript
 
         void AddSystemScreens()
         {
-            #region masts
+            #region masts screen
             Vector2
                 sqvpos = Lib.V2(356, 222), // standard rect pos
                 sqvsz = Lib.V2(128, 28), // standard rect size
@@ -268,16 +268,18 @@ namespace IngameScript
             ));
             #endregion
 
-            #region turrets
+            #region turrets screen
             CtrlScreens.Add(Lib.TR, new Screen
             (
                 () => TurretNames.Length,
                 new MySprite[]
                 {
-                    new MySprite(TXT, "", new Vector2(20, 112), null, PMY, Lib.VB, 0, 0.925f),// 1. TUR NAME
-                    new MySprite(TXT, "AZ\nEL", new Vector2(20, 160), null, PMY, Lib.VB, 0, 1.825f),// 2. ANGLE HDR
-                    new MySprite(TXT, "", new Vector2(132, 164), null, PMY, Lib.VB, 0, 0.9125f),// 3. ANGLE DATA
-                    new MySprite(TXT, "", new Vector2(20, 348), null, PMY, Lib.VB, 0, 0.925f)// 5. STATE
+                    new MySprite(TXT, "", Lib.V2(20, 112), null, PMY, Lib.VB, 0, 0.925f),// 1. TUR NAME
+                    new MySprite(TXT, "AZ\nEL", Lib.V2(20, 160), null, PMY, Lib.VB, 0, 1.825f),// 2. ANGLE HDR
+                    new MySprite(TXT, "", Lib.V2(132, 164), null, PMY, Lib.VB, 0, 0.9125f),// 3. ANGLE DATA
+                    new MySprite(TXT, "", Lib.V2(20, 348), null, PMY, Lib.VB, 0, 0.925f),// 5. STATE
+                    new MySprite(SHP, Lib.SQS, Lib.V2(256, 162), Lib.V2(496, 4), PMY, null),
+                    new MySprite(SHP, Lib.SQS, Lib.V2(256, 346), Lib.V2(496, 4), PMY, null)
                 },
                 (p, s) =>
                 {
@@ -288,9 +290,12 @@ namespace IngameScript
 
                     for (; ct-- > 0;)
                         n += " ";
-                        
+                    ct = 17 - st.Length;
+                    for (; ct-- > 8;)
+                        st += " ";
+                    st += $"TGT {turret.TGT}";
                     s.SetData(n + $"{p + 1}/{TurretCount}", 0);
-                    s.SetData($"RPM {turret.aRPM:00.0}\nCUR {turret.aCur:000}°\nRPM {turret.eRPM:00.0}\nCUR {turret.eCur:000}°", 2);
+                    s.SetData(turret.AZ + "\n" + turret.EL, 2);
                     s.SetData(st, 3);
                 }
             ));

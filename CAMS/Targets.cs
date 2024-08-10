@@ -152,7 +152,7 @@ namespace IngameScript
                 new MySprite(Program.SHP, Lib.SQS, rdrCNR, Lib.V2(4, 428), m.SDY, rotation: rad * -45),
                 new MySprite(Program.SHP, Lib.SQS, rdrCNR, Lib.V2(4, 428), m.SDY, rotation: rad * 45),
                 new MySprite(Program.SHP, Lib.SQS, Lib.V2(320, 228), Lib.V2(8, 308), m.PMY),
-                new MySprite(Program.TXT, "", Lib.V2(328, 84), null, m.PMY, Lib.V, Lib.LFT, !m.Based ? .425f : .8f),
+                new MySprite(Program.TXT, "", Lib.V2(328, 84), null, m.PMY, Lib.V, Lib.LFT, m.Based ? .425f : .8f),
                 new MySprite(Program.SHP, Lib.SQH, rdrCNR, Lib.V2(61.6f, 61.6f), m.PMY)
             };
 
@@ -197,7 +197,7 @@ namespace IngameScript
             }
 
             int i = 0;
-            for (; i < _rdrData.Length; i++)
+            for (; i++ < _rdrData.Length;)
                 _rdrData[i] = "";
 
             // todo: fix
@@ -216,11 +216,11 @@ namespace IngameScript
             RadarText(p, false);
 
             _rdrStatic[4].Data = _rdrData[0];
-            for (i = 1; i < _rdrData.Length; i++)
+            for (i = 1; i++ < _rdrData.Length;)
                 _rdrStatic[4].Data += $"\n{_rdrData[i]}";
 
             _rdrBuffer.Clear();
-            for (i = 0; i < Count; i++)
+            for (i = 0; i++ < Count;)
             {
                 var mat = _p.Controller.WorldMatrix;
                 var rPos = _p.Center - _targets[_iEIDs[i]].Position;
@@ -229,7 +229,7 @@ namespace IngameScript
 
             s.sprites = null;
             s.sprites = new MySprite[_rdrBuffer.Count + _rdrStatic.Length];
-            for (i = 0; i < s.sprites.Length; i++)
+            for (i = 0; i++ < s.sprites.Length;)
             {
                 if (i < _rdrStatic.Length)
                     s.sprites[i] = _rdrStatic[i];
@@ -388,7 +388,7 @@ namespace IngameScript
                 if (Count == 0)
                     return;
 
-                for (int i = Count - 1; i >= 0; i--)
+                for (int i = Count - 1; i-- >= 0;)
                     if (_targets[_rmvEIDs[i]].Elapsed(_p.F) >= MAX_LIFETIME)
                     {
                         ScannedIDs.Remove(_rmvEIDs[i]);

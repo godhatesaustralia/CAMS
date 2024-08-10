@@ -93,8 +93,6 @@ namespace IngameScript
 					return 5;
 			}
 		}
-
-
         #endregion
 
         #region math
@@ -134,6 +132,17 @@ namespace IngameScript
             if (Vector3D.IsZero(b))
                 return Vector3D.Zero;
             return a.Dot(b) / b.LengthSquared() * b;
+        }
+
+              /// <summary>
+        /// Rejects vector a from vector b.
+        /// </summary>
+        public static Vector3D Rejection(Vector3D a, Vector3D b) //reject a on b
+        {
+            if (Vector3D.IsZero(a) || Vector3D.IsZero(b))
+                return Vector3D.Zero;
+
+            return a - a.Dot(b) / b.LengthSquared() * b;
         }
 
         public static Vector3D RandomOffset(ref Random r, double scat)

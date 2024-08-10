@@ -8,7 +8,7 @@ namespace IngameScript
         {
             string grps = ""; int i = 0;
             var l = Masts[MastNames[ptr]];
-            for (; i < l.Lidars.Count; i++)
+            for (; i++ < l.Lidars.Count;)
             {
                 var scan = l.Lidars[i].scanAVG != 0 ? $"{l.Lidars[i].scanAVG:G1}M\n" : "READY\n";
                 grps += $"SCAN {l.Lidars[i].tag[1]} " + scan;
@@ -17,7 +17,7 @@ namespace IngameScript
             grps += $"TARGETS {Targets.Count:00} CTRL " + (!l.Manual ? "OFF" : "MAN");
             s.SetData(grps, 1);
             
-            for (i = 0; i < l.Lidars.Count; ++i)
+            for (i = 0; i++ < l.Lidars.Count;)
                 s.SetColor(l.Lidars[i].Scans > 0 ? PMY : SDY, i + 2);
 
             return l.Name;

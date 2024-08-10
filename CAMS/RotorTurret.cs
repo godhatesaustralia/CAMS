@@ -9,7 +9,7 @@ namespace IngameScript
     // fuck it
     public enum AimState
     {
-        Default,
+        Offline,
         Rest,
         Blocked, // target out of bounds (sorry)
         Moving,
@@ -21,7 +21,8 @@ namespace IngameScript
     {
         #region you aint built for these fields son
 
-        const float rad = (float)Math.PI / 180;
+        const float RAD = (float)Math.PI / 180, DEG = 1 / RAD;
+        const int RST_TKS = 23;
         public string Name; // yeah
         protected IMyMotorStator _azimuth, _elevation;
         public AimState Status { get; protected set; }
@@ -39,15 +40,14 @@ namespace IngameScript
         SectorCheck[] _limits;
         protected IWeapons _weapons;
         protected Program _p;
-        public long tEID = -1, lastUpdate = 0, oobF = 0;
+        public long tEID = -1, lastUpdate = 0, _oobF = 0;
         public bool Inoperable = false, IsPDT;
         #endregion
 
         #region debugFields
         public double aRPM => _azimuth.TargetVelocityRPM;
         public double eRPM => _elevation.TargetVelocityRPM;
-        public double aCur => _azimuth.Angle / rad;
-        public double eCur => _elevation.Angle / rad;
+        public string AZ, EL, TGT;
         #endregion
 
         class SectorCheck
@@ -62,17 +62,17 @@ namespace IngameScript
                     return;
                 foreach (var st in ar) st.Trim();
 
-                aMn = int.Parse(ar[0]) * rad;
-                aMx = int.Parse(ar[1]) * rad;
-                eMn = int.Parse(ar[2]) * rad;
-                eMx = int.Parse(ar[3]) * rad;
+                aMn = int.Parse(ar[0]) * RAD;
+                aMx = int.Parse(ar[1]) * RAD;
+                eMn = int.Parse(ar[2]) * RAD;
+                eMx = int.Parse(ar[3]) * RAD;
             }
         }
 
-        public RotorTurret(IMyMotorStator a, Program m)
+        public RotorTurret(IMyMotorStator mtr, Program m)
         {
             _p = m;
-            _azimuth = a;
+            _azimuth = mtr;
             if (_azimuth.Top == null)
                 return;
             m.Terminal.GetBlocksOfType<IMyMotorStator>(null, b =>
@@ -98,14 +98,14 @@ namespace IngameScript
                         });
 
                     IsPDT = this is PDT;
-                    _azimuth.UpperLimitRad = _aMx = rad * p.Float(h, "azMax", 361);
-                    _azimuth.LowerLimitRad = _aMn = rad * p.Float(h, "azMin", -361);
-                    _aRest = rad * p.Float(h, "azRst", 0);
-                    _elevation.UpperLimitRad = _eMx = rad * p.Float(h, "elMax", 90);
-                    _elevation.LowerLimitRad = _eMn = rad * p.Float(h, "elMin", -90);
-                    _eRest = rad * p.Float(h, "elRst", 0);
+                    _azimuth.UpperLimitRad = _aMx = RAD * p.Float(h, "azMax", 361);
+                    _azimuth.LowerLimitRad = _aMn = RAD * p.Float(h, "azMin", -361);
+                    _aRest = RAD * p.Float(h, "azRst", 0);
+                    _elevation.UpperLimitRad = _eMx = RAD * p.Float(h, "elMax", 90);
+                    _elevation.LowerLimitRad = _eMn = RAD * p.Float(h, "elMin", -90);
+                    _eRest = RAD * p.Float(h, "elRst", 0);
                     Range = p.Double(h, "range", 800);
-                    TrackRange = 1.5 * Range;
+                    TrackRange = 1.625 * Range;
                     Speed = p.Double(h, "speed", 400);
                     _tol = p.Double(h, "tolerance", 5E-4);
 
@@ -117,7 +117,7 @@ namespace IngameScript
                     {
                         var ary = sct.Split('\n');
                         _limits = new SectorCheck[ary.Length];
-                        for (int i = 0; i < ary.Length; i++)
+                        for (int i = 0; i++ < ary.Length;)
                             try
                             {
                                 _limits[i] = new SectorCheck(ary[i].Trim('|'));
@@ -131,7 +131,13 @@ namespace IngameScript
                     var list = new List<IMyUserControllableGun>();
                     m.Terminal.GetBlocksOfType(list, b => b.CubeGrid == _elevation.CubeGrid || b.CustomName.Contains(Name));
                     _weapons = new Weapons(p.Int(h, "salvo", -1), list);
-                    ResetTurret();
+
+                    double a, e;
+                    AdjStatorAngles(out a, out e);
+                    // double a = _azimuth.Angle, e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
+                    // Lim2PiLite(ref a);
+
+                    Status = MoveToRest(a, e);
                 }
                 else throw new Exception($"\nFailed to create turret using azimuth rotor {_azimuth.CustomName}.");
         }
@@ -196,6 +202,15 @@ namespace IngameScript
         }
 
         // makes azimuth BEHAVE!!!!
+        protected void AdjStatorAngles(out double a, out double e)
+        {
+            a = _azimuth.Angle;
+            if (a < -Lib.PI)
+                a += Lib.PI2X;
+            else if (a > Lib.PI)
+                a -= Lib.PI2X;
+            e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
+        }
         protected void Lim2PiLite(ref double a)
         {
             if (a < 0)
@@ -203,29 +218,40 @@ namespace IngameScript
                 if (a <= -Lib.PI2X) a += MathHelperD.FourPi;
                 else a += Lib.PI2X;
             }
-            else if (a >= Lib.PI2X)
+            else if (a >= Lib.PI)
             {
                 if (a >= MathHelperD.FourPi) a -= MathHelperD.FourPi;
                 else a -= Lib.PI2X;
             }
         }
-        protected AimState MoveToRest()
+
+        protected AimState MoveToRest(double aCur, double eCur, bool reset = false)
         {
-            double
-                a = _azimuth.Angle,
-                e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
+            if (Status == AimState.Rest)
+                return Status;
+            else if (Inoperable)
+                return AimState.Offline;
 
-            Lim2PiLite(ref a);
+            _weapons.Hold();
 
-            if (Math.Abs(a - _aRest) < _tol && Math.Abs(e - _eRest) < _tol)
+            if (reset)
+            {
+                tEID = -1;
+                _oobF = 0;
+                _p.Targets.MarkLost(tEID);
+            }
+
+            AZ = $"T{_aRest * DEG:+000;-000}°\nC{aCur * DEG:+000;-000}°";
+            EL = $"T{_eRest * DEG:+000;-000}°\nC{eCur * DEG:+000;-000}°";
+            TGT = "NONE";
+
+            if (Math.Abs(aCur - _aRest) < _tol && Math.Abs(eCur - _eRest) < _tol)
             {
                 _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
                 return AimState.Rest;
             }
-
-            _p.Debug.DrawGPS($"{Name}\naCur {aCur / rad}°\neCur {eCur / rad}°\n{Status}", _azimuth.WorldMatrix.Translation, Lib.YEL);
-            _azimuth.TargetVelocityRad = _aPCtrl.Filter(a, _aRest, _p.F);
-            _elevation.TargetVelocityRad = _ePCtrl.Filter(e, _eRest, _p.F);
+            _azimuth.TargetVelocityRad = _aPCtrl.Filter(aCur, _aRest, _p.F);
+            _elevation.TargetVelocityRad = _ePCtrl.Filter(eCur, _eRest, _p.F);
 
             return AimState.Moving;
         }
@@ -235,7 +261,10 @@ namespace IngameScript
         protected AimState AimAtTarget(ref MatrixD azm, ref Vector3D aim, double aCur, double eCur)
         {
             if (Status == AimState.Blocked)
-                oobF++;
+            {
+                _oobF++;
+                _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
+            }
 
             aim.Normalize();
             Vector3D
@@ -244,28 +273,28 @@ namespace IngameScript
 
             // azimuth target angle
             var aTgt = Lib.AngleBetween(ref aTgtV, azm.Backward) * Math.Sign(aTgtV.Dot(azm.Left));
-            Lim2PiLite(ref aTgt);
+
+            AZ = $"T{aTgt * DEG:+000;-000}°\nC{aCur * DEG:+000;-000}°";
 
             if (aTgt > _aMx || aTgt < _aMn)
                 return AimState.Blocked;
 
             // elevation target angle
             var eTgt = Lib.AngleBetween(ref aTgtV, ref aim) * Math.Sign(aim.Dot(azm.Up));
-            /// !!!!! CHECK HOW THIS FUCKING WORKS !!!!!
-            eTgt = (eTgt + Lib.PI) % Lib.PI2X - Lib.PI;
-            //_p.Debug.DrawGPS($"{Name}\naTgt/Cur {aTgt / rad}°|{aCur / rad}°\neTgt/Cur {eTgt / rad}°|{eCur / rad}°\n{Status}", azm.Translation, Lib.YEL);
+            EL = $"T{eTgt * DEG:+000;-000}°\nC{eCur * DEG:+000;-000}°";
+
             if (eTgt > _eMx || eTgt < _eMn)
                 return AimState.Blocked;
 
             // check whether these are prohibited angleS
-            for (int i = 0; i < (_limits?.Length ?? 0); i++)
+            for (int i = 0; i++ < (_limits?.Length ?? 0);)
                 if (_limits[i].aMn < aTgt && _limits[i].aMx > aTgt && _limits[i].eMn < eTgt && _limits[i].eMx > eTgt)
                 {
                     _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
                     return AimState.Blocked;
                 }
 
-            oobF = 0;
+            _oobF = 0;
             _azimuth.TargetVelocityRad = _aPCtrl.Filter(aCur, aTgt, _p.F);
             _elevation.TargetVelocityRad = _ePCtrl.Filter(eCur, eTgt, _p.F);
 
@@ -273,18 +302,6 @@ namespace IngameScript
         }
 
         #endregion
-
-
-        public AimState ResetTurret()
-        {
-            if (Status != AimState.Rest)
-            {
-                tEID = -1;
-                _weapons.Hold();
-                Status = MoveToRest();
-            }
-            return Status;
-        }
 
         public bool CanTarget(long eid)
         {
@@ -300,41 +317,38 @@ namespace IngameScript
 
         public virtual void UpdateTurret()
         {
+            double a, e;
+            AdjStatorAngles(out a, out e);
+            // double a = _azimuth.Angle, e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
+            // Lim2PiLite(ref a);
+
             if (_p.Targets.Count != 0)
             {
-                var tgt = _p.Targets.Get(tEID);
+                var tgt = tEID != -1 ? _p.Targets.Get(tEID) : null;
                 Inoperable = !_azimuth.IsAttached || !_elevation.IsAttached || !_azimuth.IsFunctional || !_elevation.IsFunctional;
                 if (Inoperable || tgt == null)
+                {
+                    Status = Inoperable ? AimState.Offline : MoveToRest(a, e, true);
                     return;
+                }
 
                 var aim = tgt.Position;
-                var tgtDst = -1d;
-                bool icpt = Interceptable(tgt, ref aim);
-                if (icpt)
+                if (Interceptable(tgt, ref aim))
                 {
                     var azm = _azimuth.WorldMatrix;
                     aim -= azm.Translation;
-                    tgtDst = aim.Length();
+                    var tgtDst = aim.Length();
 
-                    double
-                        a = _azimuth.Angle,
-                        e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
-
-                    Lim2PiLite(ref a);
-                    
-                    Status = AimAtTarget(ref azm, ref aim, a, e);
-                    if (oobF > 50 && Status == AimState.Blocked)
+                    if ((_oobF > RST_TKS && Status == AimState.Blocked) || tgtDst > TrackRange)
                     {
-                        Status = ResetTurret();
-                        if (tgt.Engaged)
-                            _p.Targets.MarkLost(tEID);
+                        Status = MoveToRest(a, e);
                         return;
                     }
-                    else if (tgtDst > TrackRange)
-                    {
-                        Status = ResetTurret();
-                    }
-                    else if (tgtDst < Range && Status == AimState.OnTarget)
+
+                    Status = AimAtTarget(ref azm, ref aim, a, e);
+                    TGT = tgt.eIDTag;
+
+                    if (tgtDst < Range && Status == AimState.OnTarget)
                     {
                         if (!tgt.Engaged)
                             _p.Targets.MarkEngaged(tEID);
@@ -343,15 +357,9 @@ namespace IngameScript
                     }
                     else _weapons.Hold();
                 }
-                else
-                {
-                    _weapons.Hold();
-                    Status = MoveToRest();
-                }
-                if (tgt.Engaged)
-                    _p.Targets.MarkLost(tEID);
+                else Status = MoveToRest(a, e);
             }
-            else Status = ResetTurret();
+            else Status = MoveToRest(a, e, true);
         }
     }
 
@@ -385,78 +393,68 @@ namespace IngameScript
 
         public override void UpdateTurret()
         {
+            double a, e;
+            AdjStatorAngles(out a, out e);
+            // double a = _azimuth.Angle, e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
+            // Lim2PiLite(ref a);
+
             if (_p.Targets.Count != 0)
             {
-                var tgt = _p.Targets.Get(tEID);
+                var tgt = tEID != -1 ? _p.Targets.Get(tEID) : null;
                 Inoperable = !_azimuth.IsAttached || !_elevation.IsAttached || !_azimuth.IsFunctional || !_elevation.IsFunctional;
                 if (Inoperable || tgt == null)
-                    return;
-
-                var aim = tgt.Position;
-                if (!useLidar && _spray != -1)
                 {
-                    if (switchOfs)
-                        _sprayOfs = Lib.RandomOffset(ref _p.RNG, _spray) * tgt.Radius / tgt.Distance;
-
-                    aim += _sprayOfs;
+                    Status = Inoperable ? AimState.Offline : MoveToRest(a, e, true);
+                    return;
                 }
 
-                var tgtDst = -1d;
-                bool icpt = Interceptable(tgt, ref aim, useLidar);
-                if (icpt || useLidar) // admittedly not the best way to do this
+                var aim = tgt.Position;
+                if (useLidar || Interceptable(tgt, ref aim)) // admittedly not the best way to do this
                 {
                     var azm = _azimuth.WorldMatrix;
                     aim -= azm.Translation;
-                    tgtDst = aim.Length();
+                    var tgtDst = aim.Length();
 
-                    double
-                        a = _azimuth.Angle,
-                        e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
+                    if (!useLidar && _spray != -1)
+                    {
+                        if (switchOfs)
+                            _sprayOfs = Lib.RandomOffset(ref _p.RNG, _spray);
 
-                    Lim2PiLite(ref a);
+                        aim += _sprayOfs * tgt.Radius / tgt.Distance;
+                    }
+
+                    if ((_oobF > 31 && Status == AimState.Blocked) || tgtDst > TrackRange)
+                    {
+                        Status = MoveToRest(a, e);
+                        return;
+                    }
 
                     Status = AimAtTarget(ref azm, ref aim, a, e);
-                    if (oobF > 50 && Status == AimState.Blocked)
+                    TGT = tgt.eIDTag;
+
+                    if (Status == AimState.OnTarget)
                     {
                         if (useLidar)
-                            useLidar = false;
-                        else if (tgt.Engaged)
-                            _p.Targets.MarkLost(tEID);
-
-                        Status = ResetTurret();
-                        return;
-                    }
-                    else if (useLidar)
-                    {
-                        var r = ScanResult.Failed;
-                        if (Status == AimState.OnTarget)
-                            for (scanCtr = 0; scanCtr < scanMx && r == ScanResult.Failed; scanCtr++)
+                        {
+                            var r = ScanResult.Failed;
+                            for (scanCtr = 0; scanCtr++ < scanMx && r == ScanResult.Failed;)
                                 r = Lidar.Scan(_p, tgt, true);
-                    }
-                    else if (tgtDst > TrackRange)
-                    {
-                        Status = ResetTurret();
-                    }
-                    else if (tgtDst < Range && Status == AimState.OnTarget)
-                    {
-                        if (!tgt.Engaged)
-                            _p.Targets.MarkEngaged(tEID);
+                        }
 
-                        _weapons.Fire(_p.F);
-                        switchOfs = _weapons.Offset == 0;
-                        return;
+                        if (tgtDst < Range)
+                        {
+                            if (!tgt.Engaged)
+                                _p.Targets.MarkEngaged(tEID);
+
+                            _weapons.Fire(_p.F);
+                        }
                     }
                     else _weapons.Hold();
                 }
-                else
-                {
-                    _weapons.Hold();
-                    Status = MoveToRest();
-                }
-                if (tgt.Engaged)
-                    _p.Targets.MarkLost(tEID);
+                else Status = MoveToRest(a, e);
+
             }
-            else Status = ResetTurret();
+            else Status = MoveToRest(a, e, true);
         }
     }
 }

@@ -253,7 +253,7 @@ namespace IngameScript
 		{
 			if (CollectMissileBlocks(b))
 			{
-				for (; _cachePtr < _partsCache.Length; _cachePtr++)
+				for (; _cachePtr++ < _partsCache.Length;)
 				{
 					var t = _partsCache[_cachePtr];
 					if (t == null) continue;
@@ -339,7 +339,7 @@ namespace IngameScript
 					_blockPosCache = new Vector3I[l.Count];
 					_partsCache = new IMyTerminalBlock[l.Count];
 
-					for (int i = 0; i < l.Count; i++)
+					for (int i = 0; i++ < l.Count;)
 						_blockPosCache[i] = l[i];
 					// temporary. need to find a better way
 					// of switching behavior to do proper setup

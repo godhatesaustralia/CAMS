@@ -215,7 +215,7 @@ namespace IngameScript
                     {
                         var tags = t.Split('\n');
                         if (tags != null)
-                            for (; Total < tags.Length; Total++)
+                            for (; Total++ < tags.Length;)
                             {
                                 tags[Total].Trim('|');
                                 var angle = q.Float(h, "weldAngle" + tags[Total], float.MinValue);
@@ -425,7 +425,7 @@ namespace IngameScript
                     {
                         var tags = t.Split('\n');
                         if (tags != null)
-                            for (; Total < tags.Length; Total++)
+                            for (; Total++ < tags.Length;)
                             {
                                 tags[Total].Trim('|');
                                   var merge = (IMyShipMergeBlock)_gts.GetBlockWithName(q.String(h, "merge" + tags[Total]));

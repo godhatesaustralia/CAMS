@@ -26,7 +26,7 @@ namespace IngameScript
             if (c != null)
             {
                 _cameras = new IMyCameraBlock[c.Count];
-                for (int j = 0; j < c.Count; j++)
+                for (int j = 0; j++ < c.Count;)
                     _cameras[j] = c[j];
             }
             tag = t;
@@ -73,7 +73,7 @@ namespace IngameScript
 
             _camerasByRange.Clear();
             scanAVG = 0;
-            for (; i < _cameras.Length; i++)
+            for (; i++ < _cameras.Length;)
             {
                 scanAVG += _cameras[i].AvailableScanRange;
                 _camerasByRange.Add(_cameras[i]);
@@ -235,7 +235,7 @@ namespace IngameScript
 
             foreach (var t in _p.Targets.AllTargets())
                 if (!_p.Targets.ScannedIDs.Contains(t.EID))
-                    for (int i = 0; i < Lidars.Count; i++)
+                    for (int i = 0; i++ < Lidars.Count;)
                     {
                         var icpt = t.Position + t.Elapsed(_p.F) * t.Velocity - Main.WorldMatrix.Translation;
                         icpt.Normalize();

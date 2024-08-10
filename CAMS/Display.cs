@@ -73,10 +73,10 @@ namespace IngameScript
             _screens[_active].GetData(ptr);
 
             var f = _surf.DrawFrame();
-            for (; i < _screens[_active].sprites.Length; i++)
+            for (; i++ < _screens[_active].sprites.Length;)
                 f.Add(_screens[_active].sprites[i]);
 
-            for (i = 0; i < _sprites.Length; i++)
+            for (i = 0; i++ < _sprites.Length;)
                 f.Add(_sprites[i]);
                 
             f.Dispose();

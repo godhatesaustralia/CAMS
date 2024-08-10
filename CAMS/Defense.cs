@@ -27,12 +27,14 @@ namespace IngameScript
                                 break;
                         }
                     }
+                    
+                    if (temp != null) 
+                        tur.tEID = temp.EID; 
                 }
                 #endregion
-
-                for (int i = 0; i < MaxRotorTurretUpdates; i++)
-                    UpdateRR.Next(ref Turrets).UpdateTurret();
             }
+            for (int i = 0; i++ < MaxRotorTurretUpdates;)
+                UpdateRR.Next(ref Turrets).UpdateTurret();
         }
 
         void UpdateAMS()
@@ -63,7 +65,7 @@ namespace IngameScript
                         if (rk.Fire(out ekv))
                             TargetsKillDict.Add(t.EID, ekv);
                     }
-                    
+
                 Targets.Prioritized.Remove(t);
             }
 

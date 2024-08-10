@@ -63,7 +63,7 @@ namespace IngameScript
                 Gravity = Controller.GetNaturalGravity();
             }
 
-            if ((updateSource & Lib.u100) != 0)
+            if (F % 100 == 0)
                 Debug.RemoveDraw();
             #endregion
 
@@ -113,13 +113,13 @@ namespace IngameScript
                     m.Update();
 
             int n = Math.Min(AllTurrets.Count, _turCheckPtr + MaxAutoTgtChecks);
-            for (; _turCheckPtr < n; _turCheckPtr++)
+            for (; _turCheckPtr++ < n;)
                 GetTurretTgt(AllTurrets[_turCheckPtr]);
                 
             if (n == AllTurrets.Count)
                 _turCheckPtr = 0;
 
-            for (int i = 0; i < Artillery.Count; i++)
+            for (int i = 0; i++ < Artillery.Count;)
                 GetTurretTgt(Artillery[i], true);
 
             #endregion
