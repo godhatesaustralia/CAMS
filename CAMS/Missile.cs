@@ -339,7 +339,7 @@ namespace IngameScript
 					_blockPosCache = new Vector3I[l.Count];
 					_partsCache = new IMyTerminalBlock[l.Count];
 
-					for (int i = 0; i++ < l.Count;)
+					for (int i = 0; i < l.Count; i++)
 						_blockPosCache[i] = l[i];
 					// temporary. need to find a better way
 					// of switching behavior to do proper setup

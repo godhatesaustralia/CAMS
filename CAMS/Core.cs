@@ -89,6 +89,7 @@ namespace IngameScript
         public long F => _frame;
 
         #region scanner
+        long _nextIGCCheck = 0;
         Dictionary<string, LidarMast> Masts = new Dictionary<string, LidarMast>();
         List<IMyLargeTurretBase> 
             AllTurrets = new List<IMyLargeTurretBase>(), 

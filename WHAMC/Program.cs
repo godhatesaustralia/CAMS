@@ -366,10 +366,10 @@ namespace IngameScript
         {
             if ((updateSource & UpdateType.Script) != 0 && arg != "")
                 {
-                    if (arg.Substring(0, 4) != "setup")
+                    if (arg.Substring(0, 5) != "setup")
                         return;
                     long check;
-                    if (long.TryParse(arg.Remove(0, 4), out check))
+                    if (long.TryParse(arg.Remove(0, 5), out check))
                         {
                             _master = check != 0 ? check : _master;
                             _postSetupAction = PostSetupAction.Handshake;
@@ -384,7 +384,7 @@ namespace IngameScript
             }
             if (_shouldSendHandshake && _master != -1)
             {
-                IGC.SendUnicastMessage(_master, IgcTagInit, _missileNameTag);
+                IGC.SendUnicastMessage(_master, IgcTagInit, Me.EntityId);
             }
             else if ((updateSource & UpdateType.Update10) != 0)
             {
@@ -515,6 +515,7 @@ namespace IngameScript
                     // }
                     else if (message.Tag == IgcTagInit)
                     {
+                        Echo($"Boot complete.");
                         _shouldSendHandshake = false;
                     }
                 }
@@ -638,25 +639,9 @@ namespace IngameScript
 
             _broadcastListenersRegistered = true;
         }
-
-        void ArgumentHandling(string arg)
-        {
-            if (arg.ToLower().Equals("_fire"))
-            {
-                _postSetupAction = PostSetupAction.Fire;
-                InitiateSetup();
-            }
-            else if (arg.ToLower().Equals("setup") && !_shouldFire)
-            {
-                _postSetupAction = PostSetupAction.Handshake;
-                InitiateSetup();
-            }
-        }
         #endregion
 
         #region Setup
-        List<IMyBlockGroup> _allGroups = new List<IMyBlockGroup>();
-        List<IMyProgrammableBlock> _groupPrograms = new List<IMyProgrammableBlock>();
         IEnumerator<SetupStatus> _setupStateMachine;
         StringBuilder _setupBuilder = new StringBuilder();
 
@@ -747,8 +732,8 @@ namespace IngameScript
             if (mainframe != null)
             {
                 _master = mainframe.EntityId;
+              _setupBuilder.Append($"Found mainframe: {_mainframeName}");
             }
-
             else if (!reload)
             {
                 GridTerminalSystem.GetBlocksOfType<IMyProgrammableBlock>(null, b => { if (b.CustomName.Contains(_mainframeName)) _master = b.EntityId; return false; });

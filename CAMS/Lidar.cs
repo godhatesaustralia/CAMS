@@ -26,7 +26,7 @@ namespace IngameScript
             if (c != null)
             {
                 _cameras = new IMyCameraBlock[c.Count];
-                for (int j = 0; j++ < c.Count;)
+                for (int j = 0;  j < c.Count; j++)
                     _cameras[j] = c[j];
             }
             tag = t;
@@ -73,7 +73,7 @@ namespace IngameScript
 
             _camerasByRange.Clear();
             scanAVG = 0;
-            for (; i++ < _cameras.Length;)
+            for (; i < _cameras.Length; i++)
             {
                 scanAVG += _cameras[i].AvailableScanRange;
                 _camerasByRange.Add(_cameras[i]);
@@ -116,6 +116,7 @@ namespace IngameScript
         float _azR, _elR, _max = float.MaxValue, _min = float.MinValue; // rest angles - it's my code, i can name stuff as terribly as i want!!!!
         bool _stopSpin = false;
         public int[] Scans;
+    
 
         public LidarMast(Program p, IMyMotorStator azi)
         {
@@ -235,7 +236,7 @@ namespace IngameScript
 
             foreach (var t in _p.Targets.AllTargets())
                 if (!_p.Targets.ScannedIDs.Contains(t.EID))
-                    for (int i = 0; i++ < Lidars.Count;)
+                    for (int i = 0; i < Lidars.Count; i++)
                     {
                         var icpt = t.Position + t.Elapsed(_p.F) * t.Velocity - Main.WorldMatrix.Translation;
                         icpt.Normalize();

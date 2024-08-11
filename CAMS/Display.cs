@@ -73,10 +73,10 @@ namespace IngameScript
             _screens[_active].GetData(ptr);
 
             var f = _surf.DrawFrame();
-            for (; i++ < _screens[_active].sprites.Length;)
+            for (; i < _screens[_active].sprites.Length; i++)
                 f.Add(_screens[_active].sprites[i]);
 
-            for (i = 0; i++ < _sprites.Length;)
+            for (i = 0; i < _sprites.Length; i++)
                 f.Add(_sprites[i]);
                 
             f.Dispose();
@@ -89,6 +89,8 @@ namespace IngameScript
         public Func<int> pMax = null;
         Action<int, Screen> Data = null; 
         public Action<int> Select = null, Back = null;
+        int _sel;
+
         protected readonly float graphLength;
         public readonly int MinTicks;
         public Screen(Func<int> m, MySprite[] s, Action<int, Screen> d = null, float g = 0, int t = 0)

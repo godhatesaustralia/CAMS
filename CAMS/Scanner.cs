@@ -4,23 +4,24 @@ namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        string MastScreen(ref Screen s, int ptr)
+        void MastScroll(int p, Screen s)
         {
             string grps = ""; int i = 0;
-            var l = Masts[MastNames[ptr]];
-            for (; i++ < l.Lidars.Count;)
+            var l = Masts[MastNames[p]];
+            for (; i < l.Lidars.Count; i++)
             {
                 var scan = l.Lidars[i].scanAVG != 0 ? $"{l.Lidars[i].scanAVG:G1}M\n" : "READY\n";
-                grps += $"SCAN {l.Lidars[i].tag[1]} " + scan;
+                grps += $"{l.Lidars[i].tag[1]} " + scan;
             }
 
-            grps += $"TARGETS {Targets.Count:00} CTRL " + (!l.Manual ? "OFF" : "MAN");
+            grps += $">{(!l.Manual ? "DETECT" : "MANUAL")}  TK {Targets.Count:00}";
+            s.SetData(MastNames[p], 0);
             s.SetData(grps, 1);
-            
-            for (i = 0; i++ < l.Lidars.Count;)
-                s.SetColor(l.Lidars[i].Scans > 0 ? PMY : SDY, i + 2);
+            s.SetColor(p == 0 ? SDY : PMY, 6);
+            s.SetColor(p == MastNames.Length - 1 ? SDY : PMY, 7);
 
-            return l.Name;
+            for (i = 0; i < l.Lidars.Count; i++)
+                s.SetColor(l.Lidars[i].Scans > 0 ? PMY : SDY, i + 2);
         }
 
         void GetTurretTgt(IMyLargeTurretBase t, bool arty = false)
@@ -41,7 +42,16 @@ namespace IngameScript
 
         void HandleIGC()
         {
-            
+            if (ReceiveIGCTicks > 0 && F >= _nextIGCCheck)
+            {
+                while (_FLT.HasPendingMessage)
+                {
+                    var m = _FLT.AcceptMessage();
+
+                }
+                _nextIGCCheck = F + ReceiveIGCTicks;
+            }
+
         }
     }
 }

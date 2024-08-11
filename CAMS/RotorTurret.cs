@@ -117,7 +117,7 @@ namespace IngameScript
                     {
                         var ary = sct.Split('\n');
                         _limits = new SectorCheck[ary.Length];
-                        for (int i = 0; i++ < ary.Length;)
+                        for (int i = 0; i < ary.Length; i++)
                             try
                             {
                                 _limits[i] = new SectorCheck(ary[i].Trim('|'));
@@ -130,13 +130,10 @@ namespace IngameScript
 
                     var list = new List<IMyUserControllableGun>();
                     m.Terminal.GetBlocksOfType(list, b => b.CubeGrid == _elevation.CubeGrid || b.CustomName.Contains(Name));
-                    _weapons = new Weapons(p.Int(h, "salvo", -1), list);
+                    _weapons = new Weapons(list, p.Int(h, "salvo"), p.Int(h, "offset"));
 
                     double a, e;
-                    AdjStatorAngles(out a, out e);
-                    // double a = _azimuth.Angle, e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
-                    // Lim2PiLite(ref a);
-
+                    GetStatorAngles(out a, out e);
                     Status = MoveToRest(a, e);
                 }
                 else throw new Exception($"\nFailed to create turret using azimuth rotor {_azimuth.CustomName}.");
@@ -202,7 +199,7 @@ namespace IngameScript
         }
 
         // makes azimuth BEHAVE!!!!
-        protected void AdjStatorAngles(out double a, out double e)
+        protected void GetStatorAngles(out double a, out double e)
         {
             a = _azimuth.Angle;
             if (a < -Lib.PI)
@@ -210,19 +207,6 @@ namespace IngameScript
             else if (a > Lib.PI)
                 a -= Lib.PI2X;
             e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
-        }
-        protected void Lim2PiLite(ref double a)
-        {
-            if (a < 0)
-            {
-                if (a <= -Lib.PI2X) a += MathHelperD.FourPi;
-                else a += Lib.PI2X;
-            }
-            else if (a >= Lib.PI)
-            {
-                if (a >= MathHelperD.FourPi) a -= MathHelperD.FourPi;
-                else a -= Lib.PI2X;
-            }
         }
 
         protected AimState MoveToRest(double aCur, double eCur, bool reset = false)
@@ -256,8 +240,6 @@ namespace IngameScript
             return AimState.Moving;
         }
 
-        // TODO: There is some kind of issue here wrt angle checks, possibly for elevation?
-        //       Or could be azimuth. Main railgun turrets only fire to the right (for top) or to the left (for bottom).
         protected AimState AimAtTarget(ref MatrixD azm, ref Vector3D aim, double aCur, double eCur)
         {
             if (Status == AimState.Blocked)
@@ -287,7 +269,7 @@ namespace IngameScript
                 return AimState.Blocked;
 
             // check whether these are prohibited angleS
-            for (int i = 0; i++ < (_limits?.Length ?? 0);)
+            for (int i = 0; i < (_limits?.Length ?? 0); i++)
                 if (_limits[i].aMn < aTgt && _limits[i].aMx > aTgt && _limits[i].eMn < eTgt && _limits[i].eMx > eTgt)
                 {
                     _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
@@ -318,9 +300,7 @@ namespace IngameScript
         public virtual void UpdateTurret()
         {
             double a, e;
-            AdjStatorAngles(out a, out e);
-            // double a = _azimuth.Angle, e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
-            // Lim2PiLite(ref a);
+            GetStatorAngles(out a, out e);
 
             if (_p.Targets.Count != 0)
             {
@@ -394,9 +374,7 @@ namespace IngameScript
         public override void UpdateTurret()
         {
             double a, e;
-            AdjStatorAngles(out a, out e);
-            // double a = _azimuth.Angle, e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
-            // Lim2PiLite(ref a);
+            GetStatorAngles(out a, out e);
 
             if (_p.Targets.Count != 0)
             {

@@ -22,6 +22,7 @@ namespace IngameScript
             ARY = "ARY",
             SPR = "SPRITES",
             TR = "turrets",
+            LN = "launchers",
             TG = "targets",
             MS = "masts",
             SN = "scanner",

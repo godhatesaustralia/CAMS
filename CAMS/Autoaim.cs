@@ -160,7 +160,7 @@ namespace IngameScript
                     {
                         var l = new List<IMyUserControllableGun>();
                         grp.GetBlocksOfType(l);
-                        _guns = new Weapons(p.Int(Lib.H, "aimSalvoTicks"), l);
+                        _guns = new Weapons(l, p.Int(Lib.H, "aimSalvoTicks"));
                     }
                 }
             //intialize gyros 

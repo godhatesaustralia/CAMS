@@ -6,7 +6,7 @@ namespace IngameScript
 {
     public interface IWeapons
     {
-        long Offset { get; }
+        bool SwitchOffset { get; }
         Vector3D AimPos { get; }
         void Fire(long f);
         void Hold();
@@ -15,13 +15,11 @@ namespace IngameScript
     public class Weapons : IWeapons
     {
         List<IMyUserControllableGun> _guns = new List<IMyUserControllableGun>();
-        long
-            salvoTickCounter = 0,
-            offsetTicks = 0;
-
-        public long Offset => offsetTicks;
-        readonly long salvoTicks = 0; // 0 or lower means no salvoing
+        readonly int salvoTicks = 0 ,offsetTicks; // 0 or lower means no salvoing
         int ptr = -1;
+        long lastF = 0, salvoCounter = 0,offsetCounter = 0;
+               
+        public bool SwitchOffset => offsetCounter <= 0;
         bool Shooting = false;
 
         public Vector3D AimPos
@@ -37,10 +35,11 @@ namespace IngameScript
             }
         }
 
-        public Weapons(int s, List<IMyUserControllableGun> g)
+        public Weapons(List<IMyUserControllableGun> g, int s = 0, int o = -1)
         {
-            salvoTicks = s;
             _guns = g;
+            salvoTicks = s;
+            offsetTicks = o;
             Hold();
         }
 
@@ -49,11 +48,12 @@ namespace IngameScript
             if (!Shooting)
             {
                 Shooting = true;
-                offsetTicks = 20;
+                offsetCounter = offsetTicks;
+                lastF = f - 1;
             }
 
-            salvoTickCounter--;
-            offsetTicks--;
+            salvoCounter -= f - lastF;
+            offsetCounter -= f - lastF;
 
             if (_guns.Count == 0) return;
             while (_guns[0].Closed)
@@ -64,23 +64,27 @@ namespace IngameScript
 
             if (salvoTicks <= 0)
             {
-                for (int i = 0; i++< _guns.Count;)
+                for (int i = 0; i < _guns.Count; i++)
                     _guns[i].Shoot = true;
             }
-            else if (salvoTickCounter <= 0)
+            else if (salvoCounter <= 0)
             {
                 _guns[Lib.Next(ref ptr, _guns.Count)].Shoot = true;
-                salvoTickCounter = salvoTicks;
+                salvoCounter = salvoTicks;
             }
+            if (offsetCounter < 0)
+                offsetCounter = offsetTicks;
+            
+            lastF = f;
         }
 
         public void Hold()
         {
             if (!Shooting)
                 return;
-            for (int i = 0; i++ < _guns.Count;)
+            for (int i = 0; i < _guns.Count; i++)
                 _guns[i].Shoot = false;
-            offsetTicks = salvoTickCounter = 0;
+            offsetCounter = salvoCounter = 0;
             Shooting = false;
         }
     }
@@ -89,12 +93,10 @@ namespace IngameScript
     {
         WCAPI _wapi;
         List<IMyTerminalBlock> _guns = new List<IMyTerminalBlock>();
-        long
-               salvoTickCounter = 0,
-               offsetTicks = 0;
-        public long Offset => offsetTicks;
-        readonly long salvoTicks = 0; // 0 or lower means no salvoing
+        readonly int salvoTicks, offsetTicks; // 0 or lower means no salvoing
         int ptr = -1;
+        long lastF = 0, salvoCounter = 0,offsetCounter = 0;
+        public bool SwitchOffset => offsetCounter <= 0;
         bool Shooting = false;
 
         public Vector3D AimPos
@@ -110,11 +112,12 @@ namespace IngameScript
             }
         }
 
-        public CoreWeapons(int s, List<IMyTerminalBlock> g, WCAPI w)
+        public CoreWeapons(List<IMyTerminalBlock> g, WCAPI w, int s = 0, int o = 0)
         {
-            salvoTicks = s;
             _guns = g;
             _wapi = w;
+            salvoTicks = s;
+            offsetTicks = o;
         }
 
         public void Fire(long f)
@@ -122,11 +125,12 @@ namespace IngameScript
             if (!Shooting)
             {
                 Shooting = true;
-                offsetTicks = 20;
+                offsetCounter = offsetTicks;
+                lastF = f - 1;
             }
 
-            salvoTickCounter--;
-            offsetTicks--;
+            salvoCounter -= f - lastF;
+            offsetCounter -= f - lastF;
 
             if (_guns.Count == 0) return;
             while (_guns[0].Closed)
@@ -135,35 +139,29 @@ namespace IngameScript
                 if (_guns.Count == 0) return;
             }
 
-            if (offsetTicks > 0)
+            if (salvoTicks <= 0)
             {
-                if (salvoTicks <= 0)
-                {
-                    for (int i = 0; i++ < _guns.Count;)
-                        _wapi.Shoot(_guns[i], true, false);
-                }
-                else
-                {
-                    if (salvoTickCounter < 0)
-                    {
-                        _wapi.Shoot(_guns[Lib.Next(ref ptr, _guns.Count)], true, false);
-                        salvoTickCounter = salvoTicks;
-                    }
-                }
+                for (int i = 0; i < _guns.Count; i++)
+                    _wapi.Shoot(_guns[i], true, false);
             }
-            else
-                for (int i = 0; i++ < _guns.Count;)
-                    _wapi.Shoot(_guns[i], false, false);
+            else if (salvoCounter <= 0)
+            {
+                _wapi.Shoot(_guns[Lib.Next(ref ptr, _guns.Count)], true, false);
+                salvoCounter = salvoTicks;
+            }
+            if (offsetCounter < 0)
+                offsetCounter = offsetTicks;
 
+            lastF = f;
         }
 
         public void Hold()
         {
             if (!Shooting)
                 return;
-            for (int i = 0; i++ < _guns.Count;)
+            for (int i = 0; i < _guns.Count; i++)
                 _wapi.Shoot(_guns[i], false, false);
-            offsetTicks = -1;
+            salvoCounter = offsetCounter = 0;
             Shooting = false;
         }
     }

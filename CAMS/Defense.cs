@@ -1,9 +1,42 @@
-﻿using Sandbox.ModAPI.Ingame;
+﻿using System;
+using System.Security.Cryptography;
+using Sandbox.ModAPI.Ingame;
 
 namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
+        void LauncherScroll(int p, Screen s)
+        {
+            var ln = AMSLaunchers[p];
+            s.SetData(ln.Name, 0);
+            string r = ln.Report[0];
+            for (int i = 1; i < 4; i++)
+                r += $"\n{ln.Report[i]}";
+            s.SetData(r, 1);
+            s.SetData(ln.Status.ToString().ToUpper(), 2);
+            s.SetColor(p == 0 ? SDY : PMY, 6);
+            s.SetColor(p == MastNames.Length - 1 ? SDY : PMY, 7);
+        }
+
+        void TurretScroll(int p, Screen s)
+        {
+            var turret = Turrets[TurretNames[p]];
+            string n = turret.Name, st = turret.Status.ToString().ToUpper();
+            int ct = p >= 9 ? 12 : 13;
+            ct -= turret.Name.Length;
+
+            for (; ct-- > 0;)
+                n += " ";
+            ct = 17 - st.Length;
+            for (; ct-- > 8;)
+                st += " ";
+            st += $"TGT {turret.TGT}";
+            s.SetData(n + $"{p + 1}/{TurretCount}", 0);
+            s.SetData(turret.AZ + "\n" + turret.EL, 2);
+            s.SetData(st, 3);
+        }
+
         void UpdateRotorTurrets()
         {
             if (Targets.Count > 0)
@@ -14,7 +47,7 @@ namespace IngameScript
                     RotorTurret tur;
                     Target temp = null;
                     GlobalPriorityUpdateSwitch = AssignRR.Next(ref Turrets, out tur);
-                    if (tur.tEID != -1 && tur.CanTarget(tur.tEID))
+                    if (tur.tEID != -1 && tur.CanTarget(tur.tEID) && (tur.Status != AimState.Blocked || tur.Status != AimState.Rest))
                         return;
 
                     foreach (var tgt in Targets.Prioritized)
@@ -27,9 +60,9 @@ namespace IngameScript
                                 break;
                         }
                     }
-                    
-                    if (temp != null) 
-                        tur.tEID = temp.EID; 
+
+                    if (temp != null)
+                        tur.tEID = temp.EID;
                 }
                 #endregion
             }
@@ -39,12 +72,15 @@ namespace IngameScript
 
         void UpdateAMS()
         {
-            while (Datalink.MissileReady.HasPendingMessage)
+            while (IGC.UnicastListener.HasPendingMessage)
             {
-                var m = Datalink.MissileReady.AcceptMessage();
+                var m = IGC.UnicastListener.AcceptMessage();
                 if (m.Data is long)
+                {
                     foreach (var rk in AMSLaunchers)
                         if (rk.CheckHandshake((long)m.Data)) break;
+                }
+
             }
 
             foreach (var rk in AMSLaunchers)

@@ -26,7 +26,6 @@ namespace IngameScript
         public MatrixD Matrix;
         public Vector3D Position, Velocity, LastVelocity, Accel;
         public readonly MyDetectedEntityType Type;
-        public readonly MyRelationsBetweenPlayerAndBlock IFF; // wham
         public readonly string eIDString, eIDTag;
         public bool PriorityKill, Engaged;
         #endregion
@@ -38,9 +37,7 @@ namespace IngameScript
             eIDTag = EID.ToString("X").Remove(0, 11);
             Source = id;
             Type = i.Type;
-            IFF = i.Relationship;
             Position = i.Position;
-            // var p = i.HitPosition;
             Matrix = i.Orientation;
             Velocity = i.Velocity;
             Radius = i.BoundingBox.Size.Length();
@@ -50,6 +47,8 @@ namespace IngameScript
         public Target(MyTuple<MyTuple<long, long, long, int>, MyTuple<Vector3D, Vector3D, MatrixD, double>> data)
         {
             EID = data.Item1.Item1;
+            eIDString = EID.ToString("X").Remove(0, 5);
+            eIDTag = EID.ToString("X").Remove(0, 11);
             Source = data.Item1.Item2;
             Frame = data.Item1.Item3;
             Type = (MyDetectedEntityType)data.Item1.Item4;
@@ -156,33 +155,32 @@ namespace IngameScript
                 new MySprite(Program.SHP, Lib.SQH, rdrCNR, Lib.V2(61.6f, 61.6f), m.PMY)
             };
 
-            if (m.CtrlScreens.Remove(Lib.TG))
-                m.CtrlScreens.Add(Lib.TG, new Screen(
-                  () => Count, new MySprite[]
+            m.CtrlScreens[Lib.TG] = new Screen(
+              () => Count, new MySprite[]
+              {
+                new MySprite(Program.TXT, "", Lib.V2(24, 112), null, m.PMY, Lib.VB, 0, 1.5f),
+                new MySprite(Program.TXT, "", Lib.V2(24, 192), null, m.PMY, Lib.VB, 0, 0.8195f),
+              },
+              (p, s) =>
+              {
+                  if (Count == 0)
                   {
-                    new MySprite(Program.TXT, "", Lib.V2(24, 112), null, m.PMY, Lib.VB, 0, 1.5f),
-                    new MySprite(Program.TXT, "", Lib.V2(24, 192), null, m.PMY, Lib.VB, 0, 0.8195f),
-                  },
-                  (p, s) =>
-                  {
-                      if (Count == 0)
-                      {
-                          s.SetData("NO TARGET", 0);
-                          s.SetData("SWITCH TO MASTS SCR\nFOR TGT ACQUISITION", 1);
-                          return;
-                      }
+                      s.SetData("NO TARGET", 0);
+                      s.SetData("SWITCH TO MASTS SCR\nFOR TGT ACQUISITION", 1);
+                      return;
+                  }
 
-                      var ty = "";
-                      var t = _targets[_iEIDs[p]];
-                      s.SetData($"{t.eIDString}", 0);
+                  var ty = "";
+                  var t = _targets[_iEIDs[p]];
+                  s.SetData($"{t.eIDString}", 0);
 
-                      if ((int)t.Type == 3)
-                          ty = "LARGE GRID";
-                      else if ((int)t.Type == 2)
-                          ty = "SMALL GRID";
+                  if ((int)t.Type == 3)
+                      ty = "LARGE GRID";
+                  else if ((int)t.Type == 2)
+                      ty = "SMALL GRID";
 
-                      s.SetData($"DIST {t.Distance / 1000:F2} KM\nASPD {t.Velocity.Length():F0} M/S\nACCL {t.Accel.Length():F0} M/S\nSIZE {ty}\nNO TGT SELECTED", 1);
-                  }));
+                  s.SetData($"DIST {t.Distance / 1000:F2} KM\nASPD {t.Velocity.Length():F0} M/S\nACCL {t.Accel.Length():F0} M/S\nSIZE {ty}\nNO TGT SELECTED", 1);
+              });
 
         }
 
@@ -197,7 +195,7 @@ namespace IngameScript
             }
 
             int i = 0;
-            for (; i++ < _rdrData.Length;)
+            for (; i < _rdrData.Length; i++)
                 _rdrData[i] = "";
 
             // todo: fix
@@ -216,11 +214,11 @@ namespace IngameScript
             RadarText(p, false);
 
             _rdrStatic[4].Data = _rdrData[0];
-            for (i = 1; i++ < _rdrData.Length;)
+            for (i = 1; i < _rdrData.Length; i++)
                 _rdrStatic[4].Data += $"\n{_rdrData[i]}";
 
             _rdrBuffer.Clear();
-            for (i = 0; i++ < Count;)
+            for (i = 0; i < Count; i++)
             {
                 var mat = _p.Controller.WorldMatrix;
                 var rPos = _p.Center - _targets[_iEIDs[i]].Position;
@@ -229,7 +227,7 @@ namespace IngameScript
 
             s.sprites = null;
             s.sprites = new MySprite[_rdrBuffer.Count + _rdrStatic.Length];
-            for (i = 0; i++ < s.sprites.Length;)
+            for (i = 0; i < s.sprites.Length; i++)
             {
                 if (i < _rdrStatic.Length)
                     s.sprites[i] = _rdrStatic[i];
@@ -326,7 +324,7 @@ namespace IngameScript
                 _iEIDs.Add(id);
 
                 SetPriority(_targets[id]);
-                
+
                 return ScanResult.Added;
             }
         }
@@ -388,7 +386,7 @@ namespace IngameScript
                 if (Count == 0)
                     return;
 
-                for (int i = Count - 1; i-- >= 0;)
+                for (int i = Count - 1; i >= 0; i--)
                     if (_targets[_rmvEIDs[i]].Elapsed(_p.F) >= MAX_LIFETIME)
                     {
                         ScannedIDs.Remove(_rmvEIDs[i]);
@@ -405,7 +403,7 @@ namespace IngameScript
                 {
                     Prioritized.Add(t);
                 }
-                
+
                 _nextPrioritySortF = _p.F + _p.PriorityCheckTicks;
                 _p.GlobalPriorityUpdateSwitch = false;
             }

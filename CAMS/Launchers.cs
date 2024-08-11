@@ -11,9 +11,7 @@ namespace IngameScript
     {
         public static long ID;
         public static IMyIntergridCommunicationSystem IGC;
-        public static IMyBroadcastListener
-            MissileReady,
-            MissileSplash;
+        public static IMyBroadcastListener MissileSplash;
         static IMyRadioAntenna[] _broadcasters;
         public static string
             IgcParams = "IGC_MSL_PAR_MSG",
@@ -27,7 +25,6 @@ namespace IngameScript
         {
             ID = p.Me.EntityId;
             IGC = p.IGC;
-            MissileReady = p.IGC.RegisterBroadcastListener(IgcInit);
             MissileSplash = p.IGC.RegisterBroadcastListener(IgcSplash);
             var ant = new List<IMyRadioAntenna>();
             using (var q = new iniWrap())
@@ -149,6 +146,9 @@ namespace IngameScript
 
     public class ArmLauncherWHAM
     {
+        public string Name;
+        public readonly string[] Report = new string[] { "", "", "", "" };
+        int _rPtr = 0;
         public int Total = 0;
         public long NextUpdateF = 0;
         public LauncherState Status = 0;
@@ -166,6 +166,7 @@ namespace IngameScript
             ACTIVE_T = 5,
             WAIT_T = 20,
             SEARCH_T = 40;
+        const float TOL = 0.01f;
         IMyGridTerminalSystem _gts;
 
         /// <summary>
@@ -211,11 +212,12 @@ namespace IngameScript
                     var h = Lib.H;
                     var t = q.String(h, "tags", "");
                     var rad = (float)(Lib.PI / 180);
+                    Name = q.String(h, "name", _arm.CustomName);
                     if (t != "")
                     {
                         var tags = t.Split('\n');
                         if (tags != null)
-                            for (; Total++ < tags.Length;)
+                            for (; Total < tags.Length;)
                             {
                                 tags[Total].Trim('|');
                                 var angle = q.Float(h, "weldAngle" + tags[Total], float.MinValue);
@@ -228,19 +230,22 @@ namespace IngameScript
                                     var n = q.String(h, "computer" + tags[Total], tags[Total] + " Computer WHAM");
                                     var cptr = (IMyProgrammableBlock)_gts.GetBlockWithName(n);
                                     eKVsReload.Add(new EKV(tags[Total], n, cptr, merge, angle));
-                                    if (cptr != null) c++;
+                                    if (cptr != null)
+                                    {
+                                        cptr.Enabled = false;
+                                        c++;
+                                    }
                                 }
+                                Total++;
                             }
-                        Total++;
                     }
-
                     var w = q.String(h, "welder", "");
                     _welder = _gts.GetBlockWithName(w) as IMyShipWelder;
                     if (_welder == null)
                         return false;
 
                     _welder.Enabled = false;
-                    _fireAngle = _tgtAngle = q.Float(h, "fireAngle", 60) * rad;
+                    _fireAngle = q.Float(h, "fireAngle", 60) * rad;
                     _RPM = q.Float(h, "rpm", 5);
 
                     _gts.GetBlocksOfType<IMyProjector>(null, b =>
@@ -253,8 +258,13 @@ namespace IngameScript
                         return false;
                     });
                 }
+
             if (Total == c)
+            {
                 Status = LauncherState.Boot;
+                _tgtAngle = _fireAngle;
+            }
+            AddReport("RACK INIT");
             return _welder != null && _proj != null && eKVsReload.Count > 0;
         }
 
@@ -276,7 +286,7 @@ namespace IngameScript
                     Datalink.FireMissile(id);
                     e.Computer = null;
                     eKVsReload.Add(e);
-
+                    AddReport($"FIRED {eKVsReload.Count}/{Total}");
                     if (eKVsLaunch.Count == 0)
                         Status = LauncherState.Empty;
                     return true;
@@ -285,82 +295,102 @@ namespace IngameScript
             return false;
         }
 
+
         public int Update()
         {
             if (Status == LauncherState.Ready || Status == LauncherState.ReloadWait)
                 return WAIT_T;
 
             var e = eKVsReload.Min;
-            if (Status == LauncherState.ReloadSearch)
+            switch (Status)
             {
-                e.Computer = (IMyProgrammableBlock)_gts.GetBlockWithName(e.ComputerName);
-                if (!e.Computer?.IsRunning ?? false && e.Computer.TryRun($"setup{Datalink.ID}"))
-                    Status = LauncherState.ReloadWait;
-                else return SEARCH_T;
-
-                return WAIT_T;
-            }
-            else if (Status == LauncherState.Moving)
-            {
-                if (Math.Abs(_arm.Angle - _tgtAngle) < 0.01)
+                case LauncherState.ReloadSearch:
                 {
-                    _arm.TargetVelocityRPM = 0;
-                    if (eKVsReload.Count != 0)
-                    {
-                        e.Hardpoint.Enabled = true;
-                        _welder.Enabled = true;
-                        Status = LauncherState.ReloadSearch;
-                    }
-                    else if (_tgtAngle == _fireAngle)
-                    {
-                        _proj.Enabled = false;
-                        Status = LauncherState.Ready;
-                    }
-                    return SEARCH_T;
+                    e.Computer = (IMyProgrammableBlock)_gts.GetBlockWithName(e.ComputerName);
+                    if (!e.Computer?.IsRunning ?? false && e.Computer.TryRun($"setup{Datalink.ID}"))
+                        Status = LauncherState.ReloadWait;
+                    else return SEARCH_T;
+
+                    return WAIT_T;
                 }
-                return ACTIVE_T;
-            }
-            else if (Status == LauncherState.Empty)
-            {
-                foreach (var ekv in eKVsReload)
-                    ekv.Hardpoint.Enabled = false;
-
-                e.Hardpoint.Enabled = _proj.Enabled = true;
-                _tgtAngle = e.Reload;
-
-                StartRotation();
-            }
-            else if (Status == LauncherState.Boot)
-            {
-                e.Computer = (IMyProgrammableBlock)_gts.GetBlockWithName(e.ComputerName);
-                if (_arm.Angle != _tgtAngle)
+                case LauncherState.Moving:
                 {
+                    if (Math.Abs(_arm.Angle - _tgtAngle) < TOL)
+                    {
+                        _arm.TargetVelocityRPM = 0;
+                        if (eKVsReload.Count != 0)
+                        {
+                             e.Hardpoint.Enabled = true;
+                            _welder.Enabled = true;
+                            AddReport("AT TARGET");
+                            Status = LauncherState.ReloadSearch;
+                        }
+                        else if (_tgtAngle == _fireAngle)
+                        {
+                            _proj.Enabled = false;
+                            AddReport("ALL READY");
+                            Status = LauncherState.Ready;
+                        }
+                        return SEARCH_T;
+                    }
+                    return 1;
+                }
+                default:
+                case LauncherState.Empty:
+                {
+                    foreach (var ekv in eKVsReload)
+                        ekv.Hardpoint.Enabled = false;
+
+                    e.Hardpoint.Enabled = _proj.Enabled = true;
+                    _tgtAngle = e.Reload;
+                    AddReport("ALL EMPTY");
                     StartRotation();
-
-                    Status = LauncherState.Boot;
+                    return 1;
                 }
-                if (!e.Computer.IsRunning)
-                    e.Computer?.TryRun($"setup{Datalink.ID}");
+                case LauncherState.Boot:
+                {
+                    e.Computer = (IMyProgrammableBlock)_gts.GetBlockWithName(e.ComputerName);
+
+                    if (Math.Abs(_arm.Angle - _tgtAngle) > TOL)
+                    {
+                        StartRotation();
+                        Status = LauncherState.Boot;
+                    }
+                    if (e.Computer != null && !e.Computer.Enabled)
+                    {
+                        e.Computer.Enabled = true;
+                        AddReport("RUN SETUP");
+                        e.Computer.TryRun($"setup{Datalink.ID}");
+                    }
+                    return ACTIVE_T;
+                }
             }
-            return ACTIVE_T;
         }
+
+        void AddReport(string s)
+        {
+            var now = DateTime.Now.TimeOfDay;
+            Report[Lib.Next(ref _rPtr, Report.Length)] = $"{now.Hours:00}:{now.Minutes:00}:{now.Seconds:00} " + s;
+        }
+
 
         void StartRotation()
         {
             var adj = _arm.Angle;
 
-            if (adj < -MathHelper.PiOver2)
-                adj += MathHelper.Pi;
-            else if (adj > MathHelper.PiOver2)
-                adj -= MathHelper.Pi;
+            // if (adj < -Lib.HALF_PI)
+            //     adj += MathHelper.Pi;
+            // else if (adj > Lib.HALF_PI)
+            //     adj -= MathHelper.Pi;
 
             var next = adj - _tgtAngle;
-            if (next < 0)
+
+            if (next > 0)
             {
                 _arm.LowerLimitRad = _tgtAngle;
                 _arm.TargetVelocityRPM = -_RPM;
             }
-            else if (next > 0)
+            else if (next < 0)
             {
                 _arm.UpperLimitRad = _tgtAngle;
                 _arm.TargetVelocityRPM = _RPM;
@@ -388,11 +418,16 @@ namespace IngameScript
                 Datalink.IGC.SendUnicastMessage(id, Datalink.IgcInit, "");
                 eKVsReload.Remove(e);
                 eKVsLaunch.Add(e);
-                
+                AddReport($"LOGON {eKVsLaunch.Count}/{Total}");
                 // if reload set is now empty, go to firing position
                 // otherwise go to next reload position
-                _tgtAngle = eKVsReload.Count == 0 ? _fireAngle : eKVsReload.Min.Reload;
-                StartRotation();
+                if (Status != LauncherState.Boot)
+                {
+                    _tgtAngle = eKVsReload.Count == 0 ? _fireAngle : eKVsReload.Min.Reload;
+                    StartRotation();
+                }
+                else if (eKVsReload.Count == 0)
+                    Status = LauncherState.Ready;
             }
             return ok;
         }
@@ -406,7 +441,7 @@ namespace IngameScript
         IMyShipWelder[] _welders;
         IMyGridTerminalSystem _gts;
         SortedSet<MSL> reload = new SortedSet<MSL>();
-        
+
         public StaticLauncherWHAM(Program p)
         {
             _gts = p.GridTerminalSystem;
@@ -425,22 +460,23 @@ namespace IngameScript
                     {
                         var tags = t.Split('\n');
                         if (tags != null)
-                            for (; Total++ < tags.Length;)
+                            for (; Total < tags.Length;)
                             {
                                 tags[Total].Trim('|');
-                                  var merge = (IMyShipMergeBlock)_gts.GetBlockWithName(q.String(h, "merge" + tags[Total]));
+                                var merge = (IMyShipMergeBlock)_gts.GetBlockWithName(q.String(h, "merge" + tags[Total]));
                                 if (merge != null)
                                 {
                                     var n = q.String(h, "computer" + tags[Total], tags[Total] + " Computer WHAM");
                                     var cptr = (IMyProgrammableBlock)_gts.GetBlockWithName(n);
-                                    
+
                                 }
+                                Total++;
                             }
-                        Total++;
+
                         return true;
                     }
                 }
-                return false;
+            return false;
         }
 
     }

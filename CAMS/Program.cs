@@ -113,13 +113,13 @@ namespace IngameScript
                     m.Update();
 
             int n = Math.Min(AllTurrets.Count, _turCheckPtr + MaxAutoTgtChecks);
-            for (; _turCheckPtr++ < n;)
+            for (; _turCheckPtr < n; _turCheckPtr++)
                 GetTurretTgt(AllTurrets[_turCheckPtr]);
                 
             if (n == AllTurrets.Count)
                 _turCheckPtr = 0;
 
-            for (int i = 0; i++ < Artillery.Count;)
+            for (int i = 0; i < Artillery.Count; i++)
                 GetTurretTgt(Artillery[i], true);
 
             #endregion

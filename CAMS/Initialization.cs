@@ -14,11 +14,13 @@ namespace IngameScript
         public const string H = "CAMS", IgcFleet = "[FLT-CA]", IgcTgt = "[FLT-TG]";
         public Color PMY, SDY, BKG;
         public const SpriteType TXT = SpriteType.TEXT, SHP = SpriteType.TEXTURE, CLP = SpriteType.CLIP_RECT;
-        public bool Based, ReceiveIGC, SendIGC;
+        public bool Based;
         public double
             PDSpray,
             ScanDistLimit;
         public int
+            SendIGCTicks,
+            ReceiveIGCTicks,
             MaxAutoTgtChecks,
             MaxScansMasts,
             MaxScansPDLR,
@@ -59,8 +61,8 @@ namespace IngameScript
                     RackMainGroup = p.String(H, "msl" + grp, "MSL" + def);
 
                     Based = p.Bool(H, "vcr");
-                    ReceiveIGC = p.Bool(H, "useNetworkedTargeting", false);
-                    SendIGC = p.Bool(H, "transmitTargetData", false);
+                    ReceiveIGCTicks = p.Int(H, "igcCheckInterval", 0);
+                    SendIGCTicks = p.Int(H, "igcTransmitInterval", 0);
                     PDSpray = p.Double(H, "spray", -1);
                     ScanDistLimit = p.Double(H, "maxRaycast", 8E3);
                     MaxScansMasts = p.Int(H, "maxScansMast", 1);
@@ -101,7 +103,7 @@ namespace IngameScript
                     }
                     else if (b is IMyTextSurfaceProvider)
                     {
-                        d = new Display(this, b, CtrlScreens.First().Key, Based);
+                        d = new Display(this, b, Lib.LN, Based);
                         Displays.Add(d.Name, d);
                     }
                 }
@@ -246,24 +248,34 @@ namespace IngameScript
         {
             #region masts screen
             Vector2
-                sqvpos = Lib.V2(356, 222), // standard rect pos
-                sqvsz = Lib.V2(128, 28), // standard rect size
-                sqoff = Lib.V2(0, 40); // standard rect offset
+                sqvpos = Lib.V2(206, 204), // standard rect pos
+                sqvsz = Lib.V2(88, 24), // standard rect size
+                sqoff = Lib.V2(0, 32); // standard rect offset
 
             var al = Lib.LFT;
+            var cnr = TextAlignment.CENTER;
 
             CtrlScreens.Add(Lib.MS, new Screen
             (
                 () => MastNames.Length, 
-                new MySprite[]{
-                    new MySprite(TXT, "", Lib.V2(24, 112), null, PMY, Lib.VB, 0, 1.75f),// 1. TUR NAME
-                    new MySprite(TXT, "", Lib.V2(24, 200), null, PMY, Lib.VB, 0, 0.8195f),
-                    new MySprite(SHP, Lib.SQS, sqvpos, sqvsz, PMY, "", al),
-                    new MySprite(SHP, Lib.SQS, sqvpos + sqoff, sqvsz, PMY, "", al),
-                    new MySprite(SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, PMY, "", al),
-                    new MySprite(SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, PMY, "", al),
+                new MySprite[]
+                {
+                    new MySprite(TXT, "", Lib.V2(20, 108), null, PMY, Lib.VB, 0, 1.3275f),// 0. TUR NAME
+                    new MySprite(TXT, "", Lib.V2(20, 184), null, PMY, Lib.VB, 0, 0.6785f), // 1
+                    new MySprite(SHP, Lib.SQS, sqvpos, sqvsz, PMY, "", al), // 2
+                    new MySprite(SHP, Lib.SQS, sqvpos + sqoff, sqvsz, PMY, "", al), // 3
+                    new MySprite(SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, PMY, "", al), // 4
+                    new MySprite(SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, PMY, "", al), // 5
+                    new MySprite(SHP, Lib.TRI, Lib.V2(252, 126), Lib.V2(48, 28), PMY), // 6
+                    new MySprite(SHP, Lib.TRI, Lib.V2(252, 162), Lib.V2(48, 28), PMY, null, cnr, MathHelper.Pi), // 7
+                    new MySprite(SHP, Lib.SQS, Lib.V2(312, 256), Lib.V2(8, 288), PMY), // 8
+                    new MySprite(SHP, Lib.SQS, Lib.V2(156, 180), Lib.V2(308, 8), PMY), // 9
+                    new MySprite(SHP, Lib.SQS, Lib.V2(156, 356), Lib.V2(308, 8), PMY), // 10
+                    new MySprite(SHP, Lib.SQS,Lib.V2(188, 264), Lib.V2(8, 176), PMY)   // 11
+                    
+
                 },
-                (p, s) => s.SetData($"{MastScreen(ref s, p)} {p + 1}/{MastNames.Length}", 0), 
+                MastScroll, 
                 128f
             ));
             #endregion
@@ -280,24 +292,28 @@ namespace IngameScript
                     new MySprite(TXT, "", Lib.V2(20, 348), null, PMY, Lib.VB, 0, 0.925f),// 5. STATE
                     new MySprite(SHP, Lib.SQS, Lib.V2(256, 162), Lib.V2(496, 4), PMY, null),
                     new MySprite(SHP, Lib.SQS, Lib.V2(256, 346), Lib.V2(496, 4), PMY, null)
+                    
                 },
-                (p, s) =>
-                {
-                    var turret = Turrets[TurretNames[p]];
-                    string n = turret.Name, st = turret.Status.ToString().ToUpper();
-                    int ct = p >= 9 ? 12 : 13;
-                    ct -= turret.Name.Length;
+                TurretScroll
+            ));
+            #endregion
 
-                    for (; ct-- > 0;)
-                        n += " ";
-                    ct = 17 - st.Length;
-                    for (; ct-- > 8;)
-                        st += " ";
-                    st += $"TGT {turret.TGT}";
-                    s.SetData(n + $"{p + 1}/{TurretCount}", 0);
-                    s.SetData(turret.AZ + "\n" + turret.EL, 2);
-                    s.SetData(st, 3);
-                }
+            #region launchers
+            CtrlScreens.Add(Lib.LN, new Screen
+            (
+                () => AMSLaunchers.Length,
+                new MySprite[]
+                {
+                    new MySprite(TXT, "", Lib.V2(24, 108), null, PMY, Lib.VB, 0, 1.3275f),
+                    new MySprite(TXT, "", Lib.V2(24, 188), null, PMY, Lib.VB, 0, 0.6025f),
+                    new MySprite(TXT, "", Lib.V2(24, 336), null, PMY, Lib.VB, 0, 0.9125f),
+                    new MySprite(TXT, ""),
+                    new MySprite(TXT, ""),
+                    new MySprite(SHP, Lib.SQS, Lib.V2(256, 180), Lib.V2(496, 8), PMY),
+                    new MySprite(SHP, Lib.TRI, Lib.V2(464, 126), Lib.V2(48, 28), PMY),
+                    new MySprite(SHP, Lib.TRI, Lib.V2(464, 162), Lib.V2(48, 28), PMY, null, cnr, MathHelper.Pi)
+                },
+                LauncherScroll
             ));
             #endregion
         }
