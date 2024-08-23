@@ -69,7 +69,6 @@ namespace IngameScript
             CtrlScreens = new Dictionary<string, Screen>(),
             LCDScreens = new Dictionary<string, Screen>();
         public Dictionary<string, Display> Displays = new Dictionary<string, Display>();
-
         public Dictionary<string, Action<MyCommandLine>> Commands = new Dictionary<string, Action<MyCommandLine>>();
         public Random RNG = new Random();
         MyCommandLine _cmd = new MyCommandLine();
@@ -78,30 +77,22 @@ namespace IngameScript
 
         public bool GlobalPriorityUpdateSwitch = true;
 
-        int 
-            _turCheckPtr = 0;
-        long 
-            _frame = 0, 
-            _worstF;
-        const int _rtMax = 10;
-        Queue<double> _runtimes = new Queue<double>(_rtMax);
+        int _turCheckPtr = 0;
+        long _frame = 0, _worstF;
+        Queue<double> _runtimes = new Queue<double>(10);
         public double RuntimeMS => _totalRT;
         public long F => _frame;
 
         #region scanner
-        long _nextIGCCheck = 0;
         Dictionary<string, LidarMast> Masts = new Dictionary<string, LidarMast>();
         List<IMyLargeTurretBase> 
             AllTurrets = new List<IMyLargeTurretBase>(), 
             Artillery = new List<IMyLargeTurretBase>();
-        IMyBroadcastListener _FLT, _TGT;
 
         #endregion
         
         #region defense
-        int TurretCount => TurretNames.Length;
         ArmLauncherWHAM[] AMSLaunchers;
-        
         Dictionary<long, long> TargetsKillDict = new Dictionary<long, long>();
         Dictionary<string, RotorTurret> Turrets = new Dictionary<string, RotorTurret>();
         RoundRobin<string, RotorTurret>

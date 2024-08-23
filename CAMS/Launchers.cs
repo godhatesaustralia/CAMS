@@ -43,21 +43,27 @@ namespace IngameScript
 
         public static void FireMissile(long id) => IGC.SendUnicastMessage(id, IgcFire, "");
 
-        public static void SendWhamTarget(ref Vector3D hitPos, ref Vector3D tPos, ref Vector3D tVel, ref Vector3D preciseOffset, ref Vector3D myPos, double elapsed, long tEID)
+        public static void SendTargetData(Target t, ref Vector3D me, long f)
         {
-            var mat1 = new Matrix3x3();
-            FillMatrix(ref mat1, ref hitPos, ref tPos, ref tVel);
+            var m1 = new Matrix3x3();
+            FillMatrix(ref m1, t.Position, t.Position, t.Velocity);
 
-            var mat2 = new Matrix3x3();
-            FillMatrix(ref mat2, ref preciseOffset, ref myPos, ref Vector3D.Zero);
+            var m2 = new Matrix3x3();
+            FillMatrix(ref m2, Vector3D.Zero, me, Vector3D.Zero);
 
+            // var mat1 = new Matrix3x3();
+            // FillMatrix(ref mat1, hitPos, tPos, tVel);
+
+            // var mat2 = new Matrix3x3();
+            // FillMatrix(ref mat2, preciseOffset, myPos, Vector3D.Zero);
+            
             var msg = new MyTuple<Matrix3x3, Matrix3x3, float, long, long>
             {
-                Item1 = mat1,
-                Item2 = mat2,
-                Item3 = (float)elapsed,
-                Item4 = tEID,
-                Item5 = _broadcasters[0].EntityId,
+                Item1 = m1,
+                Item2 = m2,
+                Item3 = (float)t.Elapsed(f),
+                Item4 = t.EID,
+                Item5 = ID,
             };
             IGC.SendBroadcastMessage(IgcHoming, msg);
         }
@@ -75,14 +81,14 @@ namespace IngameScript
             var msg = new MyTuple<byte, long>
             {
                 Item1 = packed,
-                Item2 = _broadcasters[0].EntityId
+                Item2 = ID
             };
 
             IGC.SendBroadcastMessage(IgcParams, msg);
         }
 
         static byte BoolToByte(bool value) => value ? (byte)1 : (byte)0;
-        static void FillMatrix(ref Matrix3x3 mat, ref Vector3D col0, ref Vector3D col1, ref Vector3D col2)
+        static void FillMatrix(ref Matrix3x3 mat, Vector3D col0, Vector3D col1, Vector3D col2)
         {
             mat.M11 = (float)col0.X;
             mat.M21 = (float)col0.Y;
@@ -147,7 +153,7 @@ namespace IngameScript
     public class ArmLauncherWHAM
     {
         public string Name;
-        public readonly string[] Report = new string[] { "", "", "", "" };
+        public readonly string[] Report = new string[] { "", "" };
         int _rPtr = 0;
         public int Total = 0;
         public long NextUpdateF = 0;
@@ -369,8 +375,8 @@ namespace IngameScript
 
         void AddReport(string s)
         {
-            var now = DateTime.Now.TimeOfDay;
-            Report[Lib.Next(ref _rPtr, Report.Length)] = $"{now.Hours:00}:{now.Minutes:00}:{now.Seconds:00} " + s;
+            var now = NextUpdateF;
+            Report[Lib.Next(ref _rPtr, Report.Length)] = $"[{now:X4}] >" + s;
         }
 
 

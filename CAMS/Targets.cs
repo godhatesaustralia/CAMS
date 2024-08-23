@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using VRage;
-using VRage.Game;
 using VRage.Game.GUI.TextPanel;
 using VRageMath;
 
@@ -44,18 +43,18 @@ namespace IngameScript
             Distance = dist;
         }
 
-        public Target(MyTuple<MyTuple<long, long, long, int>, MyTuple<Vector3D, Vector3D, MatrixD, double>> data)
+        public Target(ref MyTuple<MyTuple<long, long, long, int>, MyTuple<Vector3D, Vector3D, MatrixD, double>> d)
         {
-            EID = data.Item1.Item1;
+            EID = d.Item1.Item1;
             eIDString = EID.ToString("X").Remove(0, 5);
             eIDTag = EID.ToString("X").Remove(0, 11);
-            Source = data.Item1.Item2;
-            Frame = data.Item1.Item3;
-            Type = (MyDetectedEntityType)data.Item1.Item4;
-            Position = data.Item2.Item1;
-            Matrix = data.Item2.Item3;
-            Velocity = data.Item2.Item2;
-            Radius = data.Item2.Item4;
+            Source = d.Item1.Item2;
+            Frame = d.Item1.Item3;
+            Type = (MyDetectedEntityType)d.Item1.Item4;
+            Position = d.Item2.Item1;
+            Matrix = d.Item2.Item3;
+            Velocity = d.Item2.Item2;
+            Radius = d.Item2.Item4;
         }
 
         public double Elapsed(long f) => Lib.TPS * Math.Max(f - Frame, 1);
@@ -77,20 +76,22 @@ namespace IngameScript
     public class TargetProvider
     {
         Program _p;
-        long _nextPrioritySortF = 0;
+
+        long ID, _nextPrioritySortF = 0, _nextIGCCheck = 0, _nextIGCSend = 0, _nextOffsetSend = 0;
         const double INV_MAX_D = 0.0001, R_SIDE_L = 154;
-        const int MAX_LIFETIME = 2; // s
+        const int MAX_LIFETIME = 2, OFS_TMIT = 256; // s
+        const string IgcTgt = "[FLT-TG]";
         public int Count => _iEIDs.Count;
         public SortedSet<Target> Prioritized = new SortedSet<Target>();
         Dictionary<long, Target> _targets = new Dictionary<long, Target>();
-
+        Dictionary<long, long> _offsets = new Dictionary<long, long>();
+        IMyBroadcastListener _TGT;
         List<long> _rmvEIDs = new List<long>(), _iEIDs = new List<long>();
-        const float rad = (float)Math.PI / 180, X_MIN = 28, X_MAX = 308, Y_MIN = 96, Y_MAX = 362; // radar
-        static Vector2 rdrCNR = Lib.V2(168, 228), tgtSz = Lib.V2(12, 12);
+        const float rad = (float)Math.PI / 180, X_MIN = 28, X_MAX = 484, Y_MIN = 28, Y_MAX = 484; // radar
+        static Vector2 rdrCNR = Lib.V2(256, 256), tgtSz = Lib.V2(12, 12), env = Lib.V2(91.2f, 91.2f);
         List<MySprite> _rdrBuffer = new List<MySprite>();
-        string[] _rdrData = new string[14];
         // reused sprites
-        MySprite[] _rdrStatic;
+        MySprite[] _rdr;
 
 
         public HashSet<long>
@@ -100,6 +101,19 @@ namespace IngameScript
         public TargetProvider(Program m)
         {
             _p = m;
+            ID = Program.ID;
+            _TGT = m.IGC.RegisterBroadcastListener(IgcTgt);
+
+            var sp = Program.SHP;
+            _rdr = new MySprite[]
+            {
+                new MySprite(sp, Lib.SQS, rdrCNR, Lib.V2(90, 90), m.SDY),
+                new MySprite(sp, Lib.SQS, rdrCNR, Lib.V2(4, 712), m.PMY, rotation: rad * -45),
+                new MySprite(sp, Lib.SQS, rdrCNR, Lib.V2(4, 712), m.PMY, rotation: rad * 45),
+                new MySprite(sp, Lib.SQH, rdrCNR, env, m.PMY),
+                new MySprite(sp, Lib.SQH, rdrCNR, Lib.V2(512, 512), m.PMY),
+            };
+
             UpdateBlacklist();
             m.Commands.Add(Lib.TG, b =>
             {
@@ -121,8 +135,7 @@ namespace IngameScript
                 }
             });
 
-            // _rdrStatic[4]= new MySprite(Lib.TXT, "", Lib.V2(328, 084), null, Lib.GRN, m.Based ? "VCR" : "White", Lib.LFT, m.Based ? .425f : .8f);
-            m.LCDScreens.Add("radar", new Screen(() => Count, null, (p, s) => CreateRadar(p, s)));
+            m.LCDScreens.Add("radar", new Screen(() => Count, null, (p, s) => CreateRadar(p, s), null, null, false));
         }
 
         void UpdateBlacklist()
@@ -145,15 +158,9 @@ namespace IngameScript
         public void UpdateRadarSettings(Program m)
         {
             _p = m;
-            _rdrStatic = new MySprite[]
-            {
-                new MySprite(Program.SHP, Lib.SQS, rdrCNR, Lib.V2(12, 12), m.SDY, rotation: rad * 45),
-                new MySprite(Program.SHP, Lib.SQS, rdrCNR, Lib.V2(4, 428), m.SDY, rotation: rad * -45),
-                new MySprite(Program.SHP, Lib.SQS, rdrCNR, Lib.V2(4, 428), m.SDY, rotation: rad * 45),
-                new MySprite(Program.SHP, Lib.SQS, Lib.V2(320, 228), Lib.V2(8, 308), m.PMY),
-                new MySprite(Program.TXT, "", Lib.V2(328, 84), null, m.PMY, Lib.V, Lib.LFT, m.Based ? .425f : .8f),
-                new MySprite(Program.SHP, Lib.SQH, rdrCNR, Lib.V2(61.6f, 61.6f), m.PMY)
-            };
+            _rdr[0].Color = m.SDY;
+            for (int i = 1; i < _rdr.Length; i++)
+                _rdr[i].Color = m.PMY;
 
             m.CtrlScreens[Lib.TG] = new Screen(
               () => Count, new MySprite[]
@@ -165,21 +172,21 @@ namespace IngameScript
               {
                   if (Count == 0)
                   {
-                      s.SetData("NO TARGET", 0);
-                      s.SetData("SWITCH TO MASTS SCR\nFOR TGT ACQUISITION", 1);
+                      s.Write("NO TARGET", 0);
+                      s.Write("SWITCH TO MASTS SCR\nFOR TGT ACQUISITION", 1);
                       return;
                   }
 
                   var ty = "";
                   var t = _targets[_iEIDs[p]];
-                  s.SetData($"{t.eIDString}", 0);
+                  s.Write($"{t.eIDString}", 0);
 
                   if ((int)t.Type == 3)
                       ty = "LARGE GRID";
                   else if ((int)t.Type == 2)
                       ty = "SMALL GRID";
 
-                  s.SetData($"DIST {t.Distance / 1000:F2} KM\nASPD {t.Velocity.Length():F0} M/S\nACCL {t.Accel.Length():F0} M/S\nSIZE {ty}\nNO TGT SELECTED", 1);
+                  s.Write($"DIST {t.Distance / 1000:F2} KM\nASPD {t.Velocity.Length():F0} M/S\nACCL {t.Accel.Length():F0} M/S\nSIZE {ty}\nNO TGT SELECTED", 1);
               });
 
         }
@@ -188,74 +195,33 @@ namespace IngameScript
         {
             if (Count == 0)
             {
-                var d = DateTime.Now;
-                _rdrStatic[4].Data = $"CAMS RADAR\nNO TARGETS";
-                s.sprites = _rdrStatic;
+                s.Sprites = _rdr;
                 return;
             }
 
             int i = 0;
-            for (; i < _rdrData.Length; i++)
-                _rdrData[i] = "";
-
-            // todo: fix
-            if (Count > 1)
-            {
-                _rdrData[6] = "↑ PREV TGT ↑";
-                _rdrData[7] = "↓ NEXT TGT ↓";
-                if (p == Count - 1)
-                {
-                    RadarText(p, false);
-                    RadarText(p - 1, true);
-                }
-                else RadarText(p, true);
-            }
-
-            RadarText(p, false);
-
-            _rdrStatic[4].Data = _rdrData[0];
-            for (i = 1; i < _rdrData.Length; i++)
-                _rdrStatic[4].Data += $"\n{_rdrData[i]}";
-
             _rdrBuffer.Clear();
-            for (i = 0; i < Count; i++)
+            for (; i < Count; i++)
             {
                 var mat = _p.Controller.WorldMatrix;
                 var rPos = _p.Center - _targets[_iEIDs[i]].Position;
                 _rdrBuffer.Add(DisplayTarget(ref rPos, ref mat, _targets[_iEIDs[i]].eIDTag, p == i));
             }
 
-            s.sprites = null;
-            s.sprites = new MySprite[_rdrBuffer.Count + _rdrStatic.Length];
-            for (i = 0; i < s.sprites.Length; i++)
+            int l = _rdrBuffer.Count + _rdr.Length;
+            if (l != s.Sprites.Length)
             {
-                if (i < _rdrStatic.Length)
-                    s.sprites[i] = _rdrStatic[i];
-                else s.sprites[i] = _rdrBuffer[i - _rdrStatic.Length];
+                s.Sprites = null;
+                s.Sprites = new MySprite[l];
+            }
+
+            for (i = 0; i < l; i++)
+            {
+                if (i < _rdr.Length)
+                    s.Sprites[i] = _rdr[i];
+                else s.Sprites[i] = _rdrBuffer[i - _rdr.Length];
             }
         }
-
-        //shitty thing to reuse code for wc text
-        void RadarText(int p, bool next)
-        {
-            int i = next ? 9 : 0;
-            if (next) p++;
-            if (p >= Count) return;
-
-            long eid = _iEIDs[p];
-            Vector3D
-                rpos = _targets[eid].Position - _p.Controller.WorldMatrix.Translation,
-                up = _p.Controller.WorldMatrix.Up;
-
-            var typ = (int)_targets[eid].Type == 3 ? "LARGE" : "SMALL";
-
-            _rdrData[i] = _targets[eid].eIDString;
-            _rdrData[i + 1] = $"DIST {_targets[eid].Distance / 1E3:F2} KM";
-            _rdrData[i + 2] = $"{typ} GRID";
-            _rdrData[i + 3] = $"RSPD {(_targets[eid].Velocity - _p.Velocity).Length():F0} M/S";
-            _rdrData[i + 4] = $"ELEV {(Math.Sign(rpos.Dot(up)) < 0 ? "-" : "+")}{Lib.Projection(rpos, up).Length():F0} M";
-        }
-
 
         /// <summary>
         /// Draw a Target Icon on screen
@@ -267,20 +233,18 @@ namespace IngameScript
         {
             // Get the Left, Forward, and Up vectors from the mat
             // Project the relative position onto the radar's plane defined by Left and Forward vectors
-
             double
                 xProj = Vector3D.Dot(relPos, mat.Left),
                 yProj = Vector3D.Dot(relPos, mat.Forward),
 
             // Calculate the screen position
             // Adjust for screen center
-
                 scrX = R_SIDE_L * xProj * INV_MAX_D + rdrCNR.X,
                 scrY = R_SIDE_L * yProj * INV_MAX_D + rdrCNR.Y;
 
             // clamp into a region that doesn't neatly correspond with screen size ( i have autism)
-            scrX = MathHelper.Clamp(scrX, X_MIN, X_MAX);
-            scrY = MathHelper.Clamp(scrY, Y_MIN, Y_MAX);
+                scrX = MathHelper.Clamp(scrX, X_MIN, X_MAX);
+                scrY = MathHelper.Clamp(scrY, Y_MIN, Y_MAX);
 
             // position vectors
             Vector2
@@ -334,7 +298,7 @@ namespace IngameScript
         /// </summary>
         void SetPriority(Target tgt)
         {
-            var dir = tgt.Position - _p.Center;
+            var dir = _p.Center - tgt.Position;
             dir.Normalize();
             tgt.Priority = 0;
             bool uhoh = tgt.Velocity.Normalized().Dot(dir) > 0.9; // RUUUUUUUUUNNNNNNNNNNNNNN
@@ -373,9 +337,7 @@ namespace IngameScript
                 _targets[eid].Engaged = false;
         }
 
-        public Target Get(long eid) => _targets.ContainsKey(eid) ? _targets[eid] : null;
-
-        public void Update(UpdateType u)
+        public void Update(UpdateType u, long f)
         {
             ScannedIDs.Clear();
             if ((u & Lib.u100) != 0)
@@ -387,7 +349,7 @@ namespace IngameScript
                     return;
 
                 for (int i = Count - 1; i >= 0; i--)
-                    if (_targets[_rmvEIDs[i]].Elapsed(_p.F) >= MAX_LIFETIME)
+                    if (_targets[_rmvEIDs[i]].Elapsed(f) >= MAX_LIFETIME)
                     {
                         ScannedIDs.Remove(_rmvEIDs[i]);
                         _targets.Remove(_rmvEIDs[i]);
@@ -396,7 +358,7 @@ namespace IngameScript
 
                 _rmvEIDs.Clear();
             }
-            else if (_p.GlobalPriorityUpdateSwitch && _p.F >= _nextPrioritySortF)
+            else if (_p.GlobalPriorityUpdateSwitch && f >= _nextPrioritySortF)
             {
                 Prioritized.Clear();
                 foreach (var t in _targets.Values)
@@ -404,15 +366,65 @@ namespace IngameScript
                     Prioritized.Add(t);
                 }
 
-                _nextPrioritySortF = _p.F + _p.PriorityCheckTicks;
+                _nextPrioritySortF = f + _p.PriorityCheckTicks;
                 _p.GlobalPriorityUpdateSwitch = false;
             }
+
+            #region igc target sharing
+            if (_p.ReceiveIGCTicks > 0 && f >= _nextIGCCheck)
+            {
+                int ct = 0;
+
+                while (_TGT.HasPendingMessage)
+                {
+                    var m = _TGT.AcceptMessage();
+                    if (m.Data is MyTuple<long, long>)
+                    {
+                        var d = (MyTuple<long, long>)m.Data;
+                        _offsets[d.Item1] = f - (d.Item2 + 1);
+                    }
+                    else if (m.Data is MyTuple<MyTuple<long, long, long, int>, MyTuple<Vector3D, Vector3D, MatrixD, double>>)
+                    {
+                        var d = (MyTuple<MyTuple<long, long, long, int>, MyTuple<Vector3D, Vector3D, MatrixD, double>>)m.Data;
+                        if (!_targets.ContainsKey(d.Item1.Item1) || _targets[d.Item1.Item1].Source != ID)
+                            _targets[d.Item1.Item1] = new Target(ref d);
+                    }
+                    ct++;
+                }
+                _nextIGCCheck = f + _p.ReceiveIGCTicks;
+            }
+            else if (_p.SendIGCTicks > 0)
+            {
+                if (f >= _nextOffsetSend)
+                {
+                    _p.IGC.SendBroadcastMessage(IgcTgt, MyTuple.Create(ID, f));
+                    _nextOffsetSend = f + OFS_TMIT;
+                }
+
+                else if (f > _nextIGCSend && Count > 0)
+                {
+                    foreach (var tgt in _targets.Values)
+                        _p.IGC.SendBroadcastMessage
+                        (
+                            IgcTgt, MyTuple.Create
+                            (
+                                MyTuple.Create(tgt.EID, tgt.Source, tgt.Frame, (int)tgt.Type),
+                                MyTuple.Create(tgt.Position, tgt.Velocity, tgt.Matrix, tgt.Radius)
+                            )
+                        );
+                }
+                _nextIGCSend = f + _p.SendIGCTicks;
+            }
+            #endregion
         }
+
+        public Target Get(long eid) => _targets.ContainsKey(eid) ? _targets[eid] : null;
         public bool Exists(long id) => _targets.ContainsKey(id);
 
         public void Clear()
         {
             _rmvEIDs.Clear();
+            _offsets.Clear();
             _targets.Clear();
             ScannedIDs.Clear();
             _iEIDs.Clear();

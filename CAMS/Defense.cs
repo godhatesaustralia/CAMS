@@ -1,25 +1,23 @@
-﻿using System;
-using System.Security.Cryptography;
-using Sandbox.ModAPI.Ingame;
+﻿using Sandbox.ModAPI.Ingame;
 
 namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        void LauncherScroll(int p, Screen s)
+        void ScrollLN(int p, Screen s)
         {
             var ln = AMSLaunchers[p];
-            s.SetData(ln.Name, 0);
+            s.Write(ln.Name, 0);
             string r = ln.Report[0];
-            for (int i = 1; i < 4; i++)
+            for (int i = 1; i < ln.Report.Length; i++)
                 r += $"\n{ln.Report[i]}";
-            s.SetData(r, 1);
-            s.SetData(ln.Status.ToString().ToUpper(), 2);
-            s.SetColor(p == 0 ? SDY : PMY, 6);
-            s.SetColor(p == MastNames.Length - 1 ? SDY : PMY, 7);
+            s.Write(r, 1);
+            //s.Write(ln.Status.ToString().ToUpper(), 2);
+            s.Color(p == 0 ? SDY : PMY, 6);
+            s.Color(p == MastNames.Length - 1 ? SDY : PMY, 7);
         }
 
-        void TurretScroll(int p, Screen s)
+        void ScrollTR(int p, Screen s)
         {
             var turret = Turrets[TurretNames[p]];
             string n = turret.Name, st = turret.Status.ToString().ToUpper();
@@ -32,9 +30,9 @@ namespace IngameScript
             for (; ct-- > 8;)
                 st += " ";
             st += $"TGT {turret.TGT}";
-            s.SetData(n + $"{p + 1}/{TurretCount}", 0);
-            s.SetData(turret.AZ + "\n" + turret.EL, 2);
-            s.SetData(st, 3);
+            s.Write(n + $"{p + 1}/{TurretNames.Length}", 0);
+            s.Write(turret.AZ + "\n" + turret.EL, 2);
+            s.Write(st, 3);
         }
 
         void UpdateRotorTurrets()
@@ -104,15 +102,22 @@ namespace IngameScript
 
                 Targets.Prioritized.Remove(t);
             }
-
+            // whips default broadcast interval: 10hz / every 6 ticks
             if (TargetsKillDict.Count == 0)
                 return;
 
+            var myPos = Center;
             foreach (var tgt in TargetsKillDict.Keys)
             {
                 t = Targets.Get(tgt);
-                if (!Targets.Prioritized.Contains(t))
+                var kill = t == null;
+                if (!kill && !Targets.Prioritized.Contains(t))
                     Targets.Prioritized.Add(t);
+                if (F % 6 == 0)
+                {
+                    Datalink.SendParams(kill, false, false, false, true, false);
+                    Datalink.SendTargetData(t, ref myPos, F);
+                }
             }
 
             PDT tur;

@@ -20,7 +20,7 @@ namespace IngameScript
         const float SCAT = 0.2f;
         public int Scans = 0;
         bool _useRand = false;
-        public int _ct => _cameras.Length;
+        public int Count => _cameras.Length;
         public LidarArray(List<IMyCameraBlock> c, string t = "")
         {
             if (c != null)
@@ -43,7 +43,7 @@ namespace IngameScript
             }
         }
 
-        Vector3D RaycastLead(ref Target t, Vector3D srcPos, Program p, double ofs = 5) // ofs is spread factor. whip left as 5 default
+        Vector3D RaycastLead(Target t, Vector3D srcPos, Program p, double ofs = 5) // ofs is spread factor. whip left as 5 default
         {
             var dT = t.Elapsed(p.F);
             var tPos = t.AdjustedPosition(p.F);
@@ -78,14 +78,14 @@ namespace IngameScript
                 scanAVG += _cameras[i].AvailableScanRange;
                 _camerasByRange.Add(_cameras[i]);
             }
-            scanAVG /= _ct;
+            scanAVG /= Count;
 
             foreach (var c in _camerasByRange)
             {
                 if (!c.IsWorking || !c.CanScan(t.Distance))
                     continue;
 
-                var pos = RaycastLead(ref t, c.WorldMatrix.Translation, p);
+                var pos = RaycastLead(t, c.WorldMatrix.Translation, p);
                 pos += spread ? Lib.RandomOffset(ref p.RNG, SCAT * t.Radius) : Vector3D.Zero;
                 if (!c.CanScan(pos) || pos == Vector3D.Zero)
                     continue;
@@ -115,6 +115,7 @@ namespace IngameScript
         double _maxAzD, _maxCamD;
         float _azR, _elR, _max = float.MaxValue, _min = float.MinValue; // rest angles - it's my code, i can name stuff as terribly as i want!!!!
         bool _stopSpin = false;
+        public int aRPM = 20, eRPM = 53;
         public int[] Scans;
     
 
@@ -122,6 +123,8 @@ namespace IngameScript
         {
             _azimuth = azi;
             _p = p;
+            aRPM = 29;
+            eRPM = 53;
         }
 
         public void Setup(Program m, ref string[] tags)
@@ -204,8 +207,9 @@ namespace IngameScript
 
         public void Designate()
         {
-            if (_activeCTC && Main.CanScan(_p.ScanDistLimit) && Main.IsActive)
-                _p.PassTarget(Main.Raycast(_p.ScanDistLimit), true);
+            if (_activeCTC && Main.IsActive)
+                if (Main.CanScan(_p.ScanDistLimit))
+                    _p.PassTarget(Main.Raycast(_p.ScanDistLimit), true);
         }
 
         public void Update()
@@ -222,8 +226,8 @@ namespace IngameScript
             }
             else if (!_stopSpin)
             {
-                _azimuth.TargetVelocityRPM = 29;
-                _elevation.TargetVelocityRPM = 53;
+                _azimuth.TargetVelocityRPM = aRPM;
+                _elevation.TargetVelocityRPM = eRPM;
             }
             else
             {

@@ -10,6 +10,7 @@ namespace IngameScript
     public enum AimState
     {
         Offline,
+        Manual,
         Rest,
         Blocked, // target out of bounds (sorry)
         Moving,
@@ -42,6 +43,7 @@ namespace IngameScript
         protected Program _p;
         public long tEID = -1, lastUpdate = 0, _oobF = 0;
         public bool Inoperable = false, IsPDT;
+        public bool ActiveCTC => _ctc?.IsUnderControl ?? false;
         #endregion
 
         #region debugFields
@@ -213,9 +215,11 @@ namespace IngameScript
         {
             if (Status == AimState.Rest)
                 return Status;
+            else if (ActiveCTC)
+                return AimState.Manual;
             else if (Inoperable)
                 return AimState.Offline;
-
+            
             _weapons.Hold();
 
             if (reset)
@@ -287,11 +291,11 @@ namespace IngameScript
 
         public bool CanTarget(long eid)
         {
-            if (Inoperable)
+            if (Inoperable || ActiveCTC || !_p.Targets.Exists(eid))
                 return false;
 
             var tgt = _p.Targets.Get(eid);
-            if (tgt == null || tgt.Distance > TrackRange)
+            if (tgt.Distance > TrackRange)
                 return false;
 
             return Interceptable(tgt, ref tgt.Position, true);
@@ -302,7 +306,7 @@ namespace IngameScript
             double a, e;
             GetStatorAngles(out a, out e);
 
-            if (_p.Targets.Count != 0)
+            if (_p.Targets.Count != 0 && !ActiveCTC)
             {
                 var tgt = tEID != -1 ? _p.Targets.Get(tEID) : null;
                 Inoperable = !_azimuth.IsAttached || !_elevation.IsAttached || !_azimuth.IsFunctional || !_elevation.IsFunctional;
@@ -345,21 +349,35 @@ namespace IngameScript
 
     public class PDT : RotorTurret
     {
-        public LidarArray Lidar;
+        IMyCameraBlock[] _designators;
+        LidarArray _lidar;
         double _spray, _sprayTol = 7.5E-4;
         Vector3D _sprayOfs;
-        bool switchOfs = true, useLidar = false;
-        int scanCtr, scanMx;
+        bool _switchOfs = true, _useLidar = false;
+        int _scanCtr, _scanMx;
 
         public PDT(IMyMotorStator a, Program m, int sMx) : base(a, m)
         {
             var g = _elevation.TopGrid;
-            scanMx = sMx;
+            _scanMx = sMx;
             if (g != null)
             {
-                var l = new List<IMyCameraBlock>();
-                m.Terminal.GetBlocksOfType(l, c => c.CubeGrid == g && c.CustomName.Contains(Lib.ARY));
-                Lidar = new LidarArray(l);
+                var l = new List<IMyCameraBlock>(); 
+                var d = new List<IMyCameraBlock>();
+                m.Terminal.GetBlocksOfType(l, c => 
+                {
+                    if (c.CubeGrid == g)
+                    {
+                        if (c.CustomName.Contains(Lib.ARY))
+                            return true;
+                        else d.Add(c);
+                    }
+                    return false;
+                });
+                _lidar = new LidarArray(l);
+                if (d.Count > 0)
+                    _designators = d.ToArray();
+                l.Clear();
             }
             _spray = m.PDSpray;
             _tol += _spray != -1 ? _sprayTol : 0;
@@ -367,8 +385,24 @@ namespace IngameScript
 
         public void AssignLidarTarget(long eid)
         {
-            useLidar = true;
+            _useLidar = true;
             tEID = eid;
+        }
+
+        public void Designate(bool track = false)
+        {
+            if (Inoperable || !ActiveCTC || _designators == null)
+                return;
+            for (int i = 0; i < _designators.Length; i++)
+                if (_designators[i].CanScan(_scanMx))
+                {
+                    var t = _designators[i].Raycast(_scanMx);
+                    if (_p.PassTarget(t))
+                    {
+                        tEID = track ? t.EntityId : tEID;
+                        break;
+                    }
+                }
         }
 
         public override void UpdateTurret()
@@ -376,7 +410,7 @@ namespace IngameScript
             double a, e;
             GetStatorAngles(out a, out e);
 
-            if (_p.Targets.Count != 0)
+            if (_p.Targets.Count != 0 && !ActiveCTC)
             {
                 var tgt = tEID != -1 ? _p.Targets.Get(tEID) : null;
                 Inoperable = !_azimuth.IsAttached || !_elevation.IsAttached || !_azimuth.IsFunctional || !_elevation.IsFunctional;
@@ -387,15 +421,15 @@ namespace IngameScript
                 }
 
                 var aim = tgt.Position;
-                if (useLidar || Interceptable(tgt, ref aim)) // admittedly not the best way to do this
+                if (_useLidar || Interceptable(tgt, ref aim)) // admittedly not the best way to do this
                 {
                     var azm = _azimuth.WorldMatrix;
                     aim -= azm.Translation;
                     var tgtDst = aim.Length();
 
-                    if (!useLidar && _spray != -1)
+                    if (!_useLidar && _spray != -1)
                     {
-                        if (switchOfs)
+                        if (_switchOfs)
                             _sprayOfs = Lib.RandomOffset(ref _p.RNG, _spray);
 
                         aim += _sprayOfs * tgt.Radius / tgt.Distance;
@@ -412,11 +446,11 @@ namespace IngameScript
 
                     if (Status == AimState.OnTarget)
                     {
-                        if (useLidar)
+                        if (_useLidar)
                         {
                             var r = ScanResult.Failed;
-                            for (scanCtr = 0; scanCtr++ < scanMx && r == ScanResult.Failed;)
-                                r = Lidar.Scan(_p, tgt, true);
+                            for (_scanCtr = 0; _scanCtr++ < _scanMx && r == ScanResult.Failed;)
+                                r = _lidar.Scan(_p, tgt, true);
                         }
 
                         if (tgtDst < Range)

@@ -225,41 +225,46 @@ namespace IngameScript
 	public class Missile
 	{
 		public long TEID, LastF;
-		const int K_Z = 3;
 		Program _p;
 		IMyRemoteControl _ctrl;
 		IMyShipConnector _ctor;
 		IMyShipMergeBlock _merge;
 		IMyBatteryBlock _batt;
 		IMyGasTank _tank;
-
+		
 		IMyGyro _gyro;
+		bool _ready, _checkAccel;
 		byte _gYaw, _gPitch, _gRoll;
+		double _accel;
 		int _cachePtr = 0;
 		Vector3I[] _blockPosCache;
 		IMyTerminalBlock[] _partsCache;
-
 		//List<IMyCameraBlock> _sensors = new List<IMyCameraBlock>();
 		List<IMyThrust> _thrust = new List<IMyThrust>();
 		List<IMyWarhead> _warhead = new List<IMyWarhead>();
 		PDCtrl _yaw, _pitch;
 
+		MatrixD _viewMat;
+		Vector3D _pos, _cmd;
+
 		public Missile(Program p, IMyTerminalBlock b)
 		{
 			_p = p;
+			_ready = false;
 		}
 
 		public void ReloadMissile(IMyCubeBlock b)
-		{
-			if (CollectMissileBlocks(b))
+		{		
+			if (!_ready && CollectMissileBlocks(b))
 			{
+				if (_partsCache[0] is IMyRemoteControl) _ctrl = (IMyRemoteControl)_partsCache[0];
+				else return;
 				for (; _cachePtr++ < _partsCache.Length;)
 				{
 					var t = _partsCache[_cachePtr];
 					if (t == null) continue;
 					// note - this setup makes it necessary to have controller as very item in both cache arrays
 					// setup program MUST take this into account
-					if (t is IMyRemoteControl) _ctrl = (IMyRemoteControl)t;
 					else if (t is IMyGyro) _gyro = (IMyGyro)t;
 					else if (t is IMyBatteryBlock) { _batt = (IMyBatteryBlock)t; _batt.ChargeMode = ChargeMode.Recharge; }
 					else if (t is IMyThrust) _thrust.Add((IMyThrust)t);
@@ -269,6 +274,7 @@ namespace IngameScript
 					else if (t is IMyGasTank) { _tank = (IMyGasTank)t; _tank.Stockpile = true; }
 				}
 				_cachePtr = 0;
+				_ready = _checkAccel = true;
 			}
 		}
 
@@ -285,7 +291,7 @@ namespace IngameScript
 				}
 				else return false;
 			}
-			_cachePtr = 0;
+			_cachePtr = 1;
 			return true;
 		}
 
@@ -294,6 +300,51 @@ namespace IngameScript
 			_ctrl = null;
 			_warhead.Clear();
 			_thrust.Clear();
+		}
+
+		public bool Launch()
+		{
+			if (!_ready)
+				return false;
+			_merge.Enabled = _tank.Stockpile = false;
+			_batt.ChargeMode = ChargeMode.Discharge;
+			_ctor.Disconnect();
+			foreach (var t in _thrust)
+			{
+				t.Enabled = true;
+				t.ThrustOverridePercentage = 1;
+			}
+			return true;
+		}
+
+		public void Update()
+		{
+			var tgt = _p.Targets.Get(TEID);
+			if (tgt == null)
+				return;
+
+			#region nav
+			_viewMat = MatrixD.Transpose(_ctrl.WorldMatrix);
+			_pos = _ctrl.WorldMatrix.Translation;
+
+			Vector3D
+				rP = tgt.Position - _pos,
+				rV = tgt.Velocity - _ctrl.GetShipVelocities().LinearVelocity,
+				rA = tgt.Accel - _ctrl.GetNaturalGravity();
+
+			double 
+				a = 0.25 * rA.LengthSquared() +_accel * _accel,
+				b = rA.Dot(rV),
+				c = rA.Dot(rP) + rV.LengthSquared(),
+				d = 2 * rP.Dot(rV),
+				e = rV.LengthSquared(),
+				t = FastSolver.Solve(a, b, c, d, e);
+				
+			if (t == double.MaxValue || double.IsNaN(t)) t = 1000;
+			var icpt = tgt.Position + (rV * t) + (0.5 * rA * t * t);
+    		_cmd = Vector3D.TransformNormal(icpt - _pos, ref _viewMat);
+			#endregion
+
 		}
 
 		public bool Init(IMyTerminalBlock o)
@@ -353,7 +404,6 @@ namespace IngameScript
 							_gYaw = Lib.SetGyroRelDir(_gyro.WorldMatrix.GetClosestDirection(_ctrl.WorldMatrix.Up));
 							_gPitch =Lib.SetGyroRelDir(_gyro.WorldMatrix.GetClosestDirection(_ctrl.WorldMatrix.Left));
 							_gRoll = Lib.SetGyroRelDir(_gyro.WorldMatrix.GetClosestDirection(_ctrl.WorldMatrix.Forward));
-
 						}
 					}
 					return ok;

@@ -12,15 +12,14 @@ namespace IngameScript
     {
         static long ID;
         TargetProvider Targets;
-        
         IMyProgrammableBlock Me;
         /// copy paste following code in or inline it for wc \\\
-        public WCAPI Wapi;
-        public Dictionary<MyDetectedEntityInfo, float> _threats = new Dictionary<MyDetectedEntityInfo, float>();
+        public WCAPI CAPI;
+        Dictionary<MyDetectedEntityInfo, float> _threats = new Dictionary<MyDetectedEntityInfo, float>();
         void PerformScan()
         {
             _threats.Clear();
-            Wapi.GetSortedThreats(Me, _threats);
+            CAPI.GetSortedThreats(Me, _threats);
             int rel, t;
             MyDetectedEntityInfo i;
             if (_threats.Count > 0)
@@ -43,9 +42,6 @@ namespace IngameScript
     }
     public class WCAPI
     {
-        //         private Action<ICollection<MyDefinitionId>> _getCoreWeapons;
-        //         private Action<ICollection<MyDefinitionId>> _getCoreStaticLaunchers;
-        //         private Action<ICollection<MyDefinitionId>> _getCoreTurrets;
         private Action<IMyTerminalBlock, bool, bool, int> _toggleWeaponFire;
         private Func<IMyTerminalBlock, int, MyDetectedEntityInfo> _getWeaponTarget;
         private Func<IMyTerminalBlock, bool> _hasCoreWeapon;
@@ -55,13 +51,9 @@ namespace IngameScript
         private Action<IMyTerminalBlock, long, int> _setWeaponTarget;
         private Func<long, bool> _hasGridAi;
         private Func<IMyTerminalBlock, int, bool, bool, bool> _isWeaponReadyToFire;
-        private Func<IMyTerminalBlock, int, Matrix> _getWeaponAzimuthMatrix;
-        private Func<IMyTerminalBlock, int, Matrix> _getWeaponElevationMatrix;
         private Func<IMyTerminalBlock, int, MyTuple<Vector3D, Vector3D>> _getWeaponScope;
         private Func<IMyTerminalBlock, float> _getHeatLevel;
-        private Func<IMyTerminalBlock, long, int, Vector3D?> _getPredictedTargetPos;
         private Func<IMyTerminalBlock, long, int, bool> _setAiFocus;
-        private Func<IMyTerminalBlock, long, int, bool> _isTargetAligned;
         private Func<IMyTerminalBlock, ICollection<string>, int, bool> _getTurretTargetTypes;
 
         static public void Activate(IMyTerminalBlock pbBlock, ref WCAPI apiHandle)
@@ -89,12 +81,8 @@ namespace IngameScript
             AssignMethod(delegates, "SetWeaponTarget", ref _setWeaponTarget);
             AssignMethod(delegates, "HasGridAi", ref _hasGridAi);
             AssignMethod(delegates, "IsWeaponReadyToFire", ref _isWeaponReadyToFire);
-            AssignMethod(delegates, "GetWeaponAzimuthMatrix", ref _getWeaponAzimuthMatrix);
-            AssignMethod(delegates, "GetWeaponElevationMatrix", ref _getWeaponElevationMatrix);
             AssignMethod(delegates, "GetWeaponScope", ref _getWeaponScope);
             AssignMethod(delegates, "GetHeatLevel", ref _getHeatLevel);
-            AssignMethod(delegates, "GetPredictedTargetPosition", ref _getPredictedTargetPos);
-            AssignMethod(delegates, "IsTargetAligned", ref _isTargetAligned);
             AssignMethod(delegates, "GetTurretTargetTypes", ref _getTurretTargetTypes);
         }
 
@@ -128,36 +116,24 @@ namespace IngameScript
 
         public MyDetectedEntityInfo? GetAiFocus(long shooter, int priority = 0) => _getAiFocus?.Invoke(shooter, priority);
 
-        public bool SetAiFocus(Sandbox.ModAPI.Ingame.IMyTerminalBlock pBlock, long target, int priority = 0) =>
-    _setAiFocus?.Invoke(pBlock, target, priority) ?? false;
+        public bool SetAiFocus(IMyTerminalBlock pBlock, long target, int priority = 0) =>
+            _setAiFocus?.Invoke(pBlock, target, priority) ?? false;
 
         public void SetWeaponTarget(IMyTerminalBlock weapon, long target, int weaponId = 0) =>
             _setWeaponTarget?.Invoke(weapon, target, weaponId);
 
         public bool HasGridAi(long entity) => _hasGridAi?.Invoke(entity) ?? false;
 
-        public bool IsWeaponReadyToFire(Sandbox.ModAPI.Ingame.IMyTerminalBlock weapon, int weaponId = 0, bool anyWeaponReady = true,
+        public bool IsWeaponReadyToFire(IMyTerminalBlock weapon, int weaponId = 0, bool anyWeaponReady = true,
             bool shootReady = false) =>
             _isWeaponReadyToFire?.Invoke(weapon, weaponId, anyWeaponReady, shootReady) ?? false;
 
-        public Matrix GetWeaponAzimuthMatrix(Sandbox.ModAPI.Ingame.IMyTerminalBlock weapon, int weaponId) =>
-            _getWeaponAzimuthMatrix?.Invoke(weapon, weaponId) ?? Matrix.Zero;
-
-        public Matrix GetWeaponElevationMatrix(Sandbox.ModAPI.Ingame.IMyTerminalBlock weapon, int weaponId) =>
-            _getWeaponElevationMatrix?.Invoke(weapon, weaponId) ?? Matrix.Zero;
-
-        public MyTuple<Vector3D, Vector3D> GetWeaponScope(Sandbox.ModAPI.Ingame.IMyTerminalBlock weapon, int weaponId) =>
+        public MyTuple<Vector3D, Vector3D> GetWeaponScope(IMyTerminalBlock weapon, int weaponId) =>
             _getWeaponScope?.Invoke(weapon, weaponId) ?? new MyTuple<Vector3D, Vector3D>();
 
-        public float GetHeatLevel(Sandbox.ModAPI.Ingame.IMyTerminalBlock weapon) => _getHeatLevel?.Invoke(weapon) ?? 0f;
+        public float GetHeatLevel(IMyTerminalBlock weapon) => _getHeatLevel?.Invoke(weapon) ?? 0f;
 
-        public Vector3D? GetPredictedTargetPosition(Sandbox.ModAPI.Ingame.IMyTerminalBlock weapon, long targetEnt, int weaponId) =>
-    _getPredictedTargetPos?.Invoke(weapon, targetEnt, weaponId) ?? null;
-
-        public bool IsTargetAligned(Sandbox.ModAPI.Ingame.IMyTerminalBlock weapon, long targetEnt, int weaponId) =>
-    _isTargetAligned?.Invoke(weapon, targetEnt, weaponId) ?? false;
-
-        public bool GetTurretTargetTypes(Sandbox.ModAPI.Ingame.IMyTerminalBlock weapon, IList<string> collection, int weaponId = 0) =>
-    _getTurretTargetTypes?.Invoke(weapon, collection, weaponId) ?? false;
+        public bool GetTurretTargetTypes(IMyTerminalBlock weapon, IList<string> collection, int weaponId = 0) =>
+            _getTurretTargetTypes?.Invoke(weapon, collection, weaponId) ?? false;
     }
 }

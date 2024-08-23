@@ -1,10 +1,13 @@
-﻿using Sandbox.ModAPI.Ingame;
+﻿using System;
+using Sandbox.ModAPI.Ingame;
+using VRage;
+using VRageMath;
 
 namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        void MastScroll(int p, Screen s)
+        void ScrollMS(int p, Screen s)
         {
             string grps = ""; int i = 0;
             var l = Masts[MastNames[p]];
@@ -15,13 +18,14 @@ namespace IngameScript
             }
 
             grps += $">{(!l.Manual ? "DETECT" : "MANUAL")}  TK {Targets.Count:00}";
-            s.SetData(MastNames[p], 0);
-            s.SetData(grps, 1);
-            s.SetColor(p == 0 ? SDY : PMY, 6);
-            s.SetColor(p == MastNames.Length - 1 ? SDY : PMY, 7);
+            s.Write(MastNames[p], 0);
+            s.Write(grps, 1);
+            s.Color(p == 0 ? SDY : PMY, 6);
+            s.Color(p == MastNames.Length - 1 ? SDY : PMY, 7);
+            s.Write($"A/E RPM: {l.aRPM:00}/{l.eRPM:00}", 9);
 
             for (i = 0; i < l.Lidars.Count; i++)
-                s.SetColor(l.Lidars[i].Scans > 0 ? PMY : SDY, i + 2);
+                s.Color(l.Lidars[i].Scans > 0 ? PMY : SDY, i + 2);
         }
 
         void GetTurretTgt(IMyLargeTurretBase t, bool arty = false)
@@ -38,20 +42,6 @@ namespace IngameScript
                     t.EnableIdleRotation = false;
                 }
             }
-        }
-
-        void HandleIGC()
-        {
-            if (ReceiveIGCTicks > 0 && F >= _nextIGCCheck)
-            {
-                while (_FLT.HasPendingMessage)
-                {
-                    var m = _FLT.AcceptMessage();
-
-                }
-                _nextIGCCheck = F + ReceiveIGCTicks;
-            }
-
         }
     }
 }

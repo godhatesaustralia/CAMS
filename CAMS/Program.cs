@@ -9,15 +9,13 @@ namespace IngameScript
         {
             Runtime.UpdateFrequency |= UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;
             ID = Me.CubeGrid.EntityId;
+
+            Datalink.Setup(this);
             
             Debug = new DebugAPI(this, true);
-            
-            Targets = new TargetProvider(this);
-            Datalink.Setup(this);
 
-            _FLT = IGC.RegisterBroadcastListener(IgcFleet);
-            _TGT = IGC.RegisterBroadcastListener(IgcTgt);
-            
+            Targets = new TargetProvider(this);
+
             ParseComputerSettings();
 
             AddSystemCommands();
@@ -29,12 +27,6 @@ namespace IngameScript
 
         public void Save()
         {
-            // Called when the program needs to save its state. Use
-            // this method to save your state to the Storage field
-            // or some other means. 
-            // 
-            // This method is optional and can be removed if not
-            // needed.
         }
 
         public void Main(string argument, UpdateType updateSource)
@@ -50,7 +42,7 @@ namespace IngameScript
                 _worstF = _frame;
             }
 
-            if (_runtimes.Count == _rtMax)
+            if (_runtimes.Count == 10)
                 _runtimes.Dequeue();
             _runtimes.Enqueue(_lastRT);
 
@@ -59,7 +51,7 @@ namespace IngameScript
                 _avgRT = 0;
                 foreach (var qr in _runtimes)
                     _avgRT += qr;
-                _avgRT /= _rtMax;
+                _avgRT /= 10;
                 Gravity = Controller.GetNaturalGravity();
             }
 
@@ -125,7 +117,7 @@ namespace IngameScript
             #endregion
 
             #region main-sys-update
-            Targets.Update(updateSource);
+            Targets.Update(updateSource, F);
 
             UpdateRotorTurrets();
 

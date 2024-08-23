@@ -11,7 +11,6 @@ namespace IngameScript
         Program _m;
         IMyTextSurface _surf;
         MySprite[] _sprites = null;
-        readonly Vector2 _cnr = new Vector2(256, 256), _sz = new Vector2(512, 512);
         public readonly string Name = null;
         string _active;
         public readonly bool isLarge = false;
@@ -27,16 +26,12 @@ namespace IngameScript
                 if (p.CustomData(b))
                 {
                     Name = p.String(Lib.H, "name", b.CustomName);
-
-                    p.TryReadVector2(Lib.H, "size", ref _sz);
-
                     isLarge = b is IMyTextPanel;
                     _bg = p.Color(Lib.H, "colorBG", Color.Black);
                     _sprites = p.Sprites(Lib.H, vcr ? Lib.SPR : Lib.SPR + "_V");
                 }
                 else return;
             SetActive(a ?? Lib.MS);
-        
         }
 
         public void SetActive(string a)
@@ -62,57 +57,57 @@ namespace IngameScript
             else ptr++;
         }
 
-        public void Select() => _screens[_active]?.Select(ptr);
+        public void Select() => _screens[_active].Enter?.Invoke(ptr, _screens[_active]);
 
-        public void Back() => _screens[_active]?.Back(ptr);
+        public void Back() => _screens[_active].Return?.Invoke(ptr, _screens[_active]);
 
         public void Update() // cursed
         {
             int i = 0;
+            var s = _screens[_active];
             _surf.ScriptBackgroundColor = _bg;
-            _screens[_active].GetData(ptr);
+            s.Refresh(ptr);
 
             var f = _surf.DrawFrame();
-            for (; i < _screens[_active].sprites.Length; i++)
-                f.Add(_screens[_active].sprites[i]);
+            for (; i < s.Sprites.Length; i++)
+                f.Add(s.Sprites[i]);
 
-            for (i = 0; i < _sprites.Length; i++)
-                f.Add(_sprites[i]);
+            if (s.UseBaseSprites)
+                for (i = 0; i < _sprites.Length; i++)
+                    f.Add(_sprites[i]);
                 
             f.Dispose();
         }
     }
     public class Screen
     {
-        public MySprite[] sprites;
+        public MySprite[] Sprites;
+        public readonly bool UseBaseSprites;
         public int ptr { get; protected set; }
         public Func<int> pMax = null;
-        Action<int, Screen> Data = null; 
-        public Action<int> Select = null, Back = null;
-        int _sel;
-
-        protected readonly float graphLength;
+        public Action<int, Screen> Data = null, Enter = null, Return = null; 
         public readonly int MinTicks;
-        public Screen(Func<int> m, MySprite[] s, Action<int, Screen> d = null, float g = 0, int t = 0)
+        public Screen(Func<int> m, MySprite[] s, Action<int, Screen> d = null, Action<int, Screen> e = null, Action<int, Screen> r = null, bool u = true)
         {
             ptr = 0;
-            sprites = s;
+            Sprites = s;
             pMax = m;
             Data = d;
-            graphLength = g;
-            MinTicks = t;
+            Enter = e;
+            Return = r;
+            UseBaseSprites = u;
         }
 
-        public void GetData(int p) => Data(p, this);
-        public void SetData(string d, int i) => sprites[i].Data = d;    
-        public void SetColor(Color c, int i) => sprites[i].Color = c;
+        public void Refresh(int p) => Data(p, this);
+        public void Write(string d, int i) => Sprites[i].Data = d;    
+        public void Color(Color c, int i) => Sprites[i].Color = c;
     }
 
     public class ListScreen : Screen
     {
         public int pgs, cur, cnt; // pages #, current page, allowed items count (def 4)
 
-        public ListScreen(Func<int> m, int mx = 4, MySprite[] spr = null, Action<int, Screen> a = null, float g = 0, int t = 0) : base(m, spr, a, g, t)
+        public ListScreen(Func<int> m, int mx = 4, MySprite[] spr = null, Action<int, Screen> a = null) : base(m, spr, a)
         {
             cur = 1;
             cnt = mx - 1;
