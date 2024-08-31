@@ -17,12 +17,13 @@ namespace IngameScript
                 grps += $"{l.Lidars[i].tag[1]} " + scan;
             }
 
-            grps += $">{(!l.Manual ? "DETECT" : "MANUAL")}  TK {Targets.Count:00}";
+            grps += $">{(!l.Manual ? "DETECT" : "MANUAL")}  SN {l.Scans:00}";
             s.Write(MastNames[p], 0);
             s.Write(grps, 1);
             s.Color(p == 0 ? SDY : PMY, 6);
             s.Color(p == MastNames.Length - 1 ? SDY : PMY, 7);
             s.Write($"A/E RPM: {l.aRPM:00}/{l.eRPM:00}", 9);
+            s.Write(Targets.Log, 8);
 
             for (i = 0; i < l.Lidars.Count; i++)
                 s.Color(l.Lidars[i].Scans > 0 ? PMY : SDY, i + 2);

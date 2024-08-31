@@ -80,8 +80,9 @@ namespace IngameScript
         long ID, _nextPrioritySortF = 0, _nextIGCCheck = 0, _nextIGCSend = 0, _nextOffsetSend = 0;
         const double INV_MAX_D = 0.0001, R_SIDE_L = 154;
         const int MAX_LIFETIME = 2, OFS_TMIT = 256; // s
-        const string IgcTgt = "[FLT-TG]";
+        const string IgcTgt = "[FLT-TG]", DSB = "\n\n>>DISABLED";
         public int Count => _iEIDs.Count;
+        public string Log { get; private set; }
         public SortedSet<Target> Prioritized = new SortedSet<Target>();
         Dictionary<long, Target> _targets = new Dictionary<long, Target>();
         Dictionary<long, long> _offsets = new Dictionary<long, long>();
@@ -243,8 +244,8 @@ namespace IngameScript
                 scrY = R_SIDE_L * yProj * INV_MAX_D + rdrCNR.Y;
 
             // clamp into a region that doesn't neatly correspond with screen size ( i have autism)
-                scrX = MathHelper.Clamp(scrX, X_MIN, X_MAX);
-                scrY = MathHelper.Clamp(scrY, Y_MIN, Y_MAX);
+            scrX = MathHelper.Clamp(scrX, X_MIN, X_MAX);
+            scrY = MathHelper.Clamp(scrY, Y_MIN, Y_MAX);
 
             // position vectors
             Vector2
@@ -369,31 +370,36 @@ namespace IngameScript
                 _nextPrioritySortF = f + _p.PriorityCheckTicks;
                 _p.GlobalPriorityUpdateSwitch = false;
             }
+            Log = $"\n>>{_nextPrioritySortF:X8}";
 
             #region igc target sharing
-            if (_p.ReceiveIGCTicks > 0 && f >= _nextIGCCheck)
+            bool rcv = _p.ReceiveIGCTicks > 0;
+            if (rcv)
             {
-                int ct = 0;
-
-                while (_TGT.HasPendingMessage)
+                if (f >= _nextIGCCheck)
                 {
-                    var m = _TGT.AcceptMessage();
-                    if (m.Data is MyTuple<long, long>)
+                    while (_TGT.HasPendingMessage)
                     {
-                        var d = (MyTuple<long, long>)m.Data;
-                        _offsets[d.Item1] = f - (d.Item2 + 1);
+                        var m = _TGT.AcceptMessage();
+                        if (m.Data is MyTuple<long, long>)
+                        {
+                            var d = (MyTuple<long, long>)m.Data;
+                            _offsets[d.Item1] = f - (d.Item2 + 1);
+                        }
+                        else if (m.Data is MyTuple<MyTuple<long, long, long, int>, MyTuple<Vector3D, Vector3D, MatrixD, double>>)
+                        {
+                            var d = (MyTuple<MyTuple<long, long, long, int>, MyTuple<Vector3D, Vector3D, MatrixD, double>>)m.Data;
+                            if (!_targets.ContainsKey(d.Item1.Item1) || _targets[d.Item1.Item1].Source != ID)
+                                _targets[d.Item1.Item1] = new Target(ref d);
+                        }
                     }
-                    else if (m.Data is MyTuple<MyTuple<long, long, long, int>, MyTuple<Vector3D, Vector3D, MatrixD, double>>)
-                    {
-                        var d = (MyTuple<MyTuple<long, long, long, int>, MyTuple<Vector3D, Vector3D, MatrixD, double>>)m.Data;
-                        if (!_targets.ContainsKey(d.Item1.Item1) || _targets[d.Item1.Item1].Source != ID)
-                            _targets[d.Item1.Item1] = new Target(ref d);
-                    }
-                    ct++;
+                    _nextIGCCheck = f + _p.ReceiveIGCTicks;
                 }
-                _nextIGCCheck = f + _p.ReceiveIGCTicks;
+                Log += $"\n\n>>{_nextIGCCheck:X8}";
             }
-            else if (_p.SendIGCTicks > 0)
+            else Log += DSB;
+
+            if (_p.SendIGCTicks > 0)
             {
                 if (f >= _nextOffsetSend)
                 {
@@ -412,10 +418,15 @@ namespace IngameScript
                                 MyTuple.Create(tgt.Position, tgt.Velocity, tgt.Matrix, tgt.Radius)
                             )
                         );
-                }
                 _nextIGCSend = f + _p.SendIGCTicks;
+                }
+
+                Log += $"\n\n>>{_nextIGCSend:X8}";
             }
+            else Log += DSB;
             #endregion
+            Log += $"\n\n>>{Count:00000000}";
+            Log += rcv ? $"\n\n>>{_offsets.Count:00000000}": DSB;
         }
 
         public Target Get(long eid) => _targets.ContainsKey(eid) ? _targets[eid] : null;

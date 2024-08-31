@@ -116,7 +116,8 @@ namespace IngameScript
         float _azR, _elR, _max = float.MaxValue, _min = float.MinValue; // rest angles - it's my code, i can name stuff as terribly as i want!!!!
         bool _stopSpin = false;
         public int aRPM = 20, eRPM = 53;
-        public int[] Scans;
+        public int Scans;
+        public string MinScan;
     
 
         public LidarMast(Program p, IMyMotorStator azi)
@@ -194,7 +195,6 @@ namespace IngameScript
 
                 _elevation.LowerLimitRad = _min;
                 _elevation.UpperLimitRad = _max;
-                Scans = new int[Lidars.Count];
             }
         }
 
@@ -238,12 +238,16 @@ namespace IngameScript
                     _elevation.TargetVelocityRPM = 0;
             }
 
+            double min = _max;
+            Scans = 0;
+
             foreach (var t in _p.Targets.AllTargets())
                 if (!_p.Targets.ScannedIDs.Contains(t.EID))
                     for (int i = 0; i < Lidars.Count; i++)
                     {
                         var icpt = t.Position + t.Elapsed(_p.F) * t.Velocity - Main.WorldMatrix.Translation;
                         icpt.Normalize();
+  
 
                         if (icpt.Dot(_azimuth.WorldMatrix.Down) > _maxAzD ||
                             icpt.Dot(Lidars[i].First.WorldMatrix.Backward) > 0 ||
@@ -251,8 +255,13 @@ namespace IngameScript
                             continue;
 
                         if (Lidars[i].Scan(_p, t) != ScanResult.Failed)
-                            Scans[i] = Lidars[i].Scans;
-                        else Scans[i] = 0;
+                            Scans+= Lidars[i].Scans;
+
+                        if (Lidars[i].scanAVG < min)
+                        {
+                            min = Lidars[i].scanAVG;
+                            MinScan = $"{Lidars[i].tag} {min/1000:0000}KM";
+                        }               
                     }
         }
     }

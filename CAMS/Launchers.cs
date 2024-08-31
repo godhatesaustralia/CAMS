@@ -376,7 +376,7 @@ namespace IngameScript
         void AddReport(string s)
         {
             var now = NextUpdateF;
-            Report[Lib.Next(ref _rPtr, Report.Length)] = $"[{now:X4}] >" + s;
+            Report[Lib.Next(ref _rPtr, Report.Length)] = $">{now:X4} " + s;
         }
 
 

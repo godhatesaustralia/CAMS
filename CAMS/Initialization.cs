@@ -275,8 +275,9 @@ namespace IngameScript
                     SPR(SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, PMY, "", al), // 5
                     SPR(SHP, Lib.TRI, Lib.V2(252, 126), Lib.V2(48, 28), PMY), // 6
                     SPR(SHP, Lib.TRI, Lib.V2(252, 162), Lib.V2(48, 28), PMY, null, cnr, MathHelper.Pi), // 7
-                    SPR(TXT, "TEST RGT\nTEST RGT\nTEST RGT\nTEST RGT\nTEST RGT\nTEST RGT\nTEST RGT\nTEST RGT", Lib.V2(320, 112), null, PMY, Lib.VB, al, 0.7325f),
+                    SPR(TXT, "", Lib.V2(320, 112), null, SDY, Lib.V, al, 0.5935f),
                     SPR(TXT, "", Lib.V2(20, 362), null, PMY, Lib.VB, al, 0.6785f),
+                    SPR(TXT, "NX_TGT_PRI\n\nNX_IGC_RCV\n\nNX_IGC_SND\n\nSYS_TGT_CT\n\nIGC_FRN_CT", Lib.V2(320, 112), null, PMY, Lib.VB, al, 0.5935f),
                     SPR(SHP, Lib.SQS, Lib.V2(312, 256), Lib.V2(8, 288), PMY), // 8
                     SPR(SHP, Lib.SQS, Lib.V2(156, 180), Lib.V2(308, 8), PMY), // 9
                     SPR(SHP, Lib.SQS, Lib.V2(156, 356), Lib.V2(308, 8), PMY), // 10
@@ -315,9 +316,11 @@ namespace IngameScript
                     SPR(TXT, "", Lib.V2(24, 336), null, PMY, Lib.VB, 0, 0.9125f),
                     SPR(TXT, "", Lib.V2(0, 0)),
                     SPR(TXT, "", Lib.V2(0, 0)),
-                    SPR(SHP, Lib.SQS, Lib.V2(256, 180), Lib.V2(496, 8), PMY),
-                    SPR(SHP, Lib.TRI, Lib.V2(464, 126), Lib.V2(48, 28), PMY),
-                    SPR(SHP, Lib.TRI, Lib.V2(464, 162), Lib.V2(48, 28), PMY, null, cnr, MathHelper.Pi),
+                    SPR(SHP, Lib.SQS, Lib.V2(156, 180), Lib.V2(308, 8), PMY), // 5
+                    SPR(SHP, Lib.TRI, Lib.V2(252, 126), Lib.V2(48, 28), PMY), // 6
+                    SPR(SHP, Lib.TRI, Lib.V2(252, 162), Lib.V2(48, 28), PMY, null, cnr, MathHelper.Pi), // 7
+                    SPR(SHP, Lib.SQS, Lib.V2(312, 256), Lib.V2(8, 288), PMY), // 8
+                    SPR(SHP, Lib.SQS, Lib.V2(156, 256), Lib.V2(308, 8), PMY), // 9
                 },
                 ScrollLN, null, null
             ));
