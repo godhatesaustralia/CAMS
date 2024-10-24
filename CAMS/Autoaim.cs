@@ -7,11 +7,11 @@ using System.Runtime.Versioning;
 
 namespace IngameScript
 {
-    public class Autoaim
+    #if AIMASSIST
+    public partial class Program : MyGridProgram
     {
-        //static IMyGridTerminalSystem gridSystem;
-        // replace with m
-        class PID
+
+        public class PID
         {
             double
                 _kP = 0,
@@ -29,18 +29,6 @@ namespace IngameScript
                 _decay = false;
 
             public double Value { get; private set; }
-
-            // turret
-            public PID(double kP, double kI, double kD, double decay, double ts)
-            {
-                _kP = kP;
-                _kI = kI;
-                _kD = kD;
-                _timestep = ts;
-                _invTS = 1 / _timestep;
-                _intDecayRatio = decay;
-                _decay = true;
-            }
 
             // aimbot
             public PID(double kP, double kI, double kD, double lBnd, double uBnd, double decay, double ts)
@@ -97,6 +85,13 @@ namespace IngameScript
                 _first = true;
             }
         }
+    }
+    #endif
+    public class Autoaim
+    {
+        //static IMyGridTerminalSystem gridSystem;
+        // replace with m
+
 
         Program _p;
         static double
