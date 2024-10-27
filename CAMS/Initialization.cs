@@ -21,6 +21,7 @@ namespace IngameScript
             ScanDistLimit;
 
         public int
+            HardpointsCount,
             SendIGCTicks,
             ReceiveIGCTicks,
             MaxAutoTgtChecks,
@@ -75,6 +76,7 @@ namespace IngameScript
                     MaxTgtKillTracks = p.Int(H, "maxKillTracks", 3);
                     MastCheckTicks = p.Int(H, "mastUpdateTicks", 3);
                     PriorityCheckTicks = p.Int(H, "priorityUpdateTicks", 10);
+                    HardpointsCount = p.Int(H, "mslHardpoints", 16);
 
                     BKG = p.Color(H, "backgroundColor", new Color(7, 16, 7));
                     PMY = p.Color(H, "primaryColor", new Color(100, 250, 100));
@@ -144,7 +146,7 @@ namespace IngameScript
 
             #region turrets and racks
             var r = new List<IMyMotorStator>();
-            var l = new List<ArmLauncherWHAM>();
+            var l = new List<ArmLauncher>();
             
             Terminal.GetBlockGroupWithName(TurPDLRGroup).GetBlocks(null, b =>
             {
@@ -189,7 +191,7 @@ namespace IngameScript
             });
             foreach (var arm in r)
             {
-                var rk = new ArmLauncherWHAM(arm, this);
+                var rk = new ArmLauncher(arm, this);
                 if (rk.Init())
                     l.Add(rk);
             }

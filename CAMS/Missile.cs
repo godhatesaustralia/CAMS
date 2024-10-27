@@ -3,69 +3,9 @@ using System.Collections.Generic;
 using Sandbox.ModAPI.Ingame;
 using SpaceEngineers.Game.ModAPI.Ingame;
 using VRageMath;
-using VRage.Game.ModAPI.Ingame;
 
 namespace IngameScript
 {
-	public class GyroCtrl
-	{
-		IMyGyro _gyro;
-		byte _yaw, _pitch, _roll;
-		static Action<IMyGyro, float>[] _profiles =
-		{
-			(g, v) => { g.Yaw = -v; },
-			(g, v) => { g.Yaw = v; },
-			(g, v) => { g.Pitch = -v; },
-			(g, v) => { g.Pitch = v; },
-			(g, v) => { g.Roll = -v; },
-			(g, v) => { g.Roll = v; }
-		};
-		public void Init(IMyGyro g, IMyShipController c)
-		{
-			_gyro = g;
-			_yaw = SetRelDir(_gyro.WorldMatrix.GetClosestDirection(c.WorldMatrix.Up));
-			_pitch = SetRelDir(_gyro.WorldMatrix.GetClosestDirection(c.WorldMatrix.Left));
-			_roll = SetRelDir(_gyro.WorldMatrix.GetClosestDirection(c.WorldMatrix.Forward));
-		}
-
-		static byte SetRelDir(Base6Directions.Direction dir)
-		{
-			switch (dir)
-			{
-				case Base6Directions.Direction.Up:
-					return 1;
-				default:
-				case Base6Directions.Direction.Down:
-					return 0;
-				case Base6Directions.Direction.Left:
-					return 2;
-				case Base6Directions.Direction.Right:
-					return 3;
-				case Base6Directions.Direction.Forward:
-					return 4;
-				case Base6Directions.Direction.Backward:
-					return 5;
-			}
-		}
-
-		public void SetGyroOverride(bool move, float y, float p, float r)
-		{
-			// check
-			if (!_gyro.IsFunctional)
-			{
-				_gyro.Enabled = _gyro.GyroOverride = false;
-				_gyro.Yaw = _gyro.Pitch = _gyro.Roll = 0f;
-			}
-			else if (move)
-			{
-				_gyro.Enabled = move;
-				_profiles[_yaw](_gyro, y);
-				_profiles[_pitch](_gyro, p);
-				_profiles[_roll](_gyro, r);
-			}
-		}
-	}
-
 	// this is all alysius i have no fucking idea how it works
 	public class FastSolver
 	{
@@ -221,202 +161,27 @@ namespace IngameScript
 			else return Math.Min(a, b);
 		}
 	}
-
-	public class Missile
+	public class Hardpoint : IComparable<Hardpoint>
 	{
-		public readonly string Tube; // NON-UNIQUE missile identifier; equivalent to missile tube name
-		public long TEID, LastF;
-		public IMyRemoteControl Controller;
-		public IMyShipMergeBlock Hardpoint;
-		IMyShipConnector _ctor;
-		IMyShipMergeBlock _merge;
-		IMyGyro _gyro;
-		IMyBatteryBlock _batt;
-		List<IMyCameraBlock> _sensors = new List<IMyCameraBlock>();
-		List<IMyGasTank> _tanks = new List<IMyGasTank>();
-		List<IMyThrust> _thrust = new List<IMyThrust>();
-		List<IMyWarhead> _warhead = new List<IMyWarhead>();
-
-		bool 
-			_rdy, // flag for launch readiness 
-			_complete, // flag for physical (weld) completion
-			_checkAccel;
+		public readonly string Name;
+		public readonly int Index;
+		public readonly float Reload;
+		public IMyShipMergeBlock Base;
 		byte _gYaw, _gPitch, _gRoll;
-		double _accel;
+		int _gainP, _gainD;
+
+		bool _complete = false;
 		int _cachePtr = 0;
 		Vector3I[] _blockPosCache;
 		IMyTerminalBlock[] _partsCache;
-		PDCtrl _yaw, _pitch;
-		TargetProvider _t;
-		MatrixD _viewMat;
-		Vector3D _pos, _cmd;
 
-		public Missile(Program p, string t)
+		Missile _m;
+
+		public Hardpoint(string n, float r)
 		{
-			_t = p.Targets;
-			Tube = t;
-			_rdy = false;
-		}
-
-		#region gyro
-		static Action<IMyGyro, float>[] _profiles =
-		{
-			(g, v) => { g.Yaw = -v; },
-			(g, v) => { g.Yaw = v; },
-			(g, v) => { g.Pitch = -v; },
-			(g, v) => { g.Pitch = v; },
-			(g, v) => { g.Roll = -v; },
-			(g, v) => { g.Roll = v; }
-		};
-		public void SetupGyro()
-		{
-			_gYaw = SetRelDir(_gyro.WorldMatrix.GetClosestDirection(Controller.WorldMatrix.Up));
-			_gPitch = SetRelDir(_gyro.WorldMatrix.GetClosestDirection(Controller.WorldMatrix.Left));
-			_gRoll = SetRelDir(_gyro.WorldMatrix.GetClosestDirection(Controller.WorldMatrix.Forward));
-		}
-
-		static byte SetRelDir(Base6Directions.Direction dir)
-		{
-			switch (dir)
-			{
-				case Base6Directions.Direction.Up:
-					return 1;
-				default:
-				case Base6Directions.Direction.Down:
-					return 0;
-				case Base6Directions.Direction.Left:
-					return 2;
-				case Base6Directions.Direction.Right:
-					return 3;
-				case Base6Directions.Direction.Forward:
-					return 4;
-				case Base6Directions.Direction.Backward:
-					return 5;
-			}
-		}
-
-		public void SetGyroOverride(bool move, float y, float p, float r)
-		{
-			// check
-			if (!_gyro.IsFunctional)
-			{
-				_gyro.Enabled = _gyro.GyroOverride = false;
-				_gyro.Yaw = _gyro.Pitch = _gyro.Roll = 0f;
-			}
-			else if (move)
-			{
-				_gyro.Enabled = move;
-				_profiles[_gYaw](_gyro, y);
-				_profiles[_gPitch](_gyro, p);
-				_profiles[_gRoll](_gyro, r);
-			}
-		}
-		#endregion
-
-		public bool TryLoadMissile()
-		{
-			if (_complete && !_rdy)
-			{
-				if (_partsCache[0] is IMyRemoteControl) Controller = (IMyRemoteControl)_partsCache[0];
-				else return false;
-				for (; _cachePtr++ < _partsCache.Length;)
-				{
-					var t = _partsCache[_cachePtr];
-					if (t == null) continue;
-					// note - this setup makes it necessary to have controller as first item in both cache arrays
-					// setup program MUST take this into account
-					else if (t is IMyGyro) _gyro = (IMyGyro)t;
-					else if (t is IMyBatteryBlock) { _batt = (IMyBatteryBlock)t; _batt.ChargeMode = ChargeMode.Recharge; }
-					else if (t is IMyThrust) _thrust.Add((IMyThrust)t);
-					else if (t is IMyWarhead) _warhead.Add((IMyWarhead)t);
-					else if (t is IMyShipConnector) { _ctor = (IMyShipConnector)t; _ctor.Connect(); }
-					else if (t is IMyShipMergeBlock) _merge = (IMyShipMergeBlock)t;
-					else if (t is IMyGasTank) { _tanks.Add((IMyGasTank)t); _tanks[_tanks.Count - 1].Stockpile = true; }
-					else if (t is IMyCameraBlock) { _sensors.Add((IMyCameraBlock)t); _sensors[_sensors.Count - 1].EnableRaycast = true; }
-				}
-				_cachePtr = 0;
-				_rdy = _checkAccel = true;
-			}
-			return true;
-		}
-
-		public bool CollectMissileBlocks()
-		{
-			if (!_complete)
-			{
-				while (_cachePtr < _blockPosCache.Length)
-				{
-					var slim = Hardpoint.CubeGrid.GetCubeBlock(_blockPosCache[_cachePtr]);
-					if (slim != null && slim.IsFullIntegrity)
-					{
-						if (_cachePtr < _partsCache.Length && slim.FatBlock is IMyTerminalBlock)
-							_partsCache[_cachePtr] = (IMyTerminalBlock)slim.FatBlock;
-						_cachePtr++;
-					}
-					else return false;
-				}
-				_cachePtr = 1;
-				_complete = true;
-			}
-			return true;
-		}
-
-		void Clear()
-		{
-			Controller = null;
-			_warhead.Clear();
-			_tanks.Clear();
-			_thrust.Clear();
-			_sensors.Clear();
-		}
-
-		public bool Launch(long teid)
-		{
-			if (!_rdy || !_t.Exists(teid))
-				return false;
-			TEID = teid;
-			_merge.Enabled = Hardpoint.Enabled = false;
-			foreach (var g in _tanks)
-				g.Stockpile = false;
-			_batt.ChargeMode = ChargeMode.Discharge;
-			_ctor.Disconnect();
-			foreach (var t in _thrust)
-			{
-				t.Enabled = true;
-				t.ThrustOverridePercentage = 1;
-			}
-			_complete = _rdy = false;
-			return true;
-		}
-
-		public void Update()
-		{
-			var tgt = _t.Get(TEID);
-			if (tgt == null)
-				return;
-
-			#region nav
-			_viewMat = MatrixD.Transpose(Controller.WorldMatrix);
-			_pos = Controller.WorldMatrix.Translation;
-
-			Vector3D
-				rP = tgt.Position - _pos,
-				rV = tgt.Velocity - Controller.GetShipVelocities().LinearVelocity,
-				rA = tgt.Accel - Controller.GetNaturalGravity();
-
-			double
-				a = 0.25 * rA.LengthSquared() + _accel * _accel,
-				b = rA.Dot(rV),
-				c = rA.Dot(rP) + rV.LengthSquared(),
-				d = 2 * rP.Dot(rV),
-				e = rV.LengthSquared(),
-				t = FastSolver.Solve(a, b, c, d, e);
-
-			if (t == double.MaxValue || double.IsNaN(t)) t = 1000;
-			var icpt = tgt.Position + (rV * t) + (0.5 * rA * t * t);
-			_cmd = Vector3D.TransformNormal(icpt - _pos, ref _viewMat);
-			#endregion
-
+			Index = Program.GetHardpointIndex();
+			Reload = r;
+			Name = n;
 		}
 
 		public bool Init(IMyShipMergeBlock h)
@@ -426,13 +191,12 @@ namespace IngameScript
 					return false;
 				else
 				{
-					Hardpoint = h;
-					int
-						pg = q.Int(Lib.H, "pGain", 10),
-						dg = q.Int(Lib.H, "dGain", 5);
-
-					_yaw = new PDCtrl(pg, dg, 10);
-					_pitch = new PDCtrl(pg, dg, 10);
+					Base = h;
+					_gainP = q.Int(Lib.H, "pGain", 10);
+					_gainD = q.Int(Lib.H, "dGain", 5);
+					
+					if (!q.GyroYPR(Lib.H, "ypr", out _gYaw, out _gPitch, out _gRoll))
+						return false;
 
 					var p = q.String(Lib.H, "cache");
 					if (string.IsNullOrEmpty(p))
@@ -465,28 +229,179 @@ namespace IngameScript
 
 					for (int i = 0; i < l.Count; i++)
 						_blockPosCache[i] = l[i];
-					// temporary. need to find a better way
-					// of switching behavior to do proper setup
-					// -- need to set gyro profiles only once.
+
 					return _blockPosCache != null;
 				}
 		}
-	}
 
-	public class EKVM : Missile, IComparable<EKVM>
-	{
-		public readonly float Reload;
-
-		public EKVM(Program p, string t, float r) : base(p, t)
+		public bool CollectMissileBlocks()
 		{
-			Reload = r;
+			if (!_complete)
+			{
+				while (_cachePtr < _blockPosCache.Length)
+				{
+					var slim = Base.CubeGrid.GetCubeBlock(_blockPosCache[_cachePtr]);
+					if (slim != null && slim.IsFullIntegrity)
+					{
+						if (_cachePtr < _partsCache.Length && slim.FatBlock is IMyTerminalBlock)
+							_partsCache[_cachePtr] = (IMyTerminalBlock)slim.FatBlock;
+						_cachePtr++;
+					}
+					else return false;
+				}
+				_cachePtr = 1;
+				_complete = true;
+			}
+			return true;
 		}
 
-		public int CompareTo(EKVM o)
+		public bool IsMissileReady(ref Missile m)
+		{
+			m = null;
+			if (!_complete) return false;
+			_m = new Missile(_gYaw, _gPitch, _gRoll, _gainP, _gainD);
+			
+			if (!_m.TrySetup(ref _cachePtr, ref _partsCache))
+				return false;
+			
+			return true;
+		} 
+
+		public int CompareTo(Hardpoint o)
 		{
 			if (Reload == o.Reload)
-				return Controller == null ? -1 : Tube.CompareTo(o.Tube);
+				return Base.IsConnected ? 1 : Name.CompareTo(o.Name);
 			else return Reload < o.Reload ? -1 : 1;
+		}
+	}
+
+	public class Missile
+	{
+		const int DEF_UPDATE = 10;
+		public readonly string Tube; // NON-UNIQUE missile identifier; equivalent to missile tube name
+		public long TEID, LastF;
+		public IMyRemoteControl Controller;
+		public IMyShipMergeBlock Hardpoint;
+		IMyShipConnector _ctor;
+		IMyShipMergeBlock _merge;
+		IMyGyro _gyro;
+		IMyBatteryBlock _batt;
+		List<IMyCameraBlock> _sensors = new List<IMyCameraBlock>();
+		List<IMyGasTank> _tanks = new List<IMyGasTank>();
+		List<IMyThrust> _thrust = new List<IMyThrust>();
+		List<IMyWarhead> _warhead = new List<IMyWarhead>();
+
+		bool _checkAccel;
+		byte _gYaw, _gPitch, _gRoll;
+		double _accel;
+
+		PDCtrl _yaw, _pitch;
+		MatrixD _viewMat;
+		Vector3D _pos, _cmd;
+
+		public Missile(byte y, byte p, byte r, int pg, int dg)
+		{
+			_gYaw = y;
+			_gPitch = p;
+			_gRoll = r;
+			_yaw = new PDCtrl(pg, dg, DEF_UPDATE);
+			_pitch = new PDCtrl(pg, dg, DEF_UPDATE);
+		}
+		#region gyro
+		static Action<IMyGyro, float>[] _profiles =
+		{
+			(g, v) => { g.Yaw = -v; },
+			(g, v) => { g.Yaw = v; },
+			(g, v) => { g.Pitch = -v; },
+			(g, v) => { g.Pitch = v; },
+			(g, v) => { g.Roll = -v; },
+			(g, v) => { g.Roll = v; }
+		};
+
+		public void SetGyroOverride(bool move, float y, float p, float r)
+		{
+			// check
+			if (!_gyro.IsFunctional)
+			{
+				_gyro.Enabled = _gyro.GyroOverride = false;
+				_gyro.Yaw = _gyro.Pitch = _gyro.Roll = 0f;
+			}
+			else if (move)
+			{
+				_gyro.Enabled = move;
+				_profiles[_gYaw](_gyro, y);
+				_profiles[_gPitch](_gyro, p);
+				_profiles[_gRoll](_gyro, r);
+			}
+		}
+		#endregion
+
+		public bool TrySetup(ref int p, ref IMyTerminalBlock[] c)
+		{
+			if (c[0] is IMyRemoteControl) 
+				Controller = (IMyRemoteControl)c[0];
+			else return false;
+			for (; p++ < c.Length;)
+			{
+				var t = c[p];
+				if (t == null) continue;
+				// note - this setup makes it necessary to have controller as first item in both cache arrays
+				// setup program MUST take this into account
+				else if (t is IMyGyro) _gyro = (IMyGyro)t;
+				else if (t is IMyBatteryBlock) { _batt = (IMyBatteryBlock)t; _batt.ChargeMode = ChargeMode.Recharge; }
+				else if (t is IMyThrust) _thrust.Add((IMyThrust)t);
+				else if (t is IMyWarhead) _warhead.Add((IMyWarhead)t);
+				else if (t is IMyShipConnector) { _ctor = (IMyShipConnector)t; _ctor.Connect(); }
+				else if (t is IMyShipMergeBlock) _merge = (IMyShipMergeBlock)t;
+				else if (t is IMyGasTank) { _tanks.Add((IMyGasTank)t); _tanks[_tanks.Count - 1].Stockpile = true; }
+				else if (t is IMyCameraBlock) { _sensors.Add((IMyCameraBlock)t); _sensors[_sensors.Count - 1].EnableRaycast = true; }
+			}
+			p = 0;
+			return true;
+		}
+
+		public void Launch()
+		{
+			_merge.Enabled = Hardpoint.Enabled = false;
+			foreach (var g in _tanks)
+				g.Stockpile = false;
+			_batt.ChargeMode = ChargeMode.Discharge;
+			_ctor.Disconnect();
+			foreach (var t in _thrust)
+			{
+				t.Enabled = true;
+				t.ThrustOverridePercentage = 1;
+			}
+		}
+
+		public void Update(Target tgt)
+		{
+			if (tgt == null)
+				return;
+
+			#region nav
+			_viewMat = MatrixD.Transpose(Controller.WorldMatrix);
+			_pos = Controller.WorldMatrix.Translation;
+
+			Vector3D
+				grav = Controller.GetNaturalGravity(),
+				rP = tgt.Position - _pos,
+				rV = tgt.Velocity - Controller.GetShipVelocities().LinearVelocity,
+				rA = tgt.Accel - Controller.GetNaturalGravity();
+
+			double
+				a = 0.25 * rA.LengthSquared() + _accel * _accel,
+				b = rA.Dot(rV),
+				c = rA.Dot(rP) + rV.LengthSquared(),
+				d = 2 * rP.Dot(rV),
+				e = rV.LengthSquared(),
+				t = FastSolver.Solve(a, b, c, d, e);
+
+			if (t == double.MaxValue || double.IsNaN(t)) t = 1000;
+			var icpt = tgt.Position + (rV * t) + (0.5 * rA * t * t);
+			_cmd = Vector3D.TransformNormal(icpt - _pos, ref _viewMat);
+			#endregion
+
 		}
 	}
 }

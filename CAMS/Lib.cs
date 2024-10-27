@@ -153,6 +153,18 @@ namespace IngameScript
             return a - a.Dot(b) / b.LengthSquared() * b;
         }
 
+        public static Vector3 RandomNormal(ref Random random, ref Vector3 dir)
+        {
+            dir.Normalize();
+            var perp = Vector3D.CalculatePerpendicularVector(dir);
+            perp.Normalize();
+            var coperp = perp.Cross(dir);
+
+            var theta = random.NextDouble() * PI * 2;
+
+            return perp * Math.Sin(theta) + coperp * Math.Cos(theta);
+        }
+
         public static Vector3D RandomOffset(ref Random r, double scat)
         {
             return new Vector3D((r.NextDouble() * 2) - 1, (r.NextDouble() * 2) - 1, (r.NextDouble() * 2) - 1) * scat;

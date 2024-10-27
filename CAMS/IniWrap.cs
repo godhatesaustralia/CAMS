@@ -47,17 +47,6 @@ namespace IngameScript
             return output;
         }
 
-        public float Float(string aSct, string aKy, float def = 1)
-        {
-            aKy = keymod(aSct, aKy);
-            return myIni.Get(aSct, aKy).ToSingle(def);
-        }
-        public double Double(string aSct, string aKy, double def = 0)
-        {
-            aKy = keymod(aSct, aKy);
-            return myIni.Get(aSct, aKy).ToDouble(def);
-        }
-
         public bool TryReadVector2(string aSct, string aKey, ref Vector2 def)
         {
             string s = myIni.Get(aSct, aKey).ToString();
@@ -77,21 +66,18 @@ namespace IngameScript
             return true;
         }
 
-        public int Int(string s, string k, int def = 0)
-        {
-            k = keymod(s, k);
-            return myIni.Get(s, k).ToInt32(def);
-        }
-        public bool Bool(string s, string k, bool def = false)
-        {
-            k = keymod(s, k);
-            return myIni.Get(s, k).ToBoolean(def);
-        }
-        public string String(string s, string k, string def = "")
-        {
-            k = keymod(s, k);
-            return myIni.Get(s, k).ToString(def);
-        }
+        byte Hex(string input, int start = 0, int length = 2) => Convert.ToByte(input.Substring(start, length), 16);
+
+        public int Int(string s, string k, int def = 0) => myIni.Get(s, k).ToInt32(def);
+
+        public float Float(string aSct, string aKy, float def = 1) => myIni.Get(aSct, aKy).ToSingle(def);
+        
+        public double Double(string aSct, string aKy, double def = 0) => myIni.Get(aSct, aKy).ToDouble(def);
+
+        public bool Bool(string s, string k, bool def = false) => myIni.Get(s, k).ToBoolean(def);
+
+        public string String(string s, string k, string def = "") => myIni.Get(s, k).ToString(def);
+
         public Color Color(string s, string k, Color def)
         {
             byte r, g, b, a;
@@ -104,13 +90,19 @@ namespace IngameScript
             a = Hex(c, 6);
             return new Color(r, g, b, a);
         }
-        byte Hex(string input, int start = 0, int length = 2) => Convert.ToByte(input.Substring(start, length), 16);
 
-        string keymod(string s, string k)
+        public bool GyroYPR(string s, string k, out byte y, out byte p, out byte r)
         {
-            k = !myIni.ContainsKey(s, k.ToLower()) ? k : k.ToLower();
-            return k;
+            y = p = r = 0;
+            var g = myIni.Get(s, k).ToString().ToLower();
+            if (g.Length != 6)
+                return false;
+            y = Hex(g);
+            p = Hex(g, 2);
+            r = Hex(g, 4);
+            return true;
         }
+
         public MySprite[] Sprites(string s, string k)
         {
             string[] list = myIni.Get(s, k).ToString().Split('\n'), itm;

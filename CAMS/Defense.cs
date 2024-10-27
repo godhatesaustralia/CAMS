@@ -70,17 +70,6 @@ namespace IngameScript
 
         void UpdateAMS()
         {
-            while (IGC.UnicastListener.HasPendingMessage)
-            {
-                var m = IGC.UnicastListener.AcceptMessage();
-                if (m.Data is long)
-                {
-                    foreach (var rk in AMSLaunchers)
-                        if (rk.CheckHandshake((long)m.Data)) break;
-                }
-
-            }
-
             foreach (var rk in AMSLaunchers)
                 if (F >= rk.NextUpdateF)
                     rk.NextUpdateF = F + rk.Update();
@@ -101,23 +90,6 @@ namespace IngameScript
                     }
 
                 Targets.Prioritized.Remove(t);
-            }
-            // whips default broadcast interval: 10hz / every 6 ticks
-            if (TargetsKillDict.Count == 0)
-                return;
-
-            var myPos = Center;
-            foreach (var tgt in TargetsKillDict.Keys)
-            {
-                t = Targets.Get(tgt);
-                var kill = t == null;
-                if (!kill && !Targets.Prioritized.Contains(t))
-                    Targets.Prioritized.Add(t);
-                if (F % 6 == 0)
-                {
-                    Datalink.SendParams(kill, false, false, false, true, false);
-                    Datalink.SendTargetData(t, ref myPos, F);
-                }
             }
 
             PDT tur;

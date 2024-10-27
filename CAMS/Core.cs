@@ -91,8 +91,23 @@ namespace IngameScript
 
         #endregion
         
+        #region fire-control
+        public Missile[] MissilesReload;
+        Dictionary<string, Hardpoint> FixedHardpoints = new Dictionary<string, Hardpoint>();
+        static int _reloadPtr = 0;
+
+        public static int GetHardpointIndex()
+        {
+            int r = _reloadPtr;
+            _reloadPtr++;
+            return r;
+        }
+
+        public Dictionary<long, Missile> ActiveMissiles = new Dictionary<long, Missile>();
+        #endregion
+
         #region defense
-        ArmLauncherWHAM[] AMSLaunchers;
+        ArmLauncher[] AMSLaunchers;
         Dictionary<long, long> TargetsKillDict = new Dictionary<long, long>();
         Dictionary<string, RotorTurret> Turrets = new Dictionary<string, RotorTurret>();
         RoundRobin<string, RotorTurret>
