@@ -161,10 +161,10 @@ namespace IngameScript
 			else return Math.Min(a, b);
 		}
 	}
+
 	public class Hardpoint : IComparable<Hardpoint>
 	{
 		public readonly string Name;
-		public readonly int Index;
 		public readonly float Reload;
 		public IMyShipMergeBlock Base;
 		byte _gYaw, _gPitch, _gRoll;
@@ -175,16 +175,13 @@ namespace IngameScript
 		Vector3I[] _blockPosCache;
 		IMyTerminalBlock[] _partsCache;
 
-		Missile _m;
-
 		public Hardpoint(string n, float r)
 		{
-			Index = Program.GetHardpointIndex();
 			Reload = r;
 			Name = n;
 		}
 
-		public bool Init(IMyShipMergeBlock h)
+		public bool Init(IMyShipMergeBlock h, ref Missile m)
 		{
 			using (var q = new iniWrap())
 				if (!q.CustomData(h))
@@ -230,6 +227,7 @@ namespace IngameScript
 					for (int i = 0; i < l.Count; i++)
 						_blockPosCache[i] = l[i];
 
+					m = new Missile(_gYaw, _gPitch, _gRoll, _gainP, _gainD);
 					return _blockPosCache != null;
 				}
 		}
@@ -257,13 +255,12 @@ namespace IngameScript
 
 		public bool IsMissileReady(ref Missile m)
 		{
-			m = null;
 			if (!_complete) return false;
-			_m = new Missile(_gYaw, _gPitch, _gRoll, _gainP, _gainD);
-			
-			if (!_m.TrySetup(ref _cachePtr, ref _partsCache))
+
+			m.Clear();
+			if (!m.TrySetup(ref _cachePtr, ref _partsCache))
 				return false;
-			
+
 			return true;
 		} 
 
@@ -278,8 +275,8 @@ namespace IngameScript
 	public class Missile
 	{
 		const int DEF_UPDATE = 10;
-		public readonly string Tube; // NON-UNIQUE missile identifier; equivalent to missile tube name
-		public long TEID, LastF;
+		public long MEID, TEID, LastF;
+		public string IDTG;
 		public IMyRemoteControl Controller;
 		public IMyShipMergeBlock Hardpoint;
 		IMyShipConnector _ctor;
@@ -307,6 +304,7 @@ namespace IngameScript
 			_yaw = new PDCtrl(pg, dg, DEF_UPDATE);
 			_pitch = new PDCtrl(pg, dg, DEF_UPDATE);
 		}
+
 		#region gyro
 		static Action<IMyGyro, float>[] _profiles =
 		{
@@ -357,11 +355,34 @@ namespace IngameScript
 				else if (t is IMyCameraBlock) { _sensors.Add((IMyCameraBlock)t); _sensors[_sensors.Count - 1].EnableRaycast = true; }
 			}
 			p = 0;
+			MEID = Controller.EntityId;
+			IDTG = MEID.ToString("X").Remove(0, 11);
 			return true;
 		}
 
-		public void Launch()
+		public void Clear()
 		{
+			Controller = null;
+			_gyro = null;
+			_merge = null;
+			_ctor = null;
+			_batt = null;
+
+			_tanks.Clear();
+			_thrust.Clear();
+			_warhead.Clear();
+			_sensors.Clear();
+
+			_yaw.Reset();
+			_pitch.Reset();
+
+			MEID = TEID = -1;
+			IDTG = "NULL";
+		}
+
+		public void Launch(long teid)
+		{
+			TEID = teid;
 			_merge.Enabled = Hardpoint.Enabled = false;
 			foreach (var g in _tanks)
 				g.Stockpile = false;

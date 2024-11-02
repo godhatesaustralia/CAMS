@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Collections.Generic;
 using Sandbox.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
@@ -15,7 +14,7 @@ namespace IngameScript
         public Color PMY, SDY, BKG;
         public const SpriteType TXT = SpriteType.TEXT, SHP = SpriteType.TEXTURE, CLP = SpriteType.CLIP_RECT;
         public bool Based;
-        
+
         public double
             PDSpray,
             ScanDistLimit;
@@ -37,9 +36,9 @@ namespace IngameScript
             ControllerTag,
             DisplayGroup,
             TurPDLRGroup,
-            TurMainGroup,
-            RackEKVGroup,
-            RackMainGroup;
+            TurMainGroup;
+
+        public string[] RackEKVNames, RackMSLNames;
 
         void ParseComputerSettings()
         {
@@ -48,7 +47,7 @@ namespace IngameScript
                 if (p.CustomData(Me, out r))
                 {
                     string
-                        grp = "RotorGroup",
+                        grp = "Rotors",
                         def = " CAMS Azimuths",
                         arys = p.String(H, "lidarTags", "[A]\n[B]\n[C]\n[D]");
 
@@ -61,8 +60,8 @@ namespace IngameScript
                     DisplayGroup = p.String(H, "displays", "MFD Users");
                     TurPDLRGroup = p.String(H, "pd" + grp, "PD" + def);
                     TurMainGroup = p.String(H, "main" + grp, "Main" + def);
-                    RackEKVGroup = p.String(H, "ekv" + grp, "EKV" + def);
-                    RackMainGroup = p.String(H, "msl" + grp, "MSL" + def);
+                    RackEKVNames = p.String(H, "ekv" + grp).Split('\n');
+                    RackMSLNames = p.String(H, "msl" + grp).Split('\n');
 
                     Based = p.Bool(H, "vcr");
                     ReceiveIGCTicks = p.Int(H, "igcCheckInterval", 0);
@@ -80,9 +79,12 @@ namespace IngameScript
 
                     BKG = p.Color(H, "backgroundColor", new Color(7, 16, 7));
                     PMY = p.Color(H, "primaryColor", new Color(100, 250, 100));
-                    SDY = p.Color(H, "secondaryColor",new Color(50, 125, 50));
+                    SDY = p.Color(H, "secondaryColor", new Color(50, 125, 50));
 
                     Targets.UpdateRadarSettings(this);
+
+                    Missiles = new Dictionary<long, Missile>(HardpointsCount * 2);
+                    ekvTargets = new HashSet<long>(MaxTgtKillTracks);
                 }
                 else throw new Exception($"\n{r.Error} at line {r.LineNo} of {Me} custom data.");
         }
@@ -105,7 +107,7 @@ namespace IngameScript
                     Display d;
                     if (b is IMyTextPanel)
                     {
-                        d = new Display(this, b, LCDScreens.First().Key, Based);
+                        d = new Display(this, b, Lib.RD, Based);
                         Displays.Add(d.Name, d);
                     }
                     else if (b is IMyTextSurfaceProvider)
@@ -114,7 +116,7 @@ namespace IngameScript
                         Displays.Add(d.Name, d);
                     }
                 }
-                DisplayRR = new RoundRobin<string, Display>(Displays.Keys.ToArray());
+                DisplayRR = new RoundRobin<string, Display>(Lib.Keys(ref Displays));
             }
             else throw new Exception($"\nNo displays found with tag \'{DisplayGroup}\'.");
             #endregion
@@ -141,13 +143,12 @@ namespace IngameScript
                 }
                 return false;
             });
-            MastNames = Masts.Keys.ToArray();
+            MastNames = Lib.Keys(ref Masts);
             #endregion
 
             #region turrets and racks
             var r = new List<IMyMotorStator>();
-            var l = new List<ArmLauncher>();
-            
+
             Terminal.GetBlockGroupWithName(TurPDLRGroup).GetBlocks(null, b =>
             {
                 var a = b as IMyMotorStator;
@@ -155,16 +156,13 @@ namespace IngameScript
                     r.Add(a);
                 return false;
             });
-            var pdn = new List<string>();
             foreach (var az in r)
             {
                 var pd = new PDT(az, this, MaxScansPDLR);
                 if (pd != null)
-                {
                     Turrets.Add(pd.Name, pd);
-                    pdn.Add(pd.Name);
-                }
             }
+            PDTNames = Lib.Keys(ref Turrets);
 
             r.Clear();
             Terminal.GetBlockGroupWithName(TurMainGroup).GetBlocks(null, b =>
@@ -181,27 +179,48 @@ namespace IngameScript
                     Turrets.Add(tr.Name, tr);
             }
 
-            r.Clear();
-            Terminal.GetBlockGroupWithName(RackEKVGroup).GetBlocks(null, b =>
+            var antmp = new List<string>();
+            foreach (var b in RackEKVNames)
             {
-                var a = b as IMyMotorStator;
+                var a = Terminal.GetBlockWithName(b) as IMyMotorStator;
                 if (a != null)
-                    r.Add(a);
-                return false;
-            });
-            foreach (var arm in r)
-            {
-                var rk = new ArmLauncher(arm, this);
-                if (rk.Init())
-                    l.Add(rk);
+                {
+                    var q = new iniWrap();
+                    if (q.CustomData(a))
+                    {
+                        Launcher l;
+                        if (q.HasKey(H, Lib.N))
+                        {
+                            var n = q.String(H, Lib.N);
+                            if (n != "")
+                            {
+                                l = q.Bool(H, "arm", false) ? new ArmLauncher(n, this, a) : new Launcher(n, this);
+                                if (l.Setup(ref q)) Launchers[l.Name] = l;
+                            }
+                        }
+                        else
+                        {
+                            var n = q.String(H, "names").Split('\n');
+                            if (n != null)
+                                foreach (var s in n)
+                                {
+                                    l = new Launcher(s.Trim('|'), this);
+                                    if (l.Setup(ref q)) Launchers[l.Name] = l;
+                                }
+                        }
+                    }
+                    q.Dispose();
+                }
             }
+            AMSNames = Lib.Keys(ref Launchers);
 
-            AMSLaunchers = l.ToArray();
-            TurretNames = Turrets.Keys.ToArray();
-            PDTNames = pdn.ToArray();
 
-            AssignRR = new RoundRobin<string, RotorTurret>(TurretNames);
-            UpdateRR = new RoundRobin<string, RotorTurret>(TurretNames);
+            ReloadRR = new RoundRobin<string, Launcher>(Lib.Keys(ref Launchers));
+
+            var temp = Lib.Keys(ref Turrets);
+
+            AssignRR = new RoundRobin<string, RotorTurret>(temp);
+            UpdateRR = new RoundRobin<string, RotorTurret>(temp);
             #endregion
 
         }
@@ -266,7 +285,7 @@ namespace IngameScript
 
             CtrlScreens.Add(Lib.MS, new Screen
             (
-                () => MastNames.Length, 
+                () => MastNames.Length,
                 new MySprite[]
                 {
                     SPR(TXT, "", Lib.V2(20, 108), null, PMY, Lib.VB, 0, 1.3275f),// 0. TUR NAME
@@ -292,7 +311,7 @@ namespace IngameScript
             #region turrets screen
             CtrlScreens.Add(Lib.TR, new Screen
             (
-                () => TurretNames.Length,
+                () => UpdateRR.IDs.Length,
                 new MySprite[]
                 {
                     SPR(TXT, "", Lib.V2(20, 112), null, PMY, Lib.VB, 0, 0.925f),// 1. TUR NAME
@@ -301,7 +320,7 @@ namespace IngameScript
                     SPR(TXT, "", Lib.V2(20, 348), null, PMY, Lib.VB, 0, 0.925f),// 5. STATE
                     SPR(SHP, Lib.SQS, Lib.V2(256, 162), Lib.V2(496, 4), PMY, null),
                     SPR(SHP, Lib.SQS, Lib.V2(256, 346), Lib.V2(496, 4), PMY, null)
-                    
+
                 },
                 ScrollTR, null, null
             ));
@@ -310,7 +329,7 @@ namespace IngameScript
             #region launchers
             CtrlScreens.Add(Lib.LN, new Screen
             (
-                () => AMSLaunchers.Length,
+                () => ReloadRR.IDs.Length,
                 new MySprite[]
                 {
                     SPR(TXT, "", Lib.V2(24, 108), null, PMY, Lib.VB, 0, 1.3275f),

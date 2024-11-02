@@ -13,10 +13,10 @@ namespace IngameScript
             second,
             lastInput;
 
-        public PDCtrl(double pGain, double dGain, float hz = 60f)
+        public PDCtrl(double pg, double dg, float hz = 60f)
         {
-            gain_p = pGain;
-            gain_d = dGain;
+            gain_p = pg;
+            gain_d = dg;
             second = hz;
         }
 

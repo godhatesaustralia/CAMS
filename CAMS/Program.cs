@@ -21,6 +21,7 @@ namespace IngameScript
             AddSystemScreens();
 
             CacheMainSystems();
+            
         }
 
         public void Save()

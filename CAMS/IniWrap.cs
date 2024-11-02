@@ -47,6 +47,8 @@ namespace IngameScript
             return output;
         }
 
+        public bool HasKey(string aSect, string aKey) => myIni.ContainsKey(aSect, aKey);
+
         public bool TryReadVector2(string aSct, string aKey, ref Vector2 def)
         {
             string s = myIni.Get(aSct, aKey).ToString();
@@ -134,7 +136,6 @@ namespace IngameScript
                 {
                     continue;
                 }
-
             }
             return r;
         }

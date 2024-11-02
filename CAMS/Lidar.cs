@@ -136,7 +136,7 @@ namespace IngameScript
                 if (p.CustomData(_azimuth))
                 {
                     var rad = (float)(Math.PI / 180);
-                    Name = p.String(Lib.H, "name", "ARY");
+                    Name = p.String(Lib.H, Lib.N, "ARY");
                     hasCTC = p.Bool(Lib.H, "ctc");
 
                     _maxAzD = p.Double(Lib.H, "limRayAzDown", 0.134);

@@ -7,6 +7,7 @@ using VRage;
 using VRage.Game.GUI.TextPanel;
 using VRageMath;
 using VRage.Game.ModAPI.Ingame;
+using System.Linq;
 
 namespace IngameScript
 {
@@ -19,9 +20,11 @@ namespace IngameScript
 
         public const string
             H = "CAMS",
+            N = "name",
             ARY = "ARY",
             SPR = "SPRITES",
             TR = "turrets",
+            RD = "radar",
             LN = "launchers",
             TG = "targets",
             MS = "masts",
@@ -61,40 +64,22 @@ namespace IngameScript
 
         #endregion
 
+        static List<string> _a = new List<string>(16);
+        public static string[] Keys<T>(ref Dictionary<string, T> d)
+        where T : class
+        {
+            _a.Clear();
+            foreach (var k in d.Keys)
+                _a.Add(k);
+
+            var a = new string[_a.Count];
+            for (int i = 0; i < _a.Count; i++)
+                a[i] = _a[i];
+            
+            return a;
+        }
+
         public static Vector2 V2(float x, float y) => new Vector2(x, y);
-
-        #region gyro
-
-        public static Action<IMyGyro, float>[] Profiles =
-		{
-			(g, v) => { g.Yaw = -v; },
-			(g, v) => { g.Yaw = v; },
-			(g, v) => { g.Pitch = -v; },
-			(g, v) => { g.Pitch = v; },
-			(g, v) => { g.Roll = -v; },
-			(g, v) => { g.Roll = v; }
-		};
-
-        public static byte SetGyroRelDir(Base6Directions.Direction dir)
-		{
-			switch (dir)
-			{
-				case Base6Directions.Direction.Up:
-					return 1;
-				default:
-				case Base6Directions.Direction.Down:
-					return 0;
-				case Base6Directions.Direction.Left:
-					return 2;
-				case Base6Directions.Direction.Right:
-					return 3;
-				case Base6Directions.Direction.Forward:
-					return 4;
-				case Base6Directions.Direction.Backward:
-					return 5;
-			}
-		}
-        #endregion
 
         #region math
 

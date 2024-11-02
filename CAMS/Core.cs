@@ -1,7 +1,6 @@
 ﻿using Sandbox.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using VRageMath;
 
@@ -16,13 +15,6 @@ namespace IngameScript
         {
             _start = s;
             IDs = ks;
-            Reset();
-        }
-
-        public RoundRobin(ref Dictionary<K, V> dict, int s = 0)
-        {
-            _start = s;
-            IDs = dict.Keys.ToArray();
             Reset();
         }
 
@@ -56,7 +48,7 @@ namespace IngameScript
 
     public partial class Program
     {
-        string[] MastNames, MastAryTags, TurretNames, PDTNames;
+        string[] MastNames, MastAryTags, PDTNames, AMSNames;
         public IMyGridTerminalSystem Terminal => GridTerminalSystem;
         public IMyShipController Controller;
         public DebugAPI Debug;
@@ -65,6 +57,7 @@ namespace IngameScript
         public Vector3D Velocity => Controller.GetShipVelocities().LinearVelocity;
         public Vector3D Gravity;
         public TargetProvider Targets;
+
         public Dictionary<string, Screen>
             CtrlScreens = new Dictionary<string, Screen>(),
             LCDScreens = new Dictionary<string, Screen>();
@@ -92,26 +85,15 @@ namespace IngameScript
         #endregion
         
         #region fire-control
-        public Missile[] MissilesReload;
-        Dictionary<string, Hardpoint> FixedHardpoints = new Dictionary<string, Hardpoint>();
-        static int _reloadPtr = 0;
-
-        public static int GetHardpointIndex()
-        {
-            int r = _reloadPtr;
-            _reloadPtr++;
-            return r;
-        }
-
-        public Dictionary<long, Missile> ActiveMissiles = new Dictionary<long, Missile>();
+        Dictionary<long, Missile> Missiles;
+        Dictionary<string, Launcher> Launchers = new Dictionary<string, Launcher>();
+        RoundRobin<string, Launcher> ReloadRR;
+        HashSet<long> ekvTargets, mslCull = new HashSet<long>();
         #endregion
 
         #region defense
-        ArmLauncher[] AMSLaunchers;
-        Dictionary<long, long> TargetsKillDict = new Dictionary<long, long>();
         Dictionary<string, RotorTurret> Turrets = new Dictionary<string, RotorTurret>();
-        RoundRobin<string, RotorTurret>
-            AssignRR, UpdateRR;
+        RoundRobin<string, RotorTurret> AssignRR, UpdateRR;
         #endregion
 
         public double GaussRNG() => (2 * RNG.NextDouble() - 1 + 2 * RNG.NextDouble() - 1 + 2 * RNG.NextDouble() - 1) / 3;

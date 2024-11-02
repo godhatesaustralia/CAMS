@@ -88,7 +88,7 @@ namespace IngameScript
                 if (p.CustomData(_azimuth) && _elevation != null)
                 {
                     var h = Lib.H;
-                    Name = p.String(h, "name", inv);
+                    Name = p.String(h, Lib.N, inv);
                     if (p.Bool(h, "ctc"))
                         m.Terminal.GetBlocksOfType<IMyTurretControlBlock>(null, b =>
                         {
