@@ -70,6 +70,8 @@ namespace IngameScript
                 _bases = new Hardpoint[tags.Length];
                 _msls = new Missile[tags.Length];
 
+                Auto = q.Bool(Lib.H, "defense");
+
                 _weld = _p.Terminal.GetBlockWithName(q.String(Lib.H, "welder")) as IMyShipWelder;
                 _proj = _p.Terminal.GetBlockWithName(q.String(Lib.H, "projector")) as IMyProjector;
 
@@ -108,7 +110,7 @@ namespace IngameScript
                 }
             else ok = false;
             rdy = Total == c;
-            
+
             AddReport("#RCK INIT");
 
             while (rdy && _loadPtr < _bases.Length)
@@ -203,7 +205,7 @@ namespace IngameScript
                 if (dict.Count < _p.HardpointsCount * 2 && m.Controller != null)
                 {
                     dict.Add(m.MEID, m);
-                    dict[m.MEID].Launch(teid);
+                    dict[m.MEID].Launch(teid, _p);
                     AddReport($"FIRE {m.IDTG}");
 
                     _msls[_firePtr].Clear();

@@ -168,10 +168,8 @@ namespace IngameScript
 		public readonly float Reload;
 		public IMyShipMergeBlock Base;
 		byte _gYaw, _gPitch, _gRoll;
-		int _gainP, _gainD;
-
 		bool _complete = false;
-		int _cachePtr = 0;
+		int _cachePtr = 0, _gainP, _gainD, _evnMax, _evnMin;
 		Vector3I[] _blockPosCache;
 		IMyTerminalBlock[] _partsCache;
 
@@ -191,7 +189,9 @@ namespace IngameScript
 					Base = h;
 					_gainP = q.Int(Lib.H, "pGain", 10);
 					_gainD = q.Int(Lib.H, "dGain", 5);
-					
+					_evnMax = q.Int(Lib.H, "evnMaxDist", 0);
+					_evnMin = q.Int(Lib.H, "evnMinDist", 0);
+
 					if (!q.GyroYPR(Lib.H, "ypr", out _gYaw, out _gPitch, out _gRoll))
 						return false;
 
@@ -227,7 +227,7 @@ namespace IngameScript
 					for (int i = 0; i < l.Count; i++)
 						_blockPosCache[i] = l[i];
 
-					m = new Missile(_gYaw, _gPitch, _gRoll, _gainP, _gainD);
+					m = new Missile(_gYaw, _gPitch, _gRoll, _gainP, _gainD, _evnMax, _evnMin);
 					return _blockPosCache != null;
 				}
 		}
@@ -262,7 +262,7 @@ namespace IngameScript
 				return false;
 
 			return true;
-		} 
+		}
 
 		public int CompareTo(Hardpoint o)
 		{
@@ -274,8 +274,9 @@ namespace IngameScript
 
 	public class Missile
 	{
-		const int DEF_UPDATE = 10;
-		public long MEID, TEID, LastF;
+		const int DEF_UPDATE = 8, TGT_LOSS_TK = 90, EVN_ADJ = 600;
+		const double TOL = 0.00001, PD_AIM_LIM = 6.3;
+		public long MEID, TEID, NextUpdateF, NextEvnAdjF;
 		public string IDTG;
 		public IMyRemoteControl Controller;
 		public IMyShipMergeBlock Hardpoint;
@@ -288,21 +289,25 @@ namespace IngameScript
 		List<IMyThrust> _thrust = new List<IMyThrust>();
 		List<IMyWarhead> _warhead = new List<IMyWarhead>();
 
-		bool _checkAccel;
+		bool _evade, _checkAccel;
 		byte _gYaw, _gPitch, _gRoll;
-		double _accel;
+		double _accel, _evMax, _evMin;
 
-		PDCtrl _yaw, _pitch;
+		Program _p;
+		PDCtrl _yawCtrl, _pitchCtrl;
 		MatrixD _viewMat;
-		Vector3D _pos, _cmd;
+		Vector3D _pos, _cmd, _evn;
 
-		public Missile(byte y, byte p, byte r, int pg, int dg)
+		public Missile(byte y, byte p, byte r, int pg, int dg, int eMx, int eMn)
 		{
 			_gYaw = y;
 			_gPitch = p;
 			_gRoll = r;
-			_yaw = new PDCtrl(pg, dg, DEF_UPDATE);
-			_pitch = new PDCtrl(pg, dg, DEF_UPDATE);
+			_evade = eMx != 0 && eMn != 0;
+			_evMax = eMx;
+			_evMin = eMn;
+			_yawCtrl = new PDCtrl(pg, dg, DEF_UPDATE);
+			_pitchCtrl = new PDCtrl(pg, dg, DEF_UPDATE);
 		}
 
 		#region gyro
@@ -336,7 +341,7 @@ namespace IngameScript
 
 		public bool TrySetup(ref int p, ref IMyTerminalBlock[] c)
 		{
-			if (c[0] is IMyRemoteControl) 
+			if (c[0] is IMyRemoteControl)
 				Controller = (IMyRemoteControl)c[0];
 			else return false;
 			for (; p++ < c.Length;)
@@ -373,16 +378,18 @@ namespace IngameScript
 			_warhead.Clear();
 			_sensors.Clear();
 
-			_yaw.Reset();
-			_pitch.Reset();
+			_yawCtrl.Reset();
+			_pitchCtrl.Reset();
 
 			MEID = TEID = -1;
 			IDTG = "NULL";
 		}
 
-		public void Launch(long teid)
+		public void Launch(long teid, Program p)
 		{
 			TEID = teid;
+			_p = p;
+			NextUpdateF = p.F + DEF_UPDATE;
 			_merge.Enabled = Hardpoint.Enabled = false;
 			foreach (var g in _tanks)
 				g.Stockpile = false;
@@ -395,17 +402,27 @@ namespace IngameScript
 			}
 		}
 
+		public void Kill()
+		{
+			foreach (var tk in _tanks)
+				tk.Enabled = false;
+			foreach(var th in _thrust)
+				th.Enabled = false;
+			_gyro.Enabled = _batt.Enabled = false;
+		}
+
 		public void Update(Target tgt)
 		{
 			if (tgt == null)
 				return;
+
+			NextUpdateF += DEF_UPDATE;
 
 			#region nav
 			_viewMat = MatrixD.Transpose(Controller.WorldMatrix);
 			_pos = Controller.WorldMatrix.Translation;
 
 			Vector3D
-				grav = Controller.GetNaturalGravity(),
 				rP = tgt.Position - _pos,
 				rV = tgt.Velocity - Controller.GetShipVelocities().LinearVelocity,
 				rA = tgt.Accel - Controller.GetNaturalGravity();
@@ -416,11 +433,69 @@ namespace IngameScript
 				c = rA.Dot(rP) + rV.LengthSquared(),
 				d = 2 * rP.Dot(rV),
 				e = rV.LengthSquared(),
+				r = rP.Length(), // range to tgt
 				t = FastSolver.Solve(a, b, c, d, e);
 
 			if (t == double.MaxValue || double.IsNaN(t)) t = 1000;
 			var icpt = tgt.Position + (rV * t) + (0.5 * rA * t * t);
+
+			if (_evade)
+			{
+				if (_p.F >= NextEvnAdjF)
+				{
+					Lib.RandomNormalVector(ref _p.RNG, ref _cmd, ref _evn);
+					_evn *= tgt.Radius;
+					NextEvnAdjF += EVN_ADJ;
+				}
+				if (r < _evMax && r > _evMin)
+					icpt += _evn;
+			}
+
 			_cmd = Vector3D.TransformNormal(icpt - _pos, ref _viewMat);
+			#endregion
+
+			#region aim
+			double 
+				aX = Math.Abs(_cmd.X), // abs x
+				aY = Math.Abs(_cmd.Y), // abs y
+				aZ = Math.Abs(_cmd.Z), // abs z
+				y = Lib.HALF_PI, // yaw input
+				p = Lib.HALF_PI; // pitch input
+
+			if (aZ > TOL)
+			{
+				bool yFlip = aX > aZ, pFlip = aY > aZ;
+
+				y = Lib.FastAT(Math.Max(yFlip ? (aZ / aX) : (aX / aZ), TOL));
+				p = Lib.FastAT(Math.Max(pFlip ? (aZ / aY) : (aY / aZ), TOL));
+
+				if (yFlip) y = Lib.HALF_PI - y;
+				if (pFlip) p = Lib.HALF_PI - p;
+
+				if (_cmd.Z > 0)
+				{
+					y = Lib.PI - y;
+					p = Lib.PI - p;
+				}
+			}
+
+			if (double.IsNaN(y)) y = 0;
+			if (double.IsNaN(p)) p = 0;
+
+			y *= Math.Sign(_cmd.X);
+			p *= Math.Sign(_cmd.Y);
+
+			y = _yawCtrl.Filter(y, 2);
+			p = _pitchCtrl.Filter(p, 2);
+
+			if (Math.Abs(y) + Math.Abs(p) > PD_AIM_LIM)
+			{
+				var adjust = PD_AIM_LIM / (Math.Abs(y) + Math.Abs(p));
+				y *= adjust;
+				p *= adjust;
+			}
+
+			SetGyroOverride(true, (float)y, (float)p, 0);
 			#endregion
 
 		}

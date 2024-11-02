@@ -127,7 +127,7 @@ namespace IngameScript
             return a.Dot(b) / b.LengthSquared() * b;
         }
 
-              /// <summary>
+        /// <summary>
         /// Rejects vector a from vector b.
         /// </summary>
         public static Vector3D Rejection(Vector3D a, Vector3D b) //reject a on b
@@ -138,7 +138,13 @@ namespace IngameScript
             return a - a.Dot(b) / b.LengthSquared() * b;
         }
 
-        public static Vector3 RandomNormal(ref Random random, ref Vector3 dir)
+        /// <summary>
+        /// Gets random unit vector normal to a given direction
+        /// </summary>
+        /// <param name="random">System.Random generator in use</param>
+        /// <param name="dir">Given direction that the result should be orthogonal to</param>
+        /// <param name="norm">Output random normal</param>
+        public static void RandomNormalVector(ref Random random, ref Vector3D dir, ref Vector3D norm)
         {
             dir.Normalize();
             var perp = Vector3D.CalculatePerpendicularVector(dir);
@@ -147,7 +153,7 @@ namespace IngameScript
 
             var theta = random.NextDouble() * PI * 2;
 
-            return perp * Math.Sin(theta) + coperp * Math.Cos(theta);
+            norm = perp * Math.Sin(theta) + coperp * Math.Cos(theta);
         }
 
         public static Vector3D RandomOffset(ref Random r, double scat)

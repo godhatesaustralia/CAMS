@@ -120,7 +120,7 @@ namespace IngameScript
 
             UpdateRotorTurrets();
 
-            UpdateAMS();
+            UpdateLaunchers();
 
             DisplayRR.Next(ref Displays).Update();
             #endregion

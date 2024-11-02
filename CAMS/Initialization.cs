@@ -36,9 +36,8 @@ namespace IngameScript
             ControllerTag,
             DisplayGroup,
             TurPDLRGroup,
-            TurMainGroup;
-
-        public string[] RackEKVNames, RackMSLNames;
+            TurMainGroup,
+            RackNamesList;
 
         void ParseComputerSettings()
         {
@@ -60,8 +59,7 @@ namespace IngameScript
                     DisplayGroup = p.String(H, "displays", "MFD Users");
                     TurPDLRGroup = p.String(H, "pd" + grp, "PD" + def);
                     TurMainGroup = p.String(H, "main" + grp, "Main" + def);
-                    RackEKVNames = p.String(H, "ekv" + grp).Split('\n');
-                    RackMSLNames = p.String(H, "msl" + grp).Split('\n');
+                    RackNamesList = p.String(H, "rack" + grp);
 
                     Based = p.Bool(H, "vcr");
                     ReceiveIGCTicks = p.Int(H, "igcCheckInterval", 0);
@@ -180,7 +178,7 @@ namespace IngameScript
             }
 
             var antmp = new List<string>();
-            foreach (var b in RackEKVNames)
+            foreach (var b in RackNamesList.Split('\n'))
             {
                 var a = Terminal.GetBlockWithName(b) as IMyMotorStator;
                 if (a != null)
@@ -212,7 +210,14 @@ namespace IngameScript
                     q.Dispose();
                 }
             }
-            AMSNames = Lib.Keys(ref Launchers);
+
+            foreach (var kvp in Launchers)
+                if (kvp.Value.Auto)
+                    antmp.Add(kvp.Key);
+            
+            AMSNames = new string[antmp.Count];
+            for (int i = 0; i < antmp.Count; i++)
+                AMSNames[i] = antmp[i];
 
 
             ReloadRR = new RoundRobin<string, Launcher>(Lib.Keys(ref Launchers));

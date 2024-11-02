@@ -1,5 +1,4 @@
-﻿using System.Linq;
-using Sandbox.ModAPI.Ingame;
+﻿using Sandbox.ModAPI.Ingame;
 
 namespace IngameScript
 {
@@ -69,7 +68,39 @@ namespace IngameScript
                 UpdateRR.Next(ref Turrets).UpdateTurret();
         }
 
-        void UpdateAMS()
+        const long TGT_LOSS_TK = 32;
+        void UpdateMissileGuidance()
+        {
+            
+            foreach (var m in Missiles.Values)
+            {
+                if (m.NextUpdateF <= F)
+                {
+                    var t = Targets.Get(m.TEID);
+                    if (t == null)
+                    {
+                        if (F - m.NextUpdateF < TGT_LOSS_TK)
+                            continue;
+                        if (Targets.Count > 0)
+                            m.TEID = Targets.Prioritized.Min.EID;
+                        else mslCull.Add(m.MEID);
+                    }
+                    else
+                    {
+                        m.Update(t);
+                    }
+                }
+            }
+
+            foreach (var id in mslCull)
+            {
+                Missiles[id].Kill();
+                Missiles.Remove(id);
+            }
+            mslCull.Clear();
+        }
+
+        void UpdateLaunchers()
         {
             foreach (var l in Launchers.Values)
                 if (F >= l.NextUpdateF && l.Status != RackState.Inoperable)
