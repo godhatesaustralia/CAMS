@@ -90,6 +90,8 @@ namespace IngameScript
                         m.Update(t);
                     }
                 }
+                else if (m.NextStatusF <= F && m.Inoperable())
+                    mslCull.Add(m.MEID);
             }
 
             foreach (var id in mslCull)

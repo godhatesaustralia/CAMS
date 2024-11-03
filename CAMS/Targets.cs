@@ -82,6 +82,7 @@ namespace IngameScript
         const int MAX_LIFETIME = 2, OFS_TMIT = 256; // s
         const string IgcTgt = "[FLT-TG]", DSB = "\n\n>>DISABLED";
         public int Count => _iEIDs.Count;
+        public long Selected;
         public string Log { get; private set; }
         public SortedSet<Target> Prioritized = new SortedSet<Target>();
         Dictionary<long, Target> _targets = new Dictionary<long, Target>();
@@ -177,9 +178,9 @@ namespace IngameScript
                       s.Write("SWITCH TO MASTS SCR\nFOR TGT ACQUISITION", 1);
                       return;
                   }
-
+                  Selected = _iEIDs[p];
                   var ty = "";
-                  var t = _targets[_iEIDs[p]];
+                  var t = _targets[Selected];
                   s.Write($"{t.eIDString}", 0);
 
                   if ((int)t.Type == 3)
@@ -205,8 +206,9 @@ namespace IngameScript
             for (; i < Count; i++)
             {
                 var mat = _p.Controller.WorldMatrix;
-                var rPos = _p.Center - _targets[_iEIDs[i]].Position;
-                _rdrBuffer.Add(DisplayTarget(ref rPos, ref mat, _targets[_iEIDs[i]].eIDTag, p == i));
+                var id = _iEIDs[i];
+                var rPos = _p.Center - _targets[id].Position;
+                _rdrBuffer.Add(DisplayTarget(ref rPos, ref mat, _targets[id].eIDTag, id == Selected));
             }
 
             int l = _rdrBuffer.Count + _rdr.Length;

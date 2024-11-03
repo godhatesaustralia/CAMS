@@ -250,6 +250,12 @@ namespace IngameScript
                     Masts[b.Argument(1)].Retvrn();
             });
 
+            Commands.Add("fire", b =>
+            {
+                if (b.ArgumentCount ==2 && Launchers.ContainsKey(b.Argument(1)))
+                    Launchers[b.Argument(1)].Fire(Targets.Selected, ref Missiles);
+            });
+
             Commands.Add("turret_reset", b =>
             {
                 foreach (var t in AllTurrets)

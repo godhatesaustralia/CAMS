@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using Sandbox.Common.ObjectBuilders;
 using Sandbox.ModAPI.Ingame;
 using SpaceEngineers.Game.ModAPI.Ingame;
+using VRage.Game.AI;
 using VRageMath;
 
 namespace IngameScript
@@ -169,6 +171,7 @@ namespace IngameScript
 		public IMyShipMergeBlock Base;
 		byte _gYaw, _gPitch, _gRoll;
 		bool _complete = false;
+		double _aVal;
 		int _cachePtr = 0, _gainP, _gainD, _evnMax, _evnMin;
 		Vector3I[] _blockPosCache;
 		IMyTerminalBlock[] _partsCache;
@@ -187,6 +190,7 @@ namespace IngameScript
 				else
 				{
 					Base = h;
+					_aVal = q.Double(Lib.H, "accel", -1);
 					_gainP = q.Int(Lib.H, "pGain", 10);
 					_gainD = q.Int(Lib.H, "dGain", 5);
 					_evnMax = q.Int(Lib.H, "evnMaxDist", 0);
@@ -227,7 +231,7 @@ namespace IngameScript
 					for (int i = 0; i < l.Count; i++)
 						_blockPosCache[i] = l[i];
 
-					m = new Missile(_gYaw, _gPitch, _gRoll, _gainP, _gainD, _evnMax, _evnMin);
+					m = new Missile(_aVal, _gYaw, _gPitch, _gRoll, _gainP, _gainD, _evnMax, _evnMin);
 					return _blockPosCache != null;
 				}
 		}
@@ -272,14 +276,17 @@ namespace IngameScript
 		}
 	}
 
+	// |======TODO LIST=======|
+	// -camera raycast/prox fuse
+	// -cruise fuel conservation
+	// -offset launch vector
 	public class Missile
 	{
-		const int DEF_UPDATE = 8, TGT_LOSS_TK = 90, EVN_ADJ = 600;
-		const double TOL = 0.00001, PD_AIM_LIM = 6.3;
-		public long MEID, TEID, NextUpdateF, NextEvnAdjF;
+		const int DEF_UPDATE = 8, DEF_STAT = 29, EVN_ADJ = 600;
+		const double TOL = 0.00001, CAM_ANG = 0.707, PD_AIM_LIM = 6.3;
+		public long MEID, TEID, NextUpdateF, NextStatusF, NextEvnAdjF;
 		public string IDTG;
 		public IMyRemoteControl Controller;
-		public IMyShipMergeBlock Hardpoint;
 		IMyShipConnector _ctor;
 		IMyShipMergeBlock _merge;
 		IMyGyro _gyro;
@@ -298,8 +305,9 @@ namespace IngameScript
 		MatrixD _viewMat;
 		Vector3D _pos, _cmd, _evn;
 
-		public Missile(byte y, byte p, byte r, int pg, int dg, int eMx, int eMn)
+		public Missile(double a, byte y, byte p, byte r, int pg, int dg, int eMx, int eMn)
 		{
+			_accel = a;
 			_gYaw = y;
 			_gPitch = p;
 			_gRoll = r;
@@ -390,16 +398,19 @@ namespace IngameScript
 			TEID = teid;
 			_p = p;
 			NextUpdateF = p.F + DEF_UPDATE;
-			_merge.Enabled = Hardpoint.Enabled = false;
+			NextStatusF = NextUpdateF + DEF_STAT;
+			_merge.Enabled = false;
 			foreach (var g in _tanks)
 				g.Stockpile = false;
 			_batt.ChargeMode = ChargeMode.Discharge;
 			_ctor.Disconnect();
+			_checkAccel = _accel == -1;
 			foreach (var t in _thrust)
 			{
 				t.Enabled = true;
 				t.ThrustOverridePercentage = 1;
 			}
+			
 		}
 
 		public void Kill()
@@ -408,15 +419,51 @@ namespace IngameScript
 				tk.Enabled = false;
 			foreach(var th in _thrust)
 				th.Enabled = false;
+			foreach (var w in _warhead)
+			{
+				w.IsArmed = true;
+				w.Detonate();
+			}
 			_gyro.Enabled = _batt.Enabled = false;
+			Clear();
+		}
+
+		public bool Inoperable()
+		{
+			NextStatusF += DEF_STAT;
+			if (!_batt.IsFunctional || !_gyro.IsFunctional || !Controller.IsFunctional)
+				return true;
+			
+			if (_batt.Closed || _gyro.Closed || Controller.Closed)
+				return true;
+			
+			_checkAccel |= _merge.Closed || _ctor.Closed;
+
+			var fuel = 0d;
+			int i = 0;
+
+			for (; i < _tanks.Count; i++)
+			{
+				_checkAccel |= _tanks[i].Closed;
+				if (!_tanks[i].IsFunctional || _tanks[i].Closed)
+					_tanks.RemoveAtFast(i);
+				else fuel += _tanks[i].FilledRatio;
+			}
+
+			for (i = 0; i < _thrust.Count; i++)
+			{
+				_checkAccel |= _thrust[i].Closed;
+				if (!_thrust[i].IsFunctional || _thrust[i].Closed)
+					_thrust.RemoveAtFast(i);
+			}
+
+			return fuel <= TOL && _tanks.Count == 0 && _thrust.Count == 0;
 		}
 
 		public void Update(Target tgt)
 		{
 			if (tgt == null)
 				return;
-
-			NextUpdateF += DEF_UPDATE;
 
 			#region nav
 			_viewMat = MatrixD.Transpose(Controller.WorldMatrix);
@@ -427,13 +474,34 @@ namespace IngameScript
 				rV = tgt.Velocity - Controller.GetShipVelocities().LinearVelocity,
 				rA = tgt.Accel - Controller.GetNaturalGravity();
 
+			// idk what im doing
+			if (rP.LengthSquared() < tgt.Radius * tgt.Radius)
+			{
+				var w = _warhead[0];
+				w.IsArmed = true;
+				w.Detonate();
+				_warhead.RemoveAtFast(0);
+				if (_warhead.Count == 0)
+					NextUpdateF += DEF_STAT;
+				else return;
+			}
+			else NextUpdateF += DEF_UPDATE;
+
+			if (_checkAccel)
+			{
+				_accel = 0;
+				foreach (var th in _thrust)
+					_accel += th.MaxEffectiveThrust;
+				_accel /= Controller.CalculateShipMass().TotalMass;
+			}
+
 			double
 				a = 0.25 * rA.LengthSquared() + _accel * _accel,
 				b = rA.Dot(rV),
 				c = rA.Dot(rP) + rV.LengthSquared(),
 				d = 2 * rP.Dot(rV),
 				e = rV.LengthSquared(),
-				r = rP.Length(), // range to tgt
+				r = rP.Length(),
 				t = FastSolver.Solve(a, b, c, d, e);
 
 			if (t == double.MaxValue || double.IsNaN(t)) t = 1000;
