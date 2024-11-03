@@ -352,7 +352,7 @@ namespace IngameScript
 			if (c[0] is IMyRemoteControl)
 				Controller = (IMyRemoteControl)c[0];
 			else return false;
-			for (; p++ < c.Length;)
+			for (; p < c.Length; p++)
 			{
 				var t = c[p];
 				if (t == null) continue;
@@ -364,8 +364,8 @@ namespace IngameScript
 				else if (t is IMyWarhead) _warhead.Add((IMyWarhead)t);
 				else if (t is IMyShipConnector) { _ctor = (IMyShipConnector)t; _ctor.Connect(); }
 				else if (t is IMyShipMergeBlock) _merge = (IMyShipMergeBlock)t;
-				else if (t is IMyGasTank) { _tanks.Add((IMyGasTank)t); _tanks[_tanks.Count - 1].Stockpile = true; }
-				else if (t is IMyCameraBlock) { _sensors.Add((IMyCameraBlock)t); _sensors[_sensors.Count - 1].EnableRaycast = true; }
+				else if (t is IMyGasTank) { var k = (IMyGasTank)t; k.Stockpile = true; _tanks.Add(k); }
+				else if (t is IMyCameraBlock) { var s =(IMyCameraBlock)t; s.EnableRaycast =true; _sensors.Add(s); }
 			}
 			p = 0;
 			MEID = Controller.EntityId;

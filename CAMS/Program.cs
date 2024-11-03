@@ -30,6 +30,14 @@ namespace IngameScript
 
         public void Main(string argument, UpdateType updateSource)
         {
+            if (_init)
+            {
+                RackInitLoop();
+
+                if (_init) return;
+                argument = "switch launchers helm";
+            }
+
             #region core-clock
             _frame++;
             _totalRT += Runtime.TimeSinceLastRun.TotalMilliseconds;

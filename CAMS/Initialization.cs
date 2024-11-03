@@ -110,7 +110,7 @@ namespace IngameScript
                     }
                     else if (b is IMyTextSurfaceProvider)
                     {
-                        d = new Display(this, b, Lib.LN, Based);
+                        d = new Display(this, b, Lib.MS, Based);
                         Displays.Add(d.Name, d);
                     }
                 }
@@ -177,10 +177,21 @@ namespace IngameScript
                     Turrets.Add(tr.Name, tr);
             }
 
-            var antmp = new List<string>();
-            foreach (var b in RackNamesList.Split('\n'))
+            var temp = Lib.Keys(ref Turrets);
+
+            AssignRR = new RoundRobin<string, RotorTurret>(temp);
+            UpdateRR = new RoundRobin<string, RotorTurret>(temp);
+            #endregion
+
+        }
+
+        void RackInitLoop()
+        {
+            _mslInitPtr++;
+            var list = RackNamesList.Split('\n');
+            if (_mslInitPtr < list.Length)
             {
-                var a = Terminal.GetBlockWithName(b) as IMyMotorStator;
+                var a = Terminal.GetBlockWithName(list[_mslInitPtr]) as IMyMotorStator;
                 if (a != null)
                 {
                     var q = new iniWrap();
@@ -192,14 +203,14 @@ namespace IngameScript
                             var n = q.String(H, Lib.N);
                             if (n != "")
                             {
-                                l = q.Bool(H, "arm", false) ? new ArmLauncher(n, this, a) : new Launcher(n, this);
+                                l = q.Bool(H, "arm") ? new ArmLauncher(n, this, a) : new Launcher(n, this);
                                 if (l.Setup(ref q)) Launchers[l.Name] = l;
                             }
                         }
                         else
                         {
                             var n = q.String(H, "names").Split('\n');
-                            if (n != null)
+                            if (n[0].Length > 0)
                                 foreach (var s in n)
                                 {
                                     l = new Launcher(s.Trim('|'), this);
@@ -209,25 +220,21 @@ namespace IngameScript
                     }
                     q.Dispose();
                 }
+                return;
             }
 
+            var antmp = new List<string>();
             foreach (var kvp in Launchers)
                 if (kvp.Value.Auto)
                     antmp.Add(kvp.Key);
-            
+
             AMSNames = new string[antmp.Count];
             for (int i = 0; i < antmp.Count; i++)
                 AMSNames[i] = antmp[i];
 
 
             ReloadRR = new RoundRobin<string, Launcher>(Lib.Keys(ref Launchers));
-
-            var temp = Lib.Keys(ref Turrets);
-
-            AssignRR = new RoundRobin<string, RotorTurret>(temp);
-            UpdateRR = new RoundRobin<string, RotorTurret>(temp);
-            #endregion
-
+            _init = false;
         }
 
         void AddSystemCommands()
@@ -252,7 +259,7 @@ namespace IngameScript
 
             Commands.Add("fire", b =>
             {
-                if (b.ArgumentCount ==2 && Launchers.ContainsKey(b.Argument(1)))
+                if (b.ArgumentCount == 2 && Launchers.ContainsKey(b.Argument(1)))
                     Launchers[b.Argument(1)].Fire(Targets.Selected, ref Missiles);
             });
 

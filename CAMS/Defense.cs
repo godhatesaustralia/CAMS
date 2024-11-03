@@ -104,7 +104,7 @@ namespace IngameScript
 
         void UpdateLaunchers()
         {
-            foreach (var l in Launchers.Values)
+            var l = ReloadRR.Next(ref Launchers);
                 if (F >= l.NextUpdateF && l.Status != RackState.Inoperable)
                     l.NextUpdateF = F + l.Update();
 

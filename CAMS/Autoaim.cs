@@ -106,7 +106,7 @@ namespace IngameScript
         Vector3D toPoint = new Vector3D();
         bool doPoint = false;
         List<IMyGyro> gyros = new List<IMyGyro>();
-        PID yaw, pitch, roll;
+        //PID yaw, pitch, roll;
         // implement for CompBase wip
         public void Update()
         {
@@ -168,18 +168,18 @@ namespace IngameScript
         public Autoaim(string n)
         {
             //guar.....
-            yaw = new PID(kP, kI, kD, lowerBound, upperBound, decay, timeStep);
-            pitch = new PID(kP, kI, kD, lowerBound, upperBound, decay, timeStep);
-            roll = new PID(kP, kI, kD, lowerBound, upperBound, decay, timeStep);
+           // yaw = new PID(kP, kI, kD, lowerBound, upperBound, decay, timeStep);
+            //pitch = new PID(kP, kI, kD, lowerBound, upperBound, decay, timeStep);
+            //roll = new PID(kP, kI, kD, lowerBound, upperBound, decay, timeStep);
         }
 
         public void Turn(Vector3D forward, Vector3D up)
         {
             // In (pitch, yaw, roll)
             Vector3D
-                error = -GetAngles(_p.Controller.WorldMatrix, ref forward, ref up),
-                angles = new Vector3D(Control(ref error));
-            ApplyOverride(_p.Controller.WorldMatrix, ref angles);
+                error = -GetAngles(_p.Controller.WorldMatrix, ref forward, ref up);
+                //angles = new Vector3D(Control(ref error));
+            //ApplyOverride(_p.Controller.WorldMatrix, ref angles);
         }
 
         public void FaceDirection(ref Vector3D aim)
@@ -201,9 +201,9 @@ namespace IngameScript
                 g.GyroOverride = false;
             }
 
-            yaw.Reset();
-            pitch.Reset();
-            roll.Reset();
+            //yaw.Reset();
+            //pitch.Reset();
+           //roll.Reset();
         }
 
         public void Disable()
@@ -217,7 +217,7 @@ namespace IngameScript
             }
         }
 
-        Vector3D Control(ref Vector3D err) => new Vector3D(yaw.Control(err.X), pitch.Control(err.Y), roll.Control(err.Z));
+        //Vector3D Control(ref Vector3D err) => new Vector3D(yaw.Control(err.X), pitch.Control(err.Y), roll.Control(err.Z));
 
         Vector3D GetAngles(MatrixD current, ref Vector3D forward, ref Vector3D up)
         {

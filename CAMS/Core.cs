@@ -1,6 +1,7 @@
 ﻿using Sandbox.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using VRageMath;
 
@@ -70,7 +71,8 @@ namespace IngameScript
 
         public bool GlobalPriorityUpdateSwitch = true;
 
-        int _turCheckPtr = 0;
+        bool _init = true;
+        int _turCheckPtr = 0, _mslInitPtr = -1;
         long _frame = 0, _worstF;
         Queue<double> _runtimes = new Queue<double>(10);
         public double RuntimeMS => _totalRT;

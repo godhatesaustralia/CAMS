@@ -62,7 +62,7 @@ namespace IngameScript
 
         protected bool Init(ref iniWrap q, out string[] tags)
         {
-            var t = q.String(Lib.H, "tags", "");
+            var t = q.String(Name, "tags", "");
 
             if (t != "")
             {
@@ -70,10 +70,10 @@ namespace IngameScript
                 _bases = new Hardpoint[tags.Length];
                 _msls = new Missile[tags.Length];
 
-                Auto = q.Bool(Lib.H, "defense");
+                Auto = q.Bool(Name, "defense");
 
-                _weld = _p.Terminal.GetBlockWithName(q.String(Lib.H, "welder")) as IMyShipWelder;
-                _proj = _p.Terminal.GetBlockWithName(q.String(Lib.H, "projector")) as IMyProjector;
+                _weld = _p.Terminal.GetBlockWithName(q.String(Name, "welder")) as IMyShipWelder;
+                _proj = _p.Terminal.GetBlockWithName(q.String(Name, "projector")) as IMyProjector;
 
                 if (_proj == null || _weld == null) return false;
                 _proj.Enabled = _weld.Enabled = false;
@@ -87,7 +87,7 @@ namespace IngameScript
         public virtual bool Setup(ref iniWrap q)
         {
             int c = 0;
-            bool ok = true, rdy;
+            bool ok = true;
             string[] tags;
 
             if (Init(ref q, out tags))
@@ -95,7 +95,7 @@ namespace IngameScript
                 {
                     tags[Total].Trim('|');
 
-                    var merge = (IMyShipMergeBlock)_p.Terminal.GetBlockWithName(q.String(Lib.H, "merge" + tags[Total]));
+                    var merge = (IMyShipMergeBlock)_p.Terminal.GetBlockWithName(q.String(Name, "merge" + tags[Total]));
                     if (merge != null)
                     {
                         var hpt = new Hardpoint(tags[Total], 0);
@@ -109,17 +109,17 @@ namespace IngameScript
                     }
                 }
             else ok = false;
-            rdy = Total == c;
+            //rdy = Total == c;
 
             AddReport("#RCK INIT");
 
-            while (rdy && _loadPtr < _bases.Length)
-            {
-                var b = _bases[_loadPtr];
-                rdy &= b.CollectMissileBlocks() && b.IsMissileReady(ref _msls[_loadPtr]);
-                if (rdy) _loadPtr++;
-            }
-            Status = rdy ? RackState.Ready : (_loadPtr == 0 ? RackState.Empty : RackState.Reload);
+            // while (rdy && _loadPtr < _bases.Length)
+            // {
+            //     var b = _bases[_loadPtr];
+            //     rdy &= b.CollectMissileBlocks() && b.IsMissileReady(ref _msls[_loadPtr]);
+            //     if (rdy) _loadPtr++;
+            // }
+            Status = c == 0 ? RackState.Empty : RackState.Reload;
 
             return ok;
         }
@@ -142,8 +142,7 @@ namespace IngameScript
                     AddReport($"READY {_loadPtr}/{Total}");
                     if (_loadPtr < _bases.Length)
                     {
-                        _bases[_loadPtr].Base.Enabled = true;
-                        _weld.Enabled = true;
+                        _bases[_loadPtr].Base.Enabled = _weld.Enabled = _proj.Enabled = true;
                         AddReport("RELOADING");
                         Status = RackState.Reload;
                     }
@@ -151,7 +150,7 @@ namespace IngameScript
                     {
                         _loadPtr = 0;
                         _firePtr = _msls.Length - 1;
-                        _proj.Enabled = false;
+                        _proj.Enabled = _weld.Enabled = false;
                         AddReport("ALL READY");
                         Status = RackState.Ready;
                     }
@@ -231,9 +230,11 @@ namespace IngameScript
         /// <summary>
         /// Launcher rotation hinge
         /// </summary>
-        protected IMyMotorStator _arm;
+        IMyMotorStator _arm;
+        bool _quickstart = true;
         float _fireAngle, _tgtAngle, _RPM;
         const float TOL = 0.01f;
+
 
         public ArmLauncher(string n, Program p, IMyMotorStator a) : base(n, p)
         {
@@ -243,7 +244,7 @@ namespace IngameScript
         public override bool Setup(ref iniWrap q)
         {
             int c = 0;
-            bool ok = true, rdy;
+            bool ok = true;
             string[] tags;
             var rad = (float)(Lib.PI / 180);
 
@@ -253,11 +254,11 @@ namespace IngameScript
                 for (; Total < tags.Length && ok;)
                 {
                     tags[Total].Trim('|');
-                    var angle = q.Float(Lib.H, "weldAngle" + tags[Total], float.MinValue);
+                    var angle = q.Float(Name, "weldAngle" + tags[Total], float.MinValue);
                     if (angle != float.MinValue)
                         angle *= rad;
 
-                    var merge = (IMyShipMergeBlock)_p.GridTerminalSystem.GetBlockWithName(q.String(Lib.H, "merge" + tags[Total]));
+                    var merge = (IMyShipMergeBlock)_p.GridTerminalSystem.GetBlockWithName(q.String(Name, "merge" + tags[Total]));
                     if (merge != null && angle != float.MinValue)
                     {
                         var hpt = new Hardpoint(tags[Total], angle);
@@ -274,24 +275,26 @@ namespace IngameScript
             }
             else ok = false;
 
-            _fireAngle = q.Float(Lib.H, "fireAngle", 60) * rad;
-            _RPM = q.Float(Lib.H, "rpm", 5);
-            rdy = Total == c;
+            _fireAngle = q.Float(Name, "fireAngle", 60) * rad;
+            _RPM = q.Float(Name, "rpm", 5);
+            _quickstart = Total == c;
 
             AddReport("#ARM INIT");
 
-            while (rdy && _loadPtr < _bases.Length)
+            // while (rdy && _loadPtr < _bases.Length)
+            // {
+            //     var b = _bases[_loadPtr];
+            //     rdy &= b.CollectMissileBlocks() && b.IsMissileReady(ref _msls[_loadPtr]);
+            //     if (rdy) _loadPtr++;
+            // }
+            
+            if (_quickstart)
             {
-                var b = _bases[_loadPtr];
-                rdy &= b.CollectMissileBlocks() && b.IsMissileReady(ref _msls[_loadPtr]);
-                if (rdy) _loadPtr++;
-            }
-
-            if (rdy)
                 _tgtAngle = _fireAngle;
-                
-            Status = rdy ? RackState.Ready : (_loadPtr == 0 ? RackState.Empty : RackState.Reload);
-
+                StartRotation();
+            }
+            
+            Status = _quickstart ? RackState.Reload : RackState.Empty;
             return ok;
         }
 
@@ -313,6 +316,21 @@ namespace IngameScript
                             // otherwise go to next reload position
 
                             AddReport($"READY {_loadPtr}/{Total}");
+
+                            if (_quickstart)
+                            {
+                                _quickstart = _loadPtr < _bases.Length;
+                                if (!_quickstart)
+                                {
+                                    _loadPtr = 0;
+                                    _firePtr = _msls.Length - 1;
+                                    _proj.Enabled = false;
+                                    AddReport("ALL READY");
+                                    Status = RackState.Ready;
+                                }
+                                return ACTIVE_T;
+                            }
+
                             _tgtAngle = _loadPtr >= _bases.Length ? _fireAngle : _bases[_loadPtr].Reload;
                             StartRotation();
                             return ACTIVE_T;
@@ -331,8 +349,7 @@ namespace IngameScript
                             _arm.TargetVelocityRPM = 0;
                             if (_loadPtr < _bases.Length)
                             {
-                                e.Base.Enabled = true;
-                                _weld.Enabled = true;
+                                e.Base.Enabled = _weld.Enabled = true;
                                 AddReport("AT TARGET");
                                 Status = RackState.Reload;
                             }
