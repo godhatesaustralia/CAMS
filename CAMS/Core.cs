@@ -71,8 +71,7 @@ namespace IngameScript
 
         public bool GlobalPriorityUpdateSwitch = true;
 
-        bool _init = true;
-        int _turCheckPtr = 0, _mslInitPtr = -1;
+        int _turCheckPtr = 0;
         long _frame = 0, _worstF;
         Queue<double> _runtimes = new Queue<double>(10);
         public double RuntimeMS => _totalRT;

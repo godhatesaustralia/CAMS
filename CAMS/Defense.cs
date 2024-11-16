@@ -71,7 +71,8 @@ namespace IngameScript
         const long TGT_LOSS_TK = 32;
         void UpdateMissileGuidance()
         {
-            
+            if (Missiles.Count == 0) return;
+
             foreach (var m in Missiles.Values)
             {
                 if (m.NextUpdateF <= F)

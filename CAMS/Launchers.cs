@@ -99,7 +99,7 @@ namespace IngameScript
                     if (merge != null)
                     {
                         var hpt = new Hardpoint(tags[Total], 0);
-                        ok = hpt.Init(merge, ref _msls[Total]);
+                        ok &= hpt.Init(merge, ref _msls[Total]);
                         if (ok)
                         {
                             _bases[Total] = hpt;
@@ -107,6 +107,7 @@ namespace IngameScript
                             Total++;
                         }
                     }
+                    else ok = false;
                 }
             else ok = false;
             //rdy = Total == c;
@@ -132,6 +133,7 @@ namespace IngameScript
             var m = _bases[_loadPtr];
             if (Status == RackState.Reload)
             {
+                _proj.Enabled = true;
                 if (m.CollectMissileBlocks() && m.IsMissileReady(ref _msls[_loadPtr]))
                 {
                     _loadPtr++;
@@ -157,21 +159,20 @@ namespace IngameScript
                     return READY_T;
                 }
                 else if (m.Base.Closed || _weld.Closed || _proj.Closed)
-                {
                     Status = RackState.Inoperable;
-                    return 0;
-                }
                 else return RELOAD_T;
             }
-            else
+            else if (Status == RackState.Empty)
             {
                 foreach (var h in _bases)
                     h.Base.Enabled = false;
 
-                m.Base.Enabled = _proj.Enabled = true;
+                m.Base.Enabled = _weld.Enabled = _proj.Enabled = true;
+                Status = RackState.Reload;
                 AddReport("ALL EMPTY");
                 return ACTIVE_T;
             }
+            return 0;
         }
 
         /// <summary>
@@ -207,10 +208,10 @@ namespace IngameScript
                     dict[m.MEID].Launch(teid, _p);
                     AddReport($"FIRE {m.IDTG}");
 
-                    _msls[_firePtr].Clear();
+                    //_msls[_firePtr].Clear();
                     _firePtr--;
 
-                    if (_firePtr <= 0)
+                    if (_firePtr < 0)
                         Status = RackState.Empty;
                     return true;
                 }
@@ -262,7 +263,7 @@ namespace IngameScript
                     if (merge != null && angle != float.MinValue)
                     {
                         var hpt = new Hardpoint(tags[Total], angle);
-                        ok = hpt.Init(merge, ref _msls[Total]);
+                        ok &= hpt.Init(merge, ref _msls[Total]);
                         if (ok)
                         {
                             temp.Add(hpt);
@@ -270,6 +271,7 @@ namespace IngameScript
                             Total++;
                         }
                     }
+                    else ok = false;
                 }
                 _bases = temp.ToArray(); // sub optimal
             }

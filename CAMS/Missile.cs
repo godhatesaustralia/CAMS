@@ -257,16 +257,7 @@ namespace IngameScript
 			return true;
 		}
 
-		public bool IsMissileReady(ref Missile m)
-		{
-			if (!_complete) return false;
-
-			m.Clear();
-			if (!m.TrySetup(ref _cachePtr, ref _partsCache))
-				return false;
-
-			return true;
-		}
+		public bool IsMissileReady(ref Missile m) => _complete && m.TrySetup(ref _cachePtr, ref _partsCache);
 
 		public int CompareTo(Hardpoint o)
 		{
@@ -285,7 +276,7 @@ namespace IngameScript
 		const int DEF_UPDATE = 8, DEF_STAT = 29, EVN_ADJ = 600;
 		const double TOL = 0.00001, CAM_ANG = 0.707, PD_AIM_LIM = 6.3;
 		public long MEID, TEID, NextUpdateF, NextStatusF, NextEvnAdjF;
-		public string IDTG;
+		public string IDTG, DEBUG;
 		public IMyRemoteControl Controller;
 		IMyShipConnector _ctor;
 		IMyShipMergeBlock _merge;
@@ -329,26 +320,17 @@ namespace IngameScript
 			(g, v) => { g.Roll = v; }
 		};
 
-		public void SetGyroOverride(bool move, float y, float p, float r)
+		public void SetGyroOverride(float y, float p, float r)
 		{
-			// check
-			if (!_gyro.IsFunctional)
-			{
-				_gyro.Enabled = _gyro.GyroOverride = false;
-				_gyro.Yaw = _gyro.Pitch = _gyro.Roll = 0f;
-			}
-			else if (move)
-			{
-				_gyro.Enabled = move;
 				_profiles[_gYaw](_gyro, y);
 				_profiles[_gPitch](_gyro, p);
 				_profiles[_gRoll](_gyro, r);
-			}
 		}
 		#endregion
 
 		public bool TrySetup(ref int p, ref IMyTerminalBlock[] c)
 		{
+			Clear();
 			if (c[0] is IMyRemoteControl)
 				Controller = (IMyRemoteControl)c[0];
 			else return false;
@@ -373,7 +355,7 @@ namespace IngameScript
 			return true;
 		}
 
-		public void Clear()
+		void Clear()
 		{
 			Controller = null;
 			_gyro = null;
@@ -405,6 +387,7 @@ namespace IngameScript
 			_batt.ChargeMode = ChargeMode.Discharge;
 			_ctor.Disconnect();
 			_checkAccel = _accel == -1;
+			_gyro.GyroOverride = true;
 			foreach (var t in _thrust)
 			{
 				t.Enabled = true;
@@ -496,7 +479,7 @@ namespace IngameScript
 			}
 
 			double
-				a = 0.25 * rA.LengthSquared() + _accel * _accel,
+				a = 0.25 * rA.LengthSquared() - (_accel * _accel),
 				b = rA.Dot(rV),
 				c = rA.Dot(rP) + rV.LengthSquared(),
 				d = 2 * rP.Dot(rV),
@@ -506,7 +489,7 @@ namespace IngameScript
 
 			if (t == double.MaxValue || double.IsNaN(t)) t = 1000;
 			var icpt = tgt.Position + (rV * t) + (0.5 * rA * t * t);
-
+			
 			if (_evade)
 			{
 				if (_p.F >= NextEvnAdjF)
@@ -520,6 +503,7 @@ namespace IngameScript
 			}
 
 			_cmd = Vector3D.TransformNormal(icpt - _pos, ref _viewMat);
+			
 			#endregion
 
 			#region aim
@@ -549,12 +533,16 @@ namespace IngameScript
 
 			if (double.IsNaN(y)) y = 0;
 			if (double.IsNaN(p)) p = 0;
+			
+			try {
+			y = _yawCtrl.Filter(y * Math.Sign(_cmd.X), 2);
+			p = _pitchCtrl.Filter(p * Math.Sign(_cmd.Y), 2);}
+			catch(Exception)
+			{
+				Kill();
 
-			y *= Math.Sign(_cmd.X);
-			p *= Math.Sign(_cmd.Y);
-
-			y = _yawCtrl.Filter(y, 2);
-			p = _pitchCtrl.Filter(p, 2);
+				throw new Exception($"\n{DEBUG}");
+			}
 
 			if (Math.Abs(y) + Math.Abs(p) > PD_AIM_LIM)
 			{
@@ -562,10 +550,16 @@ namespace IngameScript
 				y *= adjust;
 				p *= adjust;
 			}
-
-			SetGyroOverride(true, (float)y, (float)p, 0);
+			DEBUG = $"{IDTG} T {t:#0.0}S Y {y:#0.#}R P {p:#0.#}R";
+			DEBUG += $"\nICPT ({icpt.X:G3},{icpt.Y:G3},{icpt.Z:G3})";
+			DEBUG += $"\nMCMD ({_cmd.X:G3},{_cmd.Y:G3},{_cmd.Z:G3})";
+			// if (DEBUG.Length > 111)
+			// {
+			// 	Kill();
+			// 	throw new Exception($"\nmike penis\n{DEBUG}");
+			// }
+			SetGyroOverride((float)y, (float)p, 0);
 			#endregion
-
 		}
 	}
 }

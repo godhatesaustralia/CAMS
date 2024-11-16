@@ -177,21 +177,10 @@ namespace IngameScript
                     Turrets.Add(tr.Name, tr);
             }
 
-            var temp = Lib.Keys(ref Turrets);
-
-            AssignRR = new RoundRobin<string, RotorTurret>(temp);
-            UpdateRR = new RoundRobin<string, RotorTurret>(temp);
-            #endregion
-
-        }
-
-        void RackInitLoop()
-        {
-            _mslInitPtr++;
-            var list = RackNamesList.Split('\n');
-            if (_mslInitPtr < list.Length)
+            var antmp = new List<string>();
+            foreach (var b in RackNamesList.Split('\n'))
             {
-                var a = Terminal.GetBlockWithName(list[_mslInitPtr]) as IMyMotorStator;
+                var a = Terminal.GetBlockWithName(b) as IMyMotorStator;
                 if (a != null)
                 {
                     var q = new iniWrap();
@@ -220,10 +209,8 @@ namespace IngameScript
                     }
                     q.Dispose();
                 }
-                return;
             }
 
-            var antmp = new List<string>();
             foreach (var kvp in Launchers)
                 if (kvp.Value.Auto)
                     antmp.Add(kvp.Key);
@@ -234,7 +221,13 @@ namespace IngameScript
 
 
             ReloadRR = new RoundRobin<string, Launcher>(Lib.Keys(ref Launchers));
-            _init = false;
+
+            var temp = Lib.Keys(ref Turrets);
+
+            AssignRR = new RoundRobin<string, RotorTurret>(temp);
+            UpdateRR = new RoundRobin<string, RotorTurret>(temp);
+            #endregion
+
         }
 
         void AddSystemCommands()
@@ -261,6 +254,13 @@ namespace IngameScript
             {
                 if (b.ArgumentCount == 2 && Launchers.ContainsKey(b.Argument(1)))
                     Launchers[b.Argument(1)].Fire(Targets.Selected, ref Missiles);
+            });
+
+            Commands.Add("dump", b =>
+            {
+                if (b.ArgumentCount == 2 && Launchers.ContainsKey(b.Argument(1)))
+                    while (Launchers[b.Argument(1)].Status == RackState.Ready)
+                        Launchers[b.Argument(1)].Fire(Targets.Selected, ref Missiles);
             });
 
             Commands.Add("turret_reset", b =>

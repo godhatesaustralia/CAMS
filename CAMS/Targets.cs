@@ -137,7 +137,7 @@ namespace IngameScript
                 }
             });
 
-            m.LCDScreens.Add(Lib.RD, new Screen(() => Count, null, (p, s) => CreateRadar(p, s), null, null, false));
+            m.LCDScreens.Add(Lib.RD, new Screen(() => Count, null, CreateRadar, Select, Deselect, false));
         }
 
         void UpdateBlacklist()
@@ -178,9 +178,8 @@ namespace IngameScript
                       s.Write("SWITCH TO MASTS SCR\nFOR TGT ACQUISITION", 1);
                       return;
                   }
-                  Selected = _iEIDs[p];
                   var ty = "";
-                  var t = _targets[Selected];
+                  var t = _targets[_iEIDs[p]];
                   s.Write($"{t.eIDString}", 0);
 
                   if ((int)t.Type == 3)
@@ -193,7 +192,19 @@ namespace IngameScript
 
         }
 
-        public void CreateRadar(int p, Screen s)
+        void Select(int p, Screen s)
+        {
+            Selected = _iEIDs[p];
+            s.Data(p, s);
+        }
+
+        void Deselect(int p, Screen s)
+        {
+            Selected = -1;
+            s.Data(p, s);
+        }
+
+        void CreateRadar(int p, Screen s)
         {
             if (Count == 0)
             {

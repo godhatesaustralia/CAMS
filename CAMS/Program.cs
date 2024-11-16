@@ -20,8 +20,7 @@ namespace IngameScript
 
             AddSystemScreens();
 
-            CacheMainSystems();
-            
+            CacheMainSystems();  
         }
 
         public void Save()
@@ -30,14 +29,6 @@ namespace IngameScript
 
         public void Main(string argument, UpdateType updateSource)
         {
-            if (_init)
-            {
-                RackInitLoop();
-
-                if (_init) return;
-                argument = "switch launchers helm";
-            }
-
             #region core-clock
             _frame++;
             _totalRT += Runtime.TimeSinceLastRun.TotalMilliseconds;
@@ -130,11 +121,15 @@ namespace IngameScript
 
             UpdateLaunchers();
 
+            UpdateMissileGuidance();
+
             DisplayRR.Next(ref Displays).Update();
             #endregion
 
             string r = "====<CAMS>====\n\n";
             r += $"RUNS - {_frame}\nRUNTIME - {_lastRT} ms\nAVG - {_avgRT:0.####} ms\nWORST - {_worstRT} ms, F{_worstF}\n";
+            foreach (var msl in Missiles.Values)
+            r+= '\n' + msl.DEBUG;
             Echo(r);
         }
     }
