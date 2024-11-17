@@ -42,7 +42,7 @@ namespace IngameScript
         protected IWeapons _weapons;
         protected Program _p;
         public long tEID = -1, lastUpdate = 0, _oobF = 0;
-        public bool Inoperable = false, IsPDT;
+        public bool Inoperable = false, IsPDT, TgtSmall;
         public bool ActiveCTC => _ctc?.IsUnderControl ?? false;
         #endregion
 
@@ -110,6 +110,7 @@ namespace IngameScript
                     TrackRange = 1.625 * Range;
                     Speed = p.Double(h, "speed", 400);
                     _tol = p.Double(h, "tolerance", 5E-4);
+                    TgtSmall = p.Bool(h, "tgtSM", true);
 
                     _aPCtrl = new PCtrl(AdjustAzimuth, p.Int(h, "azGainOut", 60), 1.0625, p.Double(h, "azRLim", 60));
                     _ePCtrl = new PCtrl(AdjustElevation, p.Int(h, "elGainOut", 60), 1.0625, p.Double(h, "elRLim", 60));
@@ -295,7 +296,7 @@ namespace IngameScript
                 return false;
 
             var tgt = _p.Targets.Get(eid);
-            if (tgt.Distance > TrackRange)
+            if (tgt.Distance > TrackRange || (!TgtSmall && (int)tgt.Type == 2))
                 return false;
 
             return Interceptable(tgt, ref tgt.Position, true);
@@ -380,7 +381,7 @@ namespace IngameScript
                 l.Clear();
             }
             _spray = m.PDSpray;
-            _tol += _spray != -1 ? _sprayTol : 0;
+            //_tol += _spray != -1 ? _sprayTol : 0;
         }
 
         public void AssignLidarTarget(long eid)

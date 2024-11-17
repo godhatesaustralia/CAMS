@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using Sandbox.Common.ObjectBuilders;
 using Sandbox.ModAPI.Ingame;
 using SpaceEngineers.Game.ModAPI.Ingame;
-using VRage.Game.AI;
 using VRageMath;
 
 namespace IngameScript
@@ -231,7 +229,7 @@ namespace IngameScript
 					for (int i = 0; i < l.Count; i++)
 						_blockPosCache[i] = l[i];
 
-					m = new Missile(_aVal, _gYaw, _gPitch, _gRoll, _gainP, _gainD, _evnMax, _evnMin);
+					m = new Missile();
 					return _blockPosCache != null;
 				}
 		}
@@ -245,7 +243,7 @@ namespace IngameScript
 					var slim = Base.CubeGrid.GetCubeBlock(_blockPosCache[_cachePtr]);
 					if (slim != null && slim.IsFullIntegrity)
 					{
-						if (_cachePtr < _partsCache.Length && slim.FatBlock is IMyTerminalBlock)
+						if (slim.FatBlock is IMyTerminalBlock)
 							_partsCache[_cachePtr] = (IMyTerminalBlock)slim.FatBlock;
 						_cachePtr++;
 					}
@@ -257,7 +255,18 @@ namespace IngameScript
 			return true;
 		}
 
-		public bool IsMissileReady(ref Missile m) => _complete && m.TrySetup(ref _cachePtr, ref _partsCache);
+		public bool IsMissileReady(ref Missile m)
+		{
+			bool r = _complete && m.TrySetup(ref _cachePtr, ref _partsCache);
+			if (r) 
+			{
+				_complete = false;
+				m.Reset(_aVal, _gYaw, _gPitch, _gRoll, _gainP, _gainD, _evnMax, _evnMin);
+				for (int i = 0; i < _partsCache.Length; i++)
+					_partsCache[i] = null;
+			}
+			return r;
+		}
 
 		public int CompareTo(Hardpoint o)
 		{
@@ -271,11 +280,13 @@ namespace IngameScript
 	// -camera raycast/prox fuse
 	// -cruise fuel conservation
 	// -offset launch vector
+
 	public class Missile
 	{
 		const int DEF_UPDATE = 8, DEF_STAT = 29, EVN_ADJ = 600;
 		const double TOL = 0.00001, CAM_ANG = 0.707, PD_AIM_LIM = 6.3;
 		public long MEID, TEID, NextUpdateF, NextStatusF, NextEvnAdjF;
+		public bool Inoperable => _dead || !Controller.IsFunctional || Controller.Closed;
 		public string IDTG, DEBUG;
 		public IMyRemoteControl Controller;
 		IMyShipConnector _ctor;
@@ -287,27 +298,14 @@ namespace IngameScript
 		List<IMyThrust> _thrust = new List<IMyThrust>();
 		List<IMyWarhead> _warhead = new List<IMyWarhead>();
 
-		bool _evade, _checkAccel;
+		bool _evade, _checkAccel, _dead;
 		byte _gYaw, _gPitch, _gRoll;
 		double _accel, _evMax, _evMin;
 
 		Program _p;
-		PDCtrl _yawCtrl, _pitchCtrl;
+		PDCtrl _yawCtrl = new PDCtrl(), _pitchCtrl = new PDCtrl();
 		MatrixD _viewMat;
 		Vector3D _pos, _cmd, _evn;
-
-		public Missile(double a, byte y, byte p, byte r, int pg, int dg, int eMx, int eMn)
-		{
-			_accel = a;
-			_gYaw = y;
-			_gPitch = p;
-			_gRoll = r;
-			_evade = eMx != 0 && eMn != 0;
-			_evMax = eMx;
-			_evMin = eMn;
-			_yawCtrl = new PDCtrl(pg, dg, DEF_UPDATE);
-			_pitchCtrl = new PDCtrl(pg, dg, DEF_UPDATE);
-		}
 
 		#region gyro
 		static Action<IMyGyro, float>[] _profiles =
@@ -322,22 +320,35 @@ namespace IngameScript
 
 		public void SetGyroOverride(float y, float p, float r)
 		{
-				_profiles[_gYaw](_gyro, y);
-				_profiles[_gPitch](_gyro, p);
-				_profiles[_gRoll](_gyro, r);
+			_profiles[_gYaw](_gyro, y);
+			_profiles[_gPitch](_gyro, p);
+			_profiles[_gRoll](_gyro, r);
 		}
 		#endregion
 
+		public void Reset(double a, byte y, byte p, byte r, int pg, int dg, int eMx, int eMn)
+		{
+			_dead = false;
+			_accel = a;
+			_gYaw = y;
+			_gPitch = p;
+			_gRoll = r;
+			_evade = eMx != 0 && eMn != 0;
+			_evMax = eMx;
+			_evMin = eMn;
+			_yawCtrl.Reset(pg, dg, DEF_UPDATE);
+			_pitchCtrl.Reset(pg, dg, DEF_UPDATE);
+		}
+
 		public bool TrySetup(ref int p, ref IMyTerminalBlock[] c)
 		{
-			Clear();
 			if (c[0] is IMyRemoteControl)
 				Controller = (IMyRemoteControl)c[0];
 			else return false;
 			for (; p < c.Length; p++)
 			{
 				var t = c[p];
-				if (t == null) continue;
+				if (t == null) return false;
 				// note - this setup makes it necessary to have controller as first item in both cache arrays
 				// setup program MUST take this into account
 				else if (t is IMyGyro) _gyro = (IMyGyro)t;
@@ -347,16 +358,54 @@ namespace IngameScript
 				else if (t is IMyShipConnector) { _ctor = (IMyShipConnector)t; _ctor.Connect(); }
 				else if (t is IMyShipMergeBlock) _merge = (IMyShipMergeBlock)t;
 				else if (t is IMyGasTank) { var k = (IMyGasTank)t; k.Stockpile = true; _tanks.Add(k); }
-				else if (t is IMyCameraBlock) { var s =(IMyCameraBlock)t; s.EnableRaycast =true; _sensors.Add(s); }
+				else if (t is IMyCameraBlock) { var s = (IMyCameraBlock)t; s.EnableRaycast = true; _sensors.Add(s); }
 			}
+			
 			p = 0;
 			MEID = Controller.EntityId;
 			IDTG = MEID.ToString("X").Remove(0, 11);
 			return true;
 		}
 
-		void Clear()
+		public void Launch(long teid, Program p)
 		{
+			TEID = teid;
+			_p = p;
+			NextUpdateF = p.F + DEF_UPDATE;
+			NextStatusF = NextUpdateF + DEF_STAT;
+			_merge.Enabled = false;
+
+			foreach (var g in _tanks)
+				g.Stockpile = false;
+
+			_batt.ChargeMode = ChargeMode.Discharge;
+			_ctor.Disconnect();
+			_checkAccel = _accel == -1;
+			_gyro.GyroOverride = true;
+
+			foreach (var t in _thrust)
+			{
+				t.Enabled = true;
+				t.ThrustOverridePercentage = 1;
+			}
+		}
+
+		public void Clear()
+		{
+			if (!_dead)
+			{
+				foreach (var tk in _tanks)
+					tk.Enabled = false;
+				foreach (var th in _thrust)
+					th.Enabled = false;
+				foreach (var w in _warhead)
+				{
+					w.IsArmed = true;
+					w.Detonate();
+				}
+				_gyro.Enabled = _batt.Enabled = false;
+			}
+
 			Controller = null;
 			_gyro = null;
 			_merge = null;
@@ -368,58 +417,18 @@ namespace IngameScript
 			_warhead.Clear();
 			_sensors.Clear();
 
-			_yawCtrl.Reset();
-			_pitchCtrl.Reset();
-
 			MEID = TEID = -1;
 			IDTG = "NULL";
 		}
 
-		public void Launch(long teid, Program p)
-		{
-			TEID = teid;
-			_p = p;
-			NextUpdateF = p.F + DEF_UPDATE;
-			NextStatusF = NextUpdateF + DEF_STAT;
-			_merge.Enabled = false;
-			foreach (var g in _tanks)
-				g.Stockpile = false;
-			_batt.ChargeMode = ChargeMode.Discharge;
-			_ctor.Disconnect();
-			_checkAccel = _accel == -1;
-			_gyro.GyroOverride = true;
-			foreach (var t in _thrust)
-			{
-				t.Enabled = true;
-				t.ThrustOverridePercentage = 1;
-			}
-			
-		}
-
-		public void Kill()
-		{
-			foreach (var tk in _tanks)
-				tk.Enabled = false;
-			foreach(var th in _thrust)
-				th.Enabled = false;
-			foreach (var w in _warhead)
-			{
-				w.IsArmed = true;
-				w.Detonate();
-			}
-			_gyro.Enabled = _batt.Enabled = false;
-			Clear();
-		}
-
-		public bool Inoperable()
+		public void CheckStatus()
 		{
 			NextStatusF += DEF_STAT;
-			if (!_batt.IsFunctional || !_gyro.IsFunctional || !Controller.IsFunctional)
-				return true;
+			_dead |= !_batt.IsFunctional || !_gyro.IsFunctional	|| _batt.Closed || _gyro.Closed;
 			
-			if (_batt.Closed || _gyro.Closed || Controller.Closed)
-				return true;
-			
+			if (_dead)
+				return;
+
 			_checkAccel |= _merge.Closed || _ctor.Closed;
 
 			var fuel = 0d;
@@ -440,12 +449,12 @@ namespace IngameScript
 					_thrust.RemoveAtFast(i);
 			}
 
-			return fuel <= TOL && _tanks.Count == 0 && _thrust.Count == 0;
+			_dead |= fuel <= TOL && _tanks.Count == 0 && _thrust.Count == 0;
 		}
 
 		public void Update(Target tgt)
 		{
-			if (tgt == null)
+			if (tgt == null || _dead)
 				return;
 
 			#region nav
@@ -458,17 +467,20 @@ namespace IngameScript
 				rA = tgt.Accel - Controller.GetNaturalGravity();
 
 			// idk what im doing
-			if (rP.LengthSquared() < tgt.Radius * tgt.Radius)
+			if (rP.Length() < tgt.Radius * 0.3)
 			{
 				var w = _warhead[0];
 				w.IsArmed = true;
 				w.Detonate();
 				_warhead.RemoveAtFast(0);
+
 				if (_warhead.Count == 0)
-					NextUpdateF += DEF_STAT;
-				else return;
+				{
+					_dead = true;
+					NextStatusF = NextUpdateF;
+				}
+				return;
 			}
-			else NextUpdateF += DEF_UPDATE;
 
 			if (_checkAccel)
 			{
@@ -489,7 +501,7 @@ namespace IngameScript
 
 			if (t == double.MaxValue || double.IsNaN(t)) t = 1000;
 			var icpt = tgt.Position + (rV * t) + (0.5 * rA * t * t);
-			
+
 			if (_evade)
 			{
 				if (_p.F >= NextEvnAdjF)
@@ -498,16 +510,28 @@ namespace IngameScript
 					_evn *= tgt.Radius;
 					NextEvnAdjF += EVN_ADJ;
 				}
+
 				if (r < _evMax && r > _evMin)
 					icpt += _evn;
 			}
 
 			_cmd = Vector3D.TransformNormal(icpt - _pos, ref _viewMat);
-			
+
+			DEBUG = $"\n<{IDTG}> \nT {t:G3}S, MVEL {Controller.GetShipVelocities().LinearVelocity.Length():#0.#}, MACL {_accel:#0.#}";
+			DEBUG += $"\nICPT ({icpt.X:G3},{icpt.Y:G3},{icpt.Z:G3})";
+			DEBUG += $"\nMCMD ({_cmd.X:G3},{_cmd.Y:G3},{_cmd.Z:G3})";
+			DEBUG += $"\nTMRP ({rP.X:G3},{rP.Y:G3},{rP.Z:G3})";
+			DEBUG += $"\nTMRV ({rV.X:G3},{rV.Y:G3},{rV.Z:G3})";
+
+			if (t >= 1E307)
+			{
+				_p.suspiciousorange();
+				throw new Exception(DEBUG);
+			}
 			#endregion
 
 			#region aim
-			double 
+			double
 				aX = Math.Abs(_cmd.X), // abs x
 				aY = Math.Abs(_cmd.Y), // abs y
 				aZ = Math.Abs(_cmd.Z), // abs z
@@ -533,16 +557,9 @@ namespace IngameScript
 
 			if (double.IsNaN(y)) y = 0;
 			if (double.IsNaN(p)) p = 0;
-			
-			try {
-			y = _yawCtrl.Filter(y * Math.Sign(_cmd.X), 2);
-			p = _pitchCtrl.Filter(p * Math.Sign(_cmd.Y), 2);}
-			catch(Exception)
-			{
-				Kill();
 
-				throw new Exception($"\n{DEBUG}");
-			}
+			y = _yawCtrl.Filter(y * Math.Sign(_cmd.X), 2);
+			p = _pitchCtrl.Filter(p * Math.Sign(_cmd.Y), 2);
 
 			if (Math.Abs(y) + Math.Abs(p) > PD_AIM_LIM)
 			{
@@ -550,15 +567,9 @@ namespace IngameScript
 				y *= adjust;
 				p *= adjust;
 			}
-			DEBUG = $"{IDTG} T {t:#0.0}S Y {y:#0.#}R P {p:#0.#}R";
-			DEBUG += $"\nICPT ({icpt.X:G3},{icpt.Y:G3},{icpt.Z:G3})";
-			DEBUG += $"\nMCMD ({_cmd.X:G3},{_cmd.Y:G3},{_cmd.Z:G3})";
-			// if (DEBUG.Length > 111)
-			// {
-			// 	Kill();
-			// 	throw new Exception($"\nmike penis\n{DEBUG}");
-			// }
+
 			SetGyroOverride((float)y, (float)p, 0);
+			NextUpdateF += DEF_UPDATE;
 			#endregion
 		}
 	}

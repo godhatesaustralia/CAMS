@@ -81,6 +81,7 @@ namespace IngameScript
 
                     Targets.UpdateRadarSettings(this);
 
+                    mslReuse = new List<Missile>(HardpointsCount);
                     Missiles = new Dictionary<long, Missile>(HardpointsCount * 2);
                     ekvTargets = new HashSet<long>(MaxTgtKillTracks);
                 }
@@ -252,12 +253,16 @@ namespace IngameScript
 
             Commands.Add("fire", b =>
             {
+                if (!Targets.Exists(Targets.Selected))
+                    return;
                 if (b.ArgumentCount == 2 && Launchers.ContainsKey(b.Argument(1)))
                     Launchers[b.Argument(1)].Fire(Targets.Selected, ref Missiles);
             });
 
             Commands.Add("dump", b =>
             {
+                if (!Targets.Exists(Targets.Selected))
+                    return;
                 if (b.ArgumentCount == 2 && Launchers.ContainsKey(b.Argument(1)))
                     while (Launchers[b.Argument(1)].Status == RackState.Ready)
                         Launchers[b.Argument(1)].Fire(Targets.Selected, ref Missiles);

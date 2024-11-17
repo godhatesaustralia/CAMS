@@ -86,6 +86,7 @@ namespace IngameScript
         #endregion
         
         #region fire-control
+        List<Missile> mslReuse;
         Dictionary<long, Missile> Missiles;
         Dictionary<string, Launcher> Launchers = new Dictionary<string, Launcher>();
         RoundRobin<string, Launcher> ReloadRR;
@@ -139,6 +140,28 @@ namespace IngameScript
                 }
                 return lastAccel;
             }
+        }
+
+        public Missile RecycledMissile
+        {
+            get
+            {
+                if (mslReuse.Count > 0)
+                {
+                    var m = mslReuse[0];
+                    mslReuse.RemoveAtFast(0);
+                    return m;
+                }
+                else return new Missile();
+            }
+        }
+
+        public void suspiciousorange() 
+        { 
+            Runtime.UpdateFrequency = 0; 
+            foreach (var msl in Missiles)
+                msl.Value.Clear();
+            Me.Enabled = false;
         }
     }
 }

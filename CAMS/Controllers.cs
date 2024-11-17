@@ -5,20 +5,11 @@ namespace IngameScript
 {   
     public class PDCtrl
     {
-        public double 
+         double 
             gain_p,
-            gain_d;
-
-        double 
+            gain_d,
             second,
             lastInput;
-
-        public PDCtrl(double pg, double dg, float hz = 60f)
-        {
-            gain_p = pg;
-            gain_d = dg;
-            second = hz;
-        }
 
         public double Filter(double input, int r) // r => # of digits to round
         {
@@ -30,8 +21,11 @@ namespace IngameScript
             return (gain_p * input) + (gain_d * dI);
         }
 
-        public void Reset()
+        public void Reset(double pg, double dg, float hz = 60f)
         {
+            gain_p = pg;
+            gain_d = dg;
+            second = hz;
             lastInput = 0;
         }
     }

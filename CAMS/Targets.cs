@@ -76,29 +76,30 @@ namespace IngameScript
     public class TargetProvider
     {
         Program _p;
+        IMyBroadcastListener _TGT;
 
         long ID, _nextPrioritySortF = 0, _nextIGCCheck = 0, _nextIGCSend = 0, _nextOffsetSend = 0;
         const double INV_MAX_D = 0.0001, R_SIDE_L = 154;
         const int MAX_LIFETIME = 2, OFS_TMIT = 256; // s
         const string IgcTgt = "[FLT-TG]", DSB = "\n\n>>DISABLED";
-        public int Count => _iEIDs.Count;
-        public long Selected;
+        public long Selected = -1;
+        string selTag;
         public string Log { get; private set; }
+
+        public int Count => _iEIDs.Count;   
         public SortedSet<Target> Prioritized = new SortedSet<Target>();
+        List<long> _rmvEIDs = new List<long>(), _iEIDs = new List<long>();
         Dictionary<long, Target> _targets = new Dictionary<long, Target>();
         Dictionary<long, long> _offsets = new Dictionary<long, long>();
-        IMyBroadcastListener _TGT;
-        List<long> _rmvEIDs = new List<long>(), _iEIDs = new List<long>();
+        public HashSet<long>
+            ScannedIDs = new HashSet<long>(),
+            Blacklist = new HashSet<long>();
+
         const float rad = (float)Math.PI / 180, X_MIN = 28, X_MAX = 484, Y_MIN = 28, Y_MAX = 484; // radar
         static Vector2 rdrCNR = Lib.V2(256, 256), tgtSz = Lib.V2(12, 12), env = Lib.V2(91.2f, 91.2f);
         List<MySprite> _rdrBuffer = new List<MySprite>();
         // reused sprites
         MySprite[] _rdr;
-
-
-        public HashSet<long>
-            ScannedIDs = new HashSet<long>(),
-            Blacklist = new HashSet<long>();
 
         public TargetProvider(Program m)
         {
@@ -137,7 +138,7 @@ namespace IngameScript
                 }
             });
 
-            m.LCDScreens.Add(Lib.RD, new Screen(() => Count, null, CreateRadar, Select, Deselect, false));
+            m.LCDScreens.Add(Lib.RD, new Screen(() => Count, null, CreateRadar, null, null, false));
         }
 
         void UpdateBlacklist()
@@ -155,8 +156,7 @@ namespace IngameScript
             });
         }
 
-        #region radar
-
+        #region display
         public void UpdateRadarSettings(Program m)
         {
             _p = m;
@@ -170,37 +170,41 @@ namespace IngameScript
                 new MySprite(Program.TXT, "", Lib.V2(24, 112), null, m.PMY, Lib.VB, 0, 1.5f),
                 new MySprite(Program.TXT, "", Lib.V2(24, 192), null, m.PMY, Lib.VB, 0, 0.8195f),
               },
-              (p, s) =>
-              {
-                  if (Count == 0)
-                  {
-                      s.Write("NO TARGET", 0);
-                      s.Write("SWITCH TO MASTS SCR\nFOR TGT ACQUISITION", 1);
-                      return;
-                  }
-                  var ty = "";
-                  var t = _targets[_iEIDs[p]];
-                  s.Write($"{t.eIDString}", 0);
+            List, Select, Deselect);
+        }
 
-                  if ((int)t.Type == 3)
-                      ty = "LARGE GRID";
-                  else if ((int)t.Type == 2)
-                      ty = "SMALL GRID";
+        void List(int p, Screen s)
+        {
+            if (Count == 0)
+            {
+                s.Write("NO TARGET", 0);
+                s.Write("SWITCH TO MASTS SCR\nFOR TGT ACQUISITION", 1);
+                return;
+            }
 
-                  s.Write($"DIST {t.Distance / 1000:F2} KM\nASPD {t.Velocity.Length():F0} M/S\nACCL {t.Accel.Length():F0} M/S\nSIZE {ty}\nNO TGT SELECTED", 1);
-              });
+            var ty = "";
+            var t = _targets[_iEIDs[p]];
+            s.Write($"{t.eIDString}", 0);
 
+            if ((int)t.Type == 3)
+                ty = "LARGE GRID";
+            else if ((int)t.Type == 2)
+                ty = "SMALL GRID";
+
+            s.Write($"DIST {t.Distance / 1000:F2} KM\nASPD {t.Velocity.Length():F0} M/S\nACCL {t.Accel.Length():F0} M/S\nSIZE {ty}\n{(Selected == -1 ? "NO TGT SELECTED" : "TGT " + selTag + " LOCKED")}", 1);
         }
 
         void Select(int p, Screen s)
         {
             Selected = _iEIDs[p];
+            selTag = _targets[Selected].eIDTag;
             s.Data(p, s);
         }
 
         void Deselect(int p, Screen s)
         {
             Selected = -1;
+            selTag = "";
             s.Data(p, s);
         }
 
@@ -268,8 +272,8 @@ namespace IngameScript
             _rdrBuffer.Add(new MySprite(Program.TXT, eid, scrX > 2 * X_MIN ? pos - txt : pos + 0.5f * txt, null, _p.PMY, Lib.V, rotation: 0.375f));
             return new MySprite(Program.SHP, sel ? Lib.SQS : Lib.TRI, pos, (sel ? 1.5f : 1) * tgtSz, _p.PMY, null); // Center
         }
-
         #endregion
+
         public ScanResult AddOrUpdate(ref MyDetectedEntityInfo i, long src, bool hits = false)
         {
             var id = i.EntityId;
@@ -316,6 +320,7 @@ namespace IngameScript
             dir.Normalize();
             tgt.Priority = 0;
             bool uhoh = tgt.Velocity.Normalized().Dot(dir) > 0.9; // RUUUUUUUUUNNNNNNNNNNNNNN
+
             if (tgt.Radius > 15 || (int)tgt.Type != 2)
                 tgt.Priority += uhoh ? 75 : 300;
             else if (uhoh)
@@ -325,6 +330,7 @@ namespace IngameScript
                 if (!tgt.Engaged)
                     tgt.Priority -= 100;
             }
+
             if (tgt.Distance > 2E3)
                 tgt.Priority += 500;
             else if (tgt.Distance < 8E2)
@@ -336,6 +342,7 @@ namespace IngameScript
             var list = new List<Target>(Count);
             foreach (var t in _targets.Values)
                 list.Add(t);
+
             return list;
         }
 
@@ -419,7 +426,6 @@ namespace IngameScript
                     _p.IGC.SendBroadcastMessage(IgcTgt, MyTuple.Create(ID, f));
                     _nextOffsetSend = f + OFS_TMIT;
                 }
-
                 else if (f > _nextIGCSend && Count > 0)
                 {
                     foreach (var tgt in _targets.Values)
@@ -431,15 +437,16 @@ namespace IngameScript
                                 MyTuple.Create(tgt.Position, tgt.Velocity, tgt.Matrix, tgt.Radius)
                             )
                         );
-                _nextIGCSend = f + _p.SendIGCTicks;
+                    _nextIGCSend = f + _p.SendIGCTicks;
                 }
 
                 Log += $"\n\n>>{_nextIGCSend:X8}";
             }
             else Log += DSB;
             #endregion
+
             Log += $"\n\n>>{Count:00000000}";
-            Log += rcv ? $"\n\n>>{_offsets.Count:00000000}": DSB;
+            Log += rcv ? $"\n\n>>{_offsets.Count:00000000}" : DSB;
         }
 
         public Target Get(long eid) => _targets.ContainsKey(eid) ? _targets[eid] : null;

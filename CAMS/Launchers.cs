@@ -1,11 +1,7 @@
-﻿using Microsoft.Build.Framework;
-using Sandbox.ModAPI.Ingame;
+﻿using Sandbox.ModAPI.Ingame;
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using VRage;
-using VRageMath;
 
 namespace IngameScript
 {
@@ -202,17 +198,23 @@ namespace IngameScript
                 }
                 else m = _msls[_firePtr];
 
-                if (dict.Count < _p.HardpointsCount * 2 && m.Controller != null)
+                if (!dict.ContainsKey(m.MEID) && dict.Count < _p.HardpointsCount * 2 && m.Controller != null)
                 {
-                    dict.Add(m.MEID, m);
+                    try{
+                    dict.Add(m.MEID, m);}
+                    catch
+                    { string s = ""; foreach (var kvp in dict) s += $"\n{kvp.Value.IDTG}"; throw new Exception(s); }
                     dict[m.MEID].Launch(teid, _p);
                     AddReport($"FIRE {m.IDTG}");
 
-                    //_msls[_firePtr].Clear();
+                    _msls[_firePtr] = _p.RecycledMissile;
                     _firePtr--;
 
                     if (_firePtr < 0)
+                    {
                         Status = RackState.Empty;
+                        NextUpdateF += READY_T;
+                    }
                     return true;
                 }
             }
@@ -244,7 +246,7 @@ namespace IngameScript
 
         public override bool Setup(ref iniWrap q)
         {
-            int c = 0;
+            int i = 0, c = 0;
             bool ok = true;
             string[] tags;
             var rad = (float)(Lib.PI / 180);
@@ -255,15 +257,14 @@ namespace IngameScript
                 for (; Total < tags.Length && ok;)
                 {
                     tags[Total].Trim('|');
-                    var angle = q.Float(Name, "weldAngle" + tags[Total], float.MinValue);
-                    if (angle != float.MinValue)
-                        angle *= rad;
+                    var angle = q.Float(Name, "weldAngle" + tags[Total], -361);
+                    angle *= rad;
 
                     var merge = (IMyShipMergeBlock)_p.GridTerminalSystem.GetBlockWithName(q.String(Name, "merge" + tags[Total]));
-                    if (merge != null && angle != float.MinValue)
+                    if (merge != null)
                     {
                         var hpt = new Hardpoint(tags[Total], angle);
-                        ok &= hpt.Init(merge, ref _msls[Total]);
+                        ok &= angle != -361 * rad && hpt.Init(merge, ref _msls[Total]);
                         if (ok)
                         {
                             temp.Add(hpt);
@@ -273,15 +274,18 @@ namespace IngameScript
                     }
                     else ok = false;
                 }
-                _bases = temp.ToArray(); // sub optimal
+
+                for (; i < _bases.Length && temp.Count > 0; i++)
+                {
+                    _bases[i] = temp.Min;
+                    temp.Remove(_bases[i]);
+                }
             }
             else ok = false;
 
             _fireAngle = q.Float(Name, "fireAngle", 60) * rad;
             _RPM = q.Float(Name, "rpm", 5);
-            _quickstart = Total == c;
-
-            AddReport("#ARM INIT");
+            _quickstart = Total == c + 1;
 
             // while (rdy && _loadPtr < _bases.Length)
             // {
@@ -292,11 +296,13 @@ namespace IngameScript
             
             if (_quickstart)
             {
+                AddReport("#QK START");
                 _tgtAngle = _fireAngle;
                 StartRotation();
             }
+            else AddReport("#ARM INIT");
             
-            Status = _quickstart ? RackState.Reload : RackState.Empty;
+            Status = c == 0 ? RackState.Empty : RackState.Reload;
             return ok;
         }
 
@@ -323,12 +329,13 @@ namespace IngameScript
                             {
                                 _quickstart = _loadPtr < _bases.Length;
                                 if (!_quickstart)
-                                {
+                                {                                
                                     _loadPtr = 0;
                                     _firePtr = _msls.Length - 1;
                                     _proj.Enabled = false;
                                     AddReport("ALL READY");
                                     Status = RackState.Ready;
+                                    _arm.TargetVelocityRPM = 0;
                                 }
                                 return ACTIVE_T;
                             }

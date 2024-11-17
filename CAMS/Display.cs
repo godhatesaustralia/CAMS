@@ -107,7 +107,7 @@ namespace IngameScript
     {
         public int pgs, cur, cnt; // pages #, current page, allowed items count (def 4)
 
-        public ListScreen(Func<int> m, int mx = 4, MySprite[] spr = null, Action<int, Screen> a = null) : base(m, spr, a)
+        public ListScreen(Func<int> m, int mx = 4, MySprite[] spr = null, Action<int, Screen> d = null, Action<int, Screen> e = null, Action<int, Screen> r = null, bool def = false) : base(m, spr, d, e, r, def)
         {
             cur = 1;
             cnt = mx - 1;

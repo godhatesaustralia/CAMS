@@ -17,6 +17,11 @@ namespace IngameScript
             s.Color(p == ReloadRR.IDs.Length - 1 ? SDY : PMY, 7);
         }
 
+        void EnterLN (int p, Screen s)
+        {
+
+        }
+
         void ScrollTR(int p, Screen s)
         {
             var turret = Turrets[UpdateRR.IDs[p]];
@@ -89,17 +94,20 @@ namespace IngameScript
                     else
                     {
                         m.Update(t);
+                        if (m.Inoperable) mslCull.Add(m.MEID);
                     }
                 }
-                else if (m.NextStatusF <= F && m.Inoperable())
-                    mslCull.Add(m.MEID);
+                else if (m.NextStatusF <= F) m.CheckStatus();
             }
 
             foreach (var id in mslCull)
             {
-                Missiles[id].Kill();
+                Missiles[id].Clear();
+                if (mslReuse.Count < mslReuse.Capacity) 
+                    mslReuse.Add(Missiles[id]);
                 Missiles.Remove(id);
             }
+
             mslCull.Clear();
         }
 
