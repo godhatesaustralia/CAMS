@@ -1,7 +1,4 @@
-﻿using System;
-using Sandbox.ModAPI.Ingame;
-using VRage;
-using VRageMath;
+﻿using Sandbox.ModAPI.Ingame;
 
 namespace IngameScript
 {

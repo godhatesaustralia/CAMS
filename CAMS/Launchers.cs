@@ -243,7 +243,7 @@ namespace IngameScript
                     var merge = (IMyShipMergeBlock)_p.GridTerminalSystem.GetBlockWithName(q.String(Name, "merge" + tags[Total]));
                     if (merge != null)
                     {
-                        var hpt = new Hardpoint(tags[Total], angle, _p);
+                        var hpt = new Hardpoint(tags[Total], angle);
                         ok &= angle != -361 * rad && hpt.Init(merge, ref _msls[Total]);
                         if (ok)
                         {
@@ -261,9 +261,6 @@ namespace IngameScript
             _fireAngle = q.Float(Name, "fireAngle", 60) * rad;
             _RPM = q.Float(Name, "rpm", 5);
             bool rdy = Total == c, load = c != 0;
-
-            //if (Name == "ARM-R") 
-           //{string s = '\n' + Name; foreach (var hpt in _bases) s += $"\n{hpt.Name} CONN {hpt.Base.IsConnected}\n{hpt.Base.CustomName}"; throw new Exception($"{s}\nT {Total}\nC {c}");}
             
             while (load && _loadPtr < Total)
             {

@@ -294,7 +294,7 @@ namespace IngameScript
         {
             if (Inoperable || ActiveCTC || !_p.Targets.Exists(eid))
                 return false;
-
+        
             var tgt = _p.Targets.Get(eid);
             if (tgt.Distance > TrackRange || (!TgtSmall && (int)tgt.Type == 2))
                 return false;

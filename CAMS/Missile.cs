@@ -173,13 +173,11 @@ namespace IngameScript
 		int _cachePtr = 0, _gainP, _gainD, _evnMax, _evnMin;
 		Vector3I[] _blockPosCache;
 		IMyTerminalBlock[] _partsCache;
-		Program temp;
 
-		public Hardpoint(string n, float r, Program p = null)
+		public Hardpoint(string n, float r)
 		{
 			Reload = r;
 			Name = n;
-			temp = p;
 		}
 
 		public bool Init(IMyShipMergeBlock h, ref Missile m)
