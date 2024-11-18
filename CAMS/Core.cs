@@ -1,7 +1,6 @@
 ﻿using Sandbox.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using VRageMath;
 
@@ -49,63 +48,75 @@ namespace IngameScript
 
     public partial class Program
     {
+        public static long ID;
         string[] MastNames, MastAryTags, PDTNames, AMSNames;
         public IMyGridTerminalSystem Terminal => GridTerminalSystem;
-        public IMyShipController Controller;
         public DebugAPI Debug;
-        public static long ID;
+
+        #region rng
+        public Random RNG = new Random();
+
+        public double GaussRNG() => (2 * RNG.NextDouble() - 1 + 2 * RNG.NextDouble() - 1 + 2 * RNG.NextDouble() - 1) / 3;
+        public Vector3D RandomOffset() => new Vector3D((RNG.NextDouble() * 2) - 1, (RNG.NextDouble() * 2) - 1, (RNG.NextDouble() * 2) - 1);
+        
+        /// <summary>
+        /// Gets random unit vector normal to a given direction
+        /// </summary>
+        /// <param name="random">System.Random generator in use</param>
+        /// <param name="dir">Given direction that the result should be orthogonal to</param>
+        /// <param name="norm">Output random normal</param>
+        public void RandomNormalVector(ref Vector3D dir, ref Vector3D norm)
+        {
+            dir.Normalize();
+            var perp = Vector3D.CalculatePerpendicularVector(dir);
+            perp.Normalize();
+            var coperp = perp.Cross(dir);
+
+            var theta = RNG.NextDouble() * Lib.PI * 2;
+
+            norm = perp * Math.Sin(theta) + coperp * Math.Cos(theta);
+        }
+    
+        #endregion
+
+        #region ship-info
+        public IMyShipController Controller;
         public Vector3D Center => Controller.WorldMatrix.Translation;
         public Vector3D Velocity => Controller.GetShipVelocities().LinearVelocity;
         public Vector3D Gravity;
+
+        static Vector3D 
+            lastVel = Vector3D.Zero,
+            lastAccel = Vector3D.Zero;
+        static long lastVelT = 0;
+        public Vector3D Acceleration
+        {
+            get 
+            {
+                if (F - lastVelT > 0)
+                {
+                    lastAccel = 0.5 * (lastAccel + (Velocity - lastVel) / (F - lastVelT));
+                    lastVelT = F;
+                    lastVel = Velocity;
+                }
+                return lastAccel;
+            }
+        }
+        #endregion
+
+        #region targeting
         public TargetProvider Targets;
-
-        public Dictionary<string, Screen>
-            CtrlScreens = new Dictionary<string, Screen>(),
-            LCDScreens = new Dictionary<string, Screen>();
-        public Dictionary<string, Display> Displays = new Dictionary<string, Display>();
-        public Dictionary<string, Action<MyCommandLine>> Commands = new Dictionary<string, Action<MyCommandLine>>();
-        public Random RNG = new Random();
-        MyCommandLine _cmd = new MyCommandLine();
-        RoundRobin<string, Display> DisplayRR;
-        double _lastRT, _totalRT = 0, _worstRT, _avgRT;
-
         public bool GlobalPriorityUpdateSwitch = true;
-
-        int _turCheckPtr = 0;
-        long _frame = 0, _worstF;
-        Queue<double> _runtimes = new Queue<double>(10);
-        public double RuntimeMS => _totalRT;
-        public long F => _frame;
-
-        #region scanner
         Dictionary<string, LidarMast> Masts = new Dictionary<string, LidarMast>();
         List<IMyLargeTurretBase> 
             AllTurrets = new List<IMyLargeTurretBase>(), 
             Artillery = new List<IMyLargeTurretBase>();
-
-        #endregion
-        
-        #region fire-control
-        List<Missile> mslReuse;
-        Dictionary<long, Missile> Missiles;
-        Dictionary<string, Launcher> Launchers = new Dictionary<string, Launcher>();
-        RoundRobin<string, Launcher> ReloadRR;
-        HashSet<long> ekvTargets, mslCull = new HashSet<long>();
-        #endregion
-
-        #region defense
-        Dictionary<string, RotorTurret> Turrets = new Dictionary<string, RotorTurret>();
-        RoundRobin<string, RotorTurret> AssignRR, UpdateRR;
-        #endregion
-
-        public double GaussRNG() => (2 * RNG.NextDouble() - 1 + 2 * RNG.NextDouble() - 1 + 2 * RNG.NextDouble() - 1) / 3;
 
         public bool PassTarget(MyDetectedEntityInfo info, bool m = false)
         {
             ScanResult fake;
             return PassTarget(info, out fake, m);
         }
-
         public bool PassTarget(MyDetectedEntityInfo info, out ScanResult r, bool m = false)
         {
             r = ScanResult.Failed;
@@ -122,26 +133,27 @@ namespace IngameScript
                 Targets.ScannedIDs.Add(info.EntityId);
             return true;
         }
+        #endregion
 
-        static Vector3D 
-            lastVel = Vector3D.Zero,
-            lastAccel = Vector3D.Zero;
-        static long lastVelT = 0;
+        #region control
+        public Dictionary<string, Screen>
+            CtrlScreens = new Dictionary<string, Screen>(),
+            LCDScreens = new Dictionary<string, Screen>();
+        public Dictionary<string, Display> Displays = new Dictionary<string, Display>();
+        RoundRobin<string, Display> DisplayRR;
 
-        public Vector3D Acceleration
-        {
-            get 
-            {
-                if (F - lastVelT > 0)
-                {
-                    lastAccel = 0.5 * (lastAccel + (Velocity - lastVel) / (F - lastVelT));
-                    lastVelT = F;
-                    lastVel = Velocity;
-                }
-                return lastAccel;
-            }
-        }
+        public Dictionary<string, Action<MyCommandLine>> Commands = new Dictionary<string, Action<MyCommandLine>>();
+        MyCommandLine _cmd = new MyCommandLine();
+        #endregion
 
+        double _lastRT, _totalRT = 0, _worstRT, _avgRT;
+        int _turCheckPtr = 0;
+        long _frame = 0, _worstF;
+        Queue<double> _runtimes = new Queue<double>(10);
+        public double RuntimeMS => _totalRT;
+        public long F => _frame;
+        
+        #region weapons
         public Missile RecycledMissile
         {
             get
@@ -155,13 +167,13 @@ namespace IngameScript
                 else return new Missile();
             }
         }
-
-        public void suspiciousorange() 
-        { 
-            Runtime.UpdateFrequency = 0; 
-            foreach (var msl in Missiles)
-                msl.Value.Clear();
-            Me.Enabled = false;
-        }
+        List<Missile> mslReuse;
+        Dictionary<long, Missile> Missiles;
+        Dictionary<string, Launcher> Launchers = new Dictionary<string, Launcher>();
+        RoundRobin<string, Launcher> ReloadRR;
+        HashSet<long> ekvTargets, mslCull = new HashSet<long>();
+        Dictionary<string, RotorTurret> Turrets = new Dictionary<string, RotorTurret>();
+        RoundRobin<string, RotorTurret> AssignRR, UpdateRR;
+        #endregion
     }
 }

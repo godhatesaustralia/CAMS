@@ -2,6 +2,7 @@
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
+using VRage.Extensions;
 using VRageMath;
 
 namespace IngameScript
@@ -172,7 +173,7 @@ namespace IngameScript
 
             // okay so does acceleration even fucking work
             Vector3D
-                rP = aim - _weapons.AimPos,
+                rP = aim - _elevation.WorldMatrix.Translation,
                 rV = tgt.Velocity - _p.Velocity,
                 rA = tgt.Accel - _p.Acceleration;
 
@@ -193,7 +194,7 @@ namespace IngameScript
             if (double.IsNaN(t)) return false;
 
             if (!test)
-                aim += rV * t + 0.375 * rA * t * t;
+                aim += rA.LengthSquared() > 0.1 ? rV * t + 0.5 * rA * t * t : rV * t;
 
             return true;
         }
@@ -217,7 +218,7 @@ namespace IngameScript
                 return AimState.Manual;
             else if (Inoperable)
                 return AimState.Offline;
-            
+
             _weapons.Hold();
 
             if (reset)
@@ -242,7 +243,7 @@ namespace IngameScript
             return AimState.Moving;
         }
 
-        protected AimState AimAtTarget(ref MatrixD azm, ref Vector3D aim, double aCur, double eCur)
+        protected AimState AimAtTarget(ref MatrixD azm, ref Vector3D aim, double aCur, double eCur, bool test = false)
         {
             if (Status == AimState.Blocked)
             {
@@ -258,14 +259,11 @@ namespace IngameScript
             // azimuth target angle
             var aTgt = Lib.AngleBetween(ref aTgtV, azm.Backward) * Math.Sign(aTgtV.Dot(azm.Left));
 
-            AZ = $"T{aTgt * DEG:+000;-000}°\nC{aCur * DEG:+000;-000}°";
-
             if (aTgt > _aMx || aTgt < _aMn)
                 return AimState.Blocked;
 
             // elevation target angle
             var eTgt = Lib.AngleBetween(ref aTgtV, ref aim) * Math.Sign(aim.Dot(azm.Up));
-            EL = $"T{eTgt * DEG:+000;-000}°\nC{eCur * DEG:+000;-000}°";
 
             if (eTgt > _eMx || eTgt < _eMn)
                 return AimState.Blocked;
@@ -277,6 +275,11 @@ namespace IngameScript
                     _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
                     return AimState.Blocked;
                 }
+
+            if (test) return AimState.OnTarget;
+
+            AZ = $"T{aTgt * DEG:+000;-000}°\nC{aCur * DEG:+000;-000}°";
+            EL = $"T{eTgt * DEG:+000;-000}°\nC{eCur * DEG:+000;-000}°";
 
             _oobF = 0;
             _azimuth.TargetVelocityRad = _aPCtrl.Filter(aCur, aTgt, _p.F);
@@ -318,7 +321,7 @@ namespace IngameScript
                 if (Interceptable(tgt, ref aim))
                 {
                     var azm = _azimuth.WorldMatrix;
-                    aim -= azm.Translation;
+                    aim -= _weapons.AimPos;
                     var tgtDst = aim.Length();
 
                     if ((_oobF > RST_TKS && Status == AimState.Blocked) || tgtDst > TrackRange)
@@ -360,9 +363,9 @@ namespace IngameScript
             _scanMx = sMx;
             if (g != null)
             {
-                var l = new List<IMyCameraBlock>(); 
+                var l = new List<IMyCameraBlock>();
                 var d = new List<IMyCameraBlock>();
-                m.Terminal.GetBlocksOfType(l, c => 
+                m.Terminal.GetBlocksOfType(l, c =>
                 {
                     if (c.CubeGrid == g)
                     {
@@ -381,10 +384,24 @@ namespace IngameScript
             //_tol += _spray != -1 ? _sprayTol : 0;
         }
 
-        public void AssignLidarTarget(long eid)
+        public bool AssignLidarTarget(Target t)
         {
-            _useLidar = true;
-            tEID = eid;
+            if (t == null || Inoperable)
+                return false;
+
+            double a, e;
+            GetStatorAngles(out a, out e);
+
+            var azm = _azimuth.WorldMatrix;
+            var aim = t.Position - azm.Translation;
+
+            bool r = AimAtTarget(ref azm, ref aim, a, e, true) == AimState.OnTarget;
+            if (r)
+            {
+                _useLidar = r;
+                tEID = t.EID;
+            }
+            return r;
         }
 
         public void Designate(bool track = false)
@@ -428,7 +445,7 @@ namespace IngameScript
                     if (!_useLidar && _spray != -1)
                     {
                         if (_switchOfs)
-                            _sprayOfs = Lib.RandomOffset(ref _p.RNG) * _spray;
+                            _sprayOfs = _p.RandomOffset() * _spray;
 
                         aim += _sprayOfs * tgt.Radius / tgt.Distance;
                     }

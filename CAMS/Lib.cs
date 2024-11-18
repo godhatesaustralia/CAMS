@@ -137,29 +137,6 @@ namespace IngameScript
 
             return a - a.Dot(b) / b.LengthSquared() * b;
         }
-
-        /// <summary>
-        /// Gets random unit vector normal to a given direction
-        /// </summary>
-        /// <param name="random">System.Random generator in use</param>
-        /// <param name="dir">Given direction that the result should be orthogonal to</param>
-        /// <param name="norm">Output random normal</param>
-        public static void RandomNormalVector(ref Random random, ref Vector3D dir, ref Vector3D norm)
-        {
-            dir.Normalize();
-            var perp = Vector3D.CalculatePerpendicularVector(dir);
-            perp.Normalize();
-            var coperp = perp.Cross(dir);
-
-            var theta = random.NextDouble() * PI * 2;
-
-            norm = perp * Math.Sin(theta) + coperp * Math.Cos(theta);
-        }
-
-        public static Vector3D RandomOffset(ref Random r)
-        {
-            return new Vector3D((r.NextDouble() * 2) - 1, (r.NextDouble() * 2) - 1, (r.NextDouble() * 2) - 1);
-        }
         #endregion
     }
 

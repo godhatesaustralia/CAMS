@@ -17,7 +17,7 @@ namespace IngameScript
             s.Color(p == ReloadRR.IDs.Length - 1 ? SDY : PMY, 7);
         }
 
-        void EnterLN (int p, Screen s)
+        void EnterLN(int p, Screen s)
         {
 
         }
@@ -108,7 +108,7 @@ namespace IngameScript
             foreach (var id in mslCull)
             {
                 Missiles[id].Clear();
-                if (mslReuse.Count < mslReuse.Capacity) 
+                if (mslReuse.Count < mslReuse.Capacity)
                     mslReuse.Add(Missiles[id]);
                 Missiles.Remove(id);
             }
@@ -118,36 +118,33 @@ namespace IngameScript
         void UpdateLaunchers()
         {
             var l = ReloadRR.Next(ref Launchers);
-                if (F >= l.NextUpdateF && l.Status != RackState.Inoperable)
-                    l.NextUpdateF = F + l.Update();
+            if (F >= l.NextUpdateF && l.Status != RackState.Inoperable)
+                l.NextUpdateF = F + l.Update();
 
             if (Targets.Count == 0)
                 return;
 
             Target t;
+            PDT tur;
             for (int i = 0; i < MaxTgtKillTracks && i < Targets.Prioritized.Count; i++)
             {
                 t = Targets.Prioritized.Min;
                 if (!ekvTargets.Contains(t.EID))
+                {
                     foreach (var n in AMSNames)
                         if (t.PriorityKill && Launchers[n].Fire(t.EID, ref Missiles))
                         {
                             ekvTargets.Add(t.EID);
-                            Targets.Prioritized.Remove(t);       
-                        }     
-            }
-
-            PDT tur;
-            foreach (var id in ekvTargets)
-                foreach (var n in PDTNames)
-                {
-                    tur = (PDT)Turrets[n];
-                    if (tur.tEID == -1 && !tur.Inoperable)
+                            Targets.Prioritized.Remove(t);
+                        }
+                    foreach (var n in PDTNames)
                     {
-                        tur.AssignLidarTarget(id);
-                        break;
+                        tur = (PDT)Turrets[n];
+                        if (tur.tEID == -1 && tur.AssignLidarTarget(t))
+                            break;
                     }
                 }
+            }
         }
     }
 }

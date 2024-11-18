@@ -86,7 +86,7 @@ namespace IngameScript
                     continue;
 
                 var pos = RaycastLead(t, c.WorldMatrix.Translation, p);
-                pos += spread ? Lib.RandomOffset(ref p.RNG) * SCAT * t.Radius : Vector3D.Zero;
+                pos += spread ? p.RandomOffset() * SCAT * t.Radius : Vector3D.Zero;
                 if (!c.CanScan(pos) || pos == Vector3D.Zero)
                     continue;
                     

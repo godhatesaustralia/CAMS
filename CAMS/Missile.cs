@@ -415,7 +415,7 @@ namespace IngameScript
 		{
 			TEID = teid;
 			_p = p;
-			_ofs = Lib.RandomOffset(ref _p.RNG);
+			_ofs = p.RandomOffset();
 
 			LastActiveF = _p.F;
 			NextUpdateF = p.F + DEF_UPDATE;
@@ -428,7 +428,6 @@ namespace IngameScript
 				t.Enabled = true;
 				t.ThrustOverridePercentage = 1;
 			}
-
 
 			_ctor.Disconnect();
 			_batt.ChargeMode = ChargeMode.Discharge;
@@ -538,7 +537,7 @@ namespace IngameScript
 					foreach (var w in _warhead)
 						w.IsArmed = true;
 					if ((int)tgt.Type == 3)
-						_ofs = Lib.RandomOffset(ref _p.RNG) * tgt.Radius * OFS_PCT;
+						_ofs = _p.RandomOffset() * tgt.Radius * OFS_PCT;
 					else _ofs = Vector3D.Zero;
 				}
 				else if (r < tgt.Radius * PROX)
@@ -566,7 +565,7 @@ namespace IngameScript
 							icpt = i.HitPosition.Value;
 							break;
 						}
-						else _ofs = Lib.RandomOffset(ref _p.RNG);
+						else _ofs = _p.RandomOffset();
 					}
 			}
 
@@ -594,7 +593,7 @@ namespace IngameScript
 			{
 				if (_p.F >= NextEvnAdjF)
 				{
-					Lib.RandomNormalVector(ref _p.RNG, ref rP, ref _evn);
+					_p.RandomNormalVector(ref rP, ref _evn);
 					_evn *= tgt.Radius;
 					NextEvnAdjF += EVN_ADJ;
 				}
