@@ -165,15 +165,12 @@ namespace IngameScript
         }
 
         #region core-methods
-
-        // aim is an internal copy of CURRENT(!) target position
-        // because in some cases (PDLR assistive targeting) we will only want to point at
-        // the target directly and not lead (i.e. we will not be using this)
         protected bool Interceptable(Target tgt, ref Vector3D aim, bool test = false)
         {
             if (!test)
                 aim -= _p.Gravity;
 
+            // okay so does acceleration even fucking work
             Vector3D
                 rP = aim - _weapons.AimPos,
                 rV = tgt.Velocity - _p.Velocity,
@@ -431,7 +428,7 @@ namespace IngameScript
                     if (!_useLidar && _spray != -1)
                     {
                         if (_switchOfs)
-                            _sprayOfs = Lib.RandomOffset(ref _p.RNG, _spray);
+                            _sprayOfs = Lib.RandomOffset(ref _p.RNG) * _spray;
 
                         aim += _sprayOfs * tgt.Radius / tgt.Distance;
                     }
@@ -465,7 +462,6 @@ namespace IngameScript
                     else _weapons.Hold();
                 }
                 else Status = MoveToRest(a, e);
-
             }
             else Status = MoveToRest(a, e, true);
         }

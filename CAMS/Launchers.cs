@@ -2,6 +2,7 @@
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace IngameScript
 {
@@ -100,24 +101,22 @@ namespace IngameScript
                         {
                             _bases[Total] = hpt;
                             if (merge.IsConnected) c++;
+                            else merge.Enabled = false;
                             Total++;
                         }
                     }
                     else ok = false;
                 }
             else ok = false;
-            //rdy = Total == c;
 
             AddReport("#RCK INIT");
 
-            // while (rdy && _loadPtr < _bases.Length)
-            // {
-            //     var b = _bases[_loadPtr];
-            //     rdy &= b.CollectMissileBlocks() && b.IsMissileReady(ref _msls[_loadPtr]);
-            //     if (rdy) _loadPtr++;
-            // }
-            Status = c == 0 ? RackState.Empty : RackState.Reload;
-
+            if (c != 0)
+            {
+                _weld.Enabled = _bases[0].Base.Enabled = true;
+                Status = RackState.Reload;
+            }
+            else Status = RackState.Empty;
             return ok;
         }
 
@@ -138,7 +137,7 @@ namespace IngameScript
                     // otherwise go to next reload position
 
                     AddReport($"READY {_loadPtr}/{Total}");
-                    if (_loadPtr < _bases.Length)
+                    if (_loadPtr < Total)
                     {
                         _bases[_loadPtr].Base.Enabled = _weld.Enabled = _proj.Enabled = true;
                         AddReport("RELOADING");
@@ -146,8 +145,7 @@ namespace IngameScript
                     }
                     else
                     {
-                        _loadPtr = 0;
-                        _firePtr = _msls.Length - 1;
+                        _loadPtr = _firePtr = 0;
                         _proj.Enabled = _weld.Enabled = false;
                         AddReport("ALL READY");
                         Status = RackState.Ready;
@@ -178,46 +176,30 @@ namespace IngameScript
         /// <param name="dict"=>Reference to system missiles database</param>
         /// <param name="force"=>Whether to force a launch during sequenced reload (dangerous!)</param>
         /// <returns>Whether a missile was fired successfully.</returns>
-        public bool Fire(long teid, ref Dictionary<long, Missile> dict, bool force = false)
+        public bool Fire(long teid, ref Dictionary<long, Missile> dict)
         {
-            if (Status == RackState.Ready || (Status == RackState.Reload && force))
+            if (Status != RackState.Ready)
+                return false;
+
+            var m = _msls[_firePtr];
+            if (dict.Count < _p.HardpointsCount * 2 && m.Controller != null)
             {
-                Missile m = null;
-                if (force)
+                try{ dict.Add(m.MEID, m); }
+                catch{ string s = ""; foreach (var kvp in dict) s += $"\n{kvp.Value.IDTG}"; throw new Exception(s); }
+                dict[m.MEID].Launch(teid, _p);
+                AddReport($"FIRE {m.IDTG}");
+
+                _msls[_firePtr] = _p.RecycledMissile;
+                _firePtr++;
+
+                if (_firePtr >= Total)
                 {
-                    _firePtr = 0;
-                    while (m.Controller == null && _firePtr < _msls.Length)
-                    {
-                        m = _msls[_firePtr];
-                        _firePtr++;
-                        if (_firePtr >= _msls.Length)
-                            return false;
-                    }
-
-                    _proj.Enabled = _weld.Enabled = false;
+                    Status = RackState.Empty;
+                    NextUpdateF += ACTIVE_T;
                 }
-                else m = _msls[_firePtr];
-
-                if (!dict.ContainsKey(m.MEID) && dict.Count < _p.HardpointsCount * 2 && m.Controller != null)
-                {
-                    try{
-                    dict.Add(m.MEID, m);}
-                    catch
-                    { string s = ""; foreach (var kvp in dict) s += $"\n{kvp.Value.IDTG}"; throw new Exception(s); }
-                    dict[m.MEID].Launch(teid, _p);
-                    AddReport($"FIRE {m.IDTG}");
-
-                    _msls[_firePtr] = _p.RecycledMissile;
-                    _firePtr--;
-
-                    if (_firePtr < 0)
-                    {
-                        Status = RackState.Empty;
-                        NextUpdateF += READY_T;
-                    }
-                    return true;
-                }
+                return true;
             }
+
             return false;
         }
 
@@ -234,10 +216,8 @@ namespace IngameScript
         /// Launcher rotation hinge
         /// </summary>
         IMyMotorStator _arm;
-        bool _quickstart = true;
         float _fireAngle, _tgtAngle, _RPM;
         const float TOL = 0.01f;
-
 
         public ArmLauncher(string n, Program p, IMyMotorStator a) : base(n, p)
         {
@@ -246,7 +226,7 @@ namespace IngameScript
 
         public override bool Setup(ref iniWrap q)
         {
-            int i = 0, c = 0;
+            int c = 0;
             bool ok = true;
             string[] tags;
             var rad = (float)(Lib.PI / 180);
@@ -263,7 +243,7 @@ namespace IngameScript
                     var merge = (IMyShipMergeBlock)_p.GridTerminalSystem.GetBlockWithName(q.String(Name, "merge" + tags[Total]));
                     if (merge != null)
                     {
-                        var hpt = new Hardpoint(tags[Total], angle);
+                        var hpt = new Hardpoint(tags[Total], angle, _p);
                         ok &= angle != -361 * rad && hpt.Init(merge, ref _msls[Total]);
                         if (ok)
                         {
@@ -274,35 +254,38 @@ namespace IngameScript
                     }
                     else ok = false;
                 }
-
-                for (; i < _bases.Length && temp.Count > 0; i++)
-                {
-                    _bases[i] = temp.Min;
-                    temp.Remove(_bases[i]);
-                }
+                _bases = temp.ToArray();
             }
             else ok = false;
 
             _fireAngle = q.Float(Name, "fireAngle", 60) * rad;
             _RPM = q.Float(Name, "rpm", 5);
-            _quickstart = Total == c + 1;
+            bool rdy = Total == c, load = c != 0;
 
-            // while (rdy && _loadPtr < _bases.Length)
-            // {
-            //     var b = _bases[_loadPtr];
-            //     rdy &= b.CollectMissileBlocks() && b.IsMissileReady(ref _msls[_loadPtr]);
-            //     if (rdy) _loadPtr++;
-            // }
+            //if (Name == "ARM-R") 
+           //{string s = '\n' + Name; foreach (var hpt in _bases) s += $"\n{hpt.Name} CONN {hpt.Base.IsConnected}\n{hpt.Base.CustomName}"; throw new Exception($"{s}\nT {Total}\nC {c}");}
             
-            if (_quickstart)
+            while (load && _loadPtr < Total)
+            {
+                var b = _bases[_loadPtr];
+                load &= b.CollectMissileBlocks() && b.IsMissileReady(ref _msls[_loadPtr]);
+                if (load) _loadPtr++;
+            }
+
+            if (rdy)
             {
                 AddReport("#QK START");
                 _tgtAngle = _fireAngle;
                 StartRotation();
             }
-            else AddReport("#ARM INIT");
-            
-            Status = c == 0 ? RackState.Empty : RackState.Reload;
+            else
+            {
+                AddReport("#ARM INIT");
+                _tgtAngle = _bases[_loadPtr].Reload;
+                _bases[_loadPtr].Base.Enabled = _proj.Enabled = true;
+                StartRotation();
+            }
+
             return ok;
         }
 
@@ -310,12 +293,12 @@ namespace IngameScript
         {
             if (Status == RackState.Ready)
                 return READY_T;
-
-            var e = _bases[_loadPtr];
+            
             switch (Status)
             {
                 case RackState.Reload:
                     {
+                        var e = _bases[_loadPtr];
                         if (e.CollectMissileBlocks() && e.IsMissileReady(ref _msls[_loadPtr]))
                         {
                             _loadPtr++;
@@ -325,22 +308,7 @@ namespace IngameScript
 
                             AddReport($"READY {_loadPtr}/{Total}");
 
-                            if (_quickstart)
-                            {
-                                _quickstart = _loadPtr < _bases.Length;
-                                if (!_quickstart)
-                                {                                
-                                    _loadPtr = 0;
-                                    _firePtr = _msls.Length - 1;
-                                    _proj.Enabled = false;
-                                    AddReport("ALL READY");
-                                    Status = RackState.Ready;
-                                    _arm.TargetVelocityRPM = 0;
-                                }
-                                return ACTIVE_T;
-                            }
-
-                            _tgtAngle = _loadPtr >= _bases.Length ? _fireAngle : _bases[_loadPtr].Reload;
+                            _tgtAngle = _loadPtr >= Total ? _fireAngle : _bases[_loadPtr].Reload;
                             StartRotation();
                             return ACTIVE_T;
                         }
@@ -356,19 +324,18 @@ namespace IngameScript
                         if (Math.Abs(_arm.Angle - _tgtAngle) < TOL)
                         {
                             _arm.TargetVelocityRPM = 0;
-                            if (_loadPtr < _bases.Length)
+                            if (_tgtAngle == _fireAngle)
                             {
-                                e.Base.Enabled = _weld.Enabled = true;
-                                AddReport("AT TARGET");
-                                Status = RackState.Reload;
-                            }
-                            else if (_tgtAngle == _fireAngle)
-                            {
-                                _loadPtr = 0;
-                                _firePtr = _msls.Length - 1;
+                                _loadPtr = _firePtr = 0;
                                 _proj.Enabled = false;
                                 AddReport("ALL READY");
                                 Status = RackState.Ready;
+                            }
+                            else if (_loadPtr < Total)
+                            {
+                                _bases[_loadPtr].Base.Enabled = _weld.Enabled = true;
+                                AddReport("AT TARGET");
+                                Status = RackState.Reload;
                             }
                             return RELOAD_T;
                         }
@@ -380,8 +347,8 @@ namespace IngameScript
                         foreach (var h in _bases)
                             h.Base.Enabled = false;
 
-                        e.Base.Enabled = _proj.Enabled = true;
-                        _tgtAngle = e.Reload;
+                        _bases[_loadPtr].Base.Enabled = _proj.Enabled = true;
+                        _tgtAngle = _bases[_loadPtr].Reload;
                         AddReport("ALL EMPTY");
                         StartRotation();
                         return ACTIVE_T;

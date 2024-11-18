@@ -156,9 +156,9 @@ namespace IngameScript
             norm = perp * Math.Sin(theta) + coperp * Math.Cos(theta);
         }
 
-        public static Vector3D RandomOffset(ref Random r, double scat)
+        public static Vector3D RandomOffset(ref Random r)
         {
-            return new Vector3D((r.NextDouble() * 2) - 1, (r.NextDouble() * 2) - 1, (r.NextDouble() * 2) - 1) * scat;
+            return new Vector3D((r.NextDouble() * 2) - 1, (r.NextDouble() * 2) - 1, (r.NextDouble() * 2) - 1);
         }
         #endregion
     }

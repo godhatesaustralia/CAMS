@@ -16,7 +16,7 @@ namespace IngameScript
 
             ParseComputerSettings();
 
-            AddSystemCommands();
+            SystemCommands();
 
             AddSystemScreens();
 
@@ -102,16 +102,16 @@ namespace IngameScript
                 foreach (var m in Masts.Values)
                     m.Update();
 
-            int n = Math.Min(AllTurrets.Count, _turCheckPtr + MaxAutoTgtChecks);
-            for (; _turCheckPtr < n; _turCheckPtr++)
+            int i = 0; 
+            for (; i < AllTurrets.Count; i++)
                 GetTurretTgt(AllTurrets[_turCheckPtr]);
                 
-            if (n == AllTurrets.Count)
-                _turCheckPtr = 0;
 
-            for (int i = 0; i < Artillery.Count; i++)
+            for (i = Math.Min(AllTurrets.Count, _turCheckPtr + MaxAutoTgtChecks); _turCheckPtr < i; _turCheckPtr++)
                 GetTurretTgt(Artillery[i], true);
 
+            if (i == Artillery.Count)
+                _turCheckPtr = 0;
             #endregion
 
             #region main-sys-update

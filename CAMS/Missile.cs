@@ -173,11 +173,13 @@ namespace IngameScript
 		int _cachePtr = 0, _gainP, _gainD, _evnMax, _evnMin;
 		Vector3I[] _blockPosCache;
 		IMyTerminalBlock[] _partsCache;
+		Program temp;
 
-		public Hardpoint(string n, float r)
+		public Hardpoint(string n, float r, Program p = null)
 		{
 			Reload = r;
 			Name = n;
+			temp = p;
 		}
 
 		public bool Init(IMyShipMergeBlock h, ref Missile m)
@@ -246,6 +248,7 @@ namespace IngameScript
 						if (slim.FatBlock is IMyTerminalBlock)
 							_partsCache[_cachePtr] = (IMyTerminalBlock)slim.FatBlock;
 						_cachePtr++;
+
 					}
 					else return false;
 				}
@@ -258,7 +261,7 @@ namespace IngameScript
 		public bool IsMissileReady(ref Missile m)
 		{
 			bool r = _complete && m.TrySetup(ref _cachePtr, ref _partsCache);
-			if (r) 
+			if (r)
 			{
 				_complete = false;
 				m.Reset(_aVal, _gYaw, _gPitch, _gRoll, _gainP, _gainD, _evnMax, _evnMin);
@@ -283,9 +286,9 @@ namespace IngameScript
 
 	public class Missile
 	{
-		const int DEF_UPDATE = 8, DEF_STAT = 29, EVN_ADJ = 600;
-		const double TOL = 0.00001, CAM_ANG = 0.707, PD_AIM_LIM = 6.3;
-		public long MEID, TEID, NextUpdateF, NextStatusF, NextEvnAdjF;
+		const int DEF_UPDATE = 8, DEF_STAT = 29, EVN_ADJ = 600, FUSE_DIST = 220;
+		const double TOL = .00001, CAM_ANG = .707, PROX = .145, OFS_PCT = .58, PD_AIM_LIM = 6.3;
+		public long MEID, TEID, LastActiveF, NextUpdateF, NextStatusF, NextEvnAdjF;
 		public bool Inoperable => _dead || !Controller.IsFunctional || Controller.Closed;
 		public string IDTG, DEBUG;
 		public IMyRemoteControl Controller;
@@ -298,14 +301,14 @@ namespace IngameScript
 		List<IMyThrust> _thrust = new List<IMyThrust>();
 		List<IMyWarhead> _warhead = new List<IMyWarhead>();
 
-		bool _evade, _checkAccel, _dead;
+		bool _evade, _checkAccel, _dead, _arm;
 		byte _gYaw, _gPitch, _gRoll;
 		double _accel, _evMax, _evMin;
 
 		Program _p;
 		PDCtrl _yawCtrl = new PDCtrl(), _pitchCtrl = new PDCtrl();
 		MatrixD _viewMat;
-		Vector3D _pos, _cmd, _evn;
+		Vector3D _pos, _cmd, _evn, _ofs;
 
 		#region gyro
 		static Action<IMyGyro, float>[] _profiles =
@@ -318,219 +321,8 @@ namespace IngameScript
 			(g, v) => { g.Roll = v; }
 		};
 
-		public void SetGyroOverride(float y, float p, float r)
+		void AimGyro()
 		{
-			_profiles[_gYaw](_gyro, y);
-			_profiles[_gPitch](_gyro, p);
-			_profiles[_gRoll](_gyro, r);
-		}
-		#endregion
-
-		public void Reset(double a, byte y, byte p, byte r, int pg, int dg, int eMx, int eMn)
-		{
-			_dead = false;
-			_accel = a;
-			_gYaw = y;
-			_gPitch = p;
-			_gRoll = r;
-			_evade = eMx != 0 && eMn != 0;
-			_evMax = eMx;
-			_evMin = eMn;
-			_yawCtrl.Reset(pg, dg, DEF_UPDATE);
-			_pitchCtrl.Reset(pg, dg, DEF_UPDATE);
-		}
-
-		public bool TrySetup(ref int p, ref IMyTerminalBlock[] c)
-		{
-			if (c[0] is IMyRemoteControl)
-				Controller = (IMyRemoteControl)c[0];
-			else return false;
-			for (; p < c.Length; p++)
-			{
-				var t = c[p];
-				if (t == null) return false;
-				// note - this setup makes it necessary to have controller as first item in both cache arrays
-				// setup program MUST take this into account
-				else if (t is IMyGyro) _gyro = (IMyGyro)t;
-				else if (t is IMyBatteryBlock) { _batt = (IMyBatteryBlock)t; _batt.ChargeMode = ChargeMode.Recharge; }
-				else if (t is IMyThrust) _thrust.Add((IMyThrust)t);
-				else if (t is IMyWarhead) _warhead.Add((IMyWarhead)t);
-				else if (t is IMyShipConnector) { _ctor = (IMyShipConnector)t; _ctor.Connect(); }
-				else if (t is IMyShipMergeBlock) _merge = (IMyShipMergeBlock)t;
-				else if (t is IMyGasTank) { var k = (IMyGasTank)t; k.Stockpile = true; _tanks.Add(k); }
-				else if (t is IMyCameraBlock) { var s = (IMyCameraBlock)t; s.EnableRaycast = true; _sensors.Add(s); }
-			}
-			
-			p = 0;
-			MEID = Controller.EntityId;
-			IDTG = MEID.ToString("X").Remove(0, 11);
-			return true;
-		}
-
-		public void Launch(long teid, Program p)
-		{
-			TEID = teid;
-			_p = p;
-			NextUpdateF = p.F + DEF_UPDATE;
-			NextStatusF = NextUpdateF + DEF_STAT;
-			_merge.Enabled = false;
-
-			foreach (var g in _tanks)
-				g.Stockpile = false;
-
-			_batt.ChargeMode = ChargeMode.Discharge;
-			_ctor.Disconnect();
-			_checkAccel = _accel == -1;
-			_gyro.GyroOverride = true;
-
-			foreach (var t in _thrust)
-			{
-				t.Enabled = true;
-				t.ThrustOverridePercentage = 1;
-			}
-		}
-
-		public void Clear()
-		{
-			if (!_dead)
-			{
-				foreach (var tk in _tanks)
-					tk.Enabled = false;
-				foreach (var th in _thrust)
-					th.Enabled = false;
-				foreach (var w in _warhead)
-				{
-					w.IsArmed = true;
-					w.Detonate();
-				}
-				_gyro.Enabled = _batt.Enabled = false;
-			}
-
-			Controller = null;
-			_gyro = null;
-			_merge = null;
-			_ctor = null;
-			_batt = null;
-
-			_tanks.Clear();
-			_thrust.Clear();
-			_warhead.Clear();
-			_sensors.Clear();
-
-			MEID = TEID = -1;
-			IDTG = "NULL";
-		}
-
-		public void CheckStatus()
-		{
-			NextStatusF += DEF_STAT;
-			_dead |= !_batt.IsFunctional || !_gyro.IsFunctional	|| _batt.Closed || _gyro.Closed;
-			
-			if (_dead)
-				return;
-
-			_checkAccel |= _merge.Closed || _ctor.Closed;
-
-			var fuel = 0d;
-			int i = 0;
-
-			for (; i < _tanks.Count; i++)
-			{
-				_checkAccel |= _tanks[i].Closed;
-				if (!_tanks[i].IsFunctional || _tanks[i].Closed)
-					_tanks.RemoveAtFast(i);
-				else fuel += _tanks[i].FilledRatio;
-			}
-
-			for (i = 0; i < _thrust.Count; i++)
-			{
-				_checkAccel |= _thrust[i].Closed;
-				if (!_thrust[i].IsFunctional || _thrust[i].Closed)
-					_thrust.RemoveAtFast(i);
-			}
-
-			_dead |= fuel <= TOL && _tanks.Count == 0 && _thrust.Count == 0;
-		}
-
-		public void Update(Target tgt)
-		{
-			if (tgt == null || _dead)
-				return;
-
-			#region nav
-			_viewMat = MatrixD.Transpose(Controller.WorldMatrix);
-			_pos = Controller.WorldMatrix.Translation;
-
-			Vector3D
-				rP = tgt.Position - _pos,
-				rV = tgt.Velocity - Controller.GetShipVelocities().LinearVelocity,
-				rA = tgt.Accel - Controller.GetNaturalGravity();
-
-			// idk what im doing
-			if (rP.Length() < tgt.Radius * 0.3)
-			{
-				var w = _warhead[0];
-				w.IsArmed = true;
-				w.Detonate();
-				_warhead.RemoveAtFast(0);
-
-				if (_warhead.Count == 0)
-				{
-					_dead = true;
-					NextStatusF = NextUpdateF;
-				}
-				return;
-			}
-
-			if (_checkAccel)
-			{
-				_accel = 0;
-				foreach (var th in _thrust)
-					_accel += th.MaxEffectiveThrust;
-				_accel /= Controller.CalculateShipMass().TotalMass;
-			}
-
-			double
-				a = 0.25 * rA.LengthSquared() - (_accel * _accel),
-				b = rA.Dot(rV),
-				c = rA.Dot(rP) + rV.LengthSquared(),
-				d = 2 * rP.Dot(rV),
-				e = rV.LengthSquared(),
-				r = rP.Length(),
-				t = FastSolver.Solve(a, b, c, d, e);
-
-			if (t == double.MaxValue || double.IsNaN(t)) t = 1000;
-			var icpt = tgt.Position + (rV * t) + (0.5 * rA * t * t);
-
-			if (_evade)
-			{
-				if (_p.F >= NextEvnAdjF)
-				{
-					Lib.RandomNormalVector(ref _p.RNG, ref _cmd, ref _evn);
-					_evn *= tgt.Radius;
-					NextEvnAdjF += EVN_ADJ;
-				}
-
-				if (r < _evMax && r > _evMin)
-					icpt += _evn;
-			}
-
-			_cmd = Vector3D.TransformNormal(icpt - _pos, ref _viewMat);
-
-			DEBUG = $"\n<{IDTG}> \nT {t:G3}S, MVEL {Controller.GetShipVelocities().LinearVelocity.Length():#0.#}, MACL {_accel:#0.#}";
-			DEBUG += $"\nICPT ({icpt.X:G3},{icpt.Y:G3},{icpt.Z:G3})";
-			DEBUG += $"\nMCMD ({_cmd.X:G3},{_cmd.Y:G3},{_cmd.Z:G3})";
-			DEBUG += $"\nTMRP ({rP.X:G3},{rP.Y:G3},{rP.Z:G3})";
-			DEBUG += $"\nTMRV ({rV.X:G3},{rV.Y:G3},{rV.Z:G3})";
-
-			if (t >= 1E307)
-			{
-				_p.suspiciousorange();
-				throw new Exception(DEBUG);
-			}
-			#endregion
-
-			#region aim
 			double
 				aX = Math.Abs(_cmd.X), // abs x
 				aY = Math.Abs(_cmd.Y), // abs y
@@ -568,9 +360,253 @@ namespace IngameScript
 				p *= adjust;
 			}
 
-			SetGyroOverride((float)y, (float)p, 0);
+			_profiles[_gYaw](_gyro, (float)y);
+			_profiles[_gPitch](_gyro, (float)p);
+			_profiles[_gRoll](_gyro, 0);
+
 			NextUpdateF += DEF_UPDATE;
-			#endregion
+		}
+
+		#endregion
+
+		public void Reset(double a, byte y, byte p, byte r, int pg, int dg, int eMx, int eMn)
+		{
+			_dead = false;
+			_accel = a;
+			_gYaw = y;
+			_gPitch = p;
+			_gRoll = r;
+			_evade = eMx != 0 && eMn != 0;
+			_evMax = eMx;
+			_evMin = eMn;
+
+			_yawCtrl.Reset(pg, dg, DEF_UPDATE);
+			_pitchCtrl.Reset(pg, dg, DEF_UPDATE);
+		}
+
+		public bool TrySetup(ref int p, ref IMyTerminalBlock[] c)
+		{
+			if (c[0] is IMyRemoteControl)
+				Controller = (IMyRemoteControl)c[0];
+			else return false;
+			for (; p < c.Length; p++)
+			{
+				var t = c[p];
+				if (t == null) return false;
+				// note - this setup makes it necessary to have controller as first item in both cache arrays
+				// setup program MUST take this into account
+				else if (t is IMyGyro) _gyro = (IMyGyro)t;
+				else if (t is IMyBatteryBlock) { _batt = (IMyBatteryBlock)t; _batt.ChargeMode = ChargeMode.Recharge; }
+				else if (t is IMyThrust) _thrust.Add((IMyThrust)t);
+				else if (t is IMyWarhead) _warhead.Add((IMyWarhead)t);
+				else if (t is IMyShipConnector) { _ctor = (IMyShipConnector)t; _ctor.Connect(); }
+				else if (t is IMyShipMergeBlock) _merge = (IMyShipMergeBlock)t;
+				else if (t is IMyGasTank) { var k = (IMyGasTank)t; k.Stockpile = true; _tanks.Add(k); }
+				else if (t is IMyCameraBlock) { var s = (IMyCameraBlock)t; s.EnableRaycast = true; _sensors.Add(s); }
+			}
+
+			p = 0;
+			MEID = Controller.EntityId;
+			IDTG = MEID.ToString("X").Remove(0, 11);
+			return true;
+		}
+
+		public void Launch(long teid, Program p)
+		{
+			TEID = teid;
+			_p = p;
+			_ofs = Lib.RandomOffset(ref _p.RNG);
+
+			LastActiveF = _p.F;
+			NextUpdateF = p.F + DEF_UPDATE;
+			NextStatusF = NextUpdateF + DEF_STAT;
+
+			foreach (var g in _tanks)
+				g.Stockpile = false;
+			foreach (var t in _thrust)
+			{
+				t.Enabled = true;
+				t.ThrustOverridePercentage = 1;
+			}
+
+
+			_ctor.Disconnect();
+			_batt.ChargeMode = ChargeMode.Discharge;
+			_merge.Enabled = _arm = false;
+
+			_checkAccel = _accel == -1;
+			_gyro.GyroOverride = true;
+		}
+
+		public void Clear()
+		{
+			if (!_dead)
+			{
+				foreach (var tk in _tanks)
+					tk.Enabled = false;
+				foreach (var th in _thrust)
+					th.Enabled = false;
+				foreach (var w in _warhead)
+				{
+					w.IsArmed = true;
+					w.Detonate();
+				}
+				_gyro.Enabled = _batt.Enabled = false;
+			}
+
+			Controller = null;
+			_gyro = null;
+			_merge = null;
+			_ctor = null;
+			_batt = null;
+
+			_tanks.Clear();
+			_thrust.Clear();
+			_warhead.Clear();
+			_sensors.Clear();
+
+			MEID = TEID = -1;
+			IDTG = "NULL";
+		}
+
+		public void CheckStatus()
+		{
+			NextStatusF += DEF_STAT;
+			_dead |= !_batt.IsFunctional || !_gyro.IsFunctional || _batt.Closed || _gyro.Closed;
+
+			if (_dead)
+				return;
+
+			_checkAccel |= _merge.Closed || _ctor.Closed;
+
+			var fuel = 0d;
+			int i = 0;
+
+			for (; i < _tanks.Count; i++)
+			{
+				_checkAccel |= _tanks[i].Closed;
+				if (!_tanks[i].IsFunctional || _tanks[i].Closed)
+					_tanks.RemoveAtFast(i);
+				else fuel += _tanks[i].FilledRatio;
+			}
+
+			for (i = 0; i < _thrust.Count; i++)
+			{
+				_checkAccel |= _thrust[i].Closed;
+				if (!_thrust[i].IsFunctional || _thrust[i].Closed)
+					_thrust.RemoveAtFast(i);
+			}
+
+			_dead |= fuel <= TOL && _tanks.Count == 0 && _thrust.Count == 0;
+		}
+
+		public void Hold()
+		{
+			var v = Controller.GetShipVelocities().LinearVelocity;
+			if (v.Length() < 1)
+				return;
+
+			_viewMat = MatrixD.Transpose(Controller.WorldMatrix);
+			_cmd = Vector3D.TransformNormal(-v, _viewMat);
+
+			AimGyro();
+		}
+
+		public void Update(Target tgt)
+		{
+			if (tgt == null || _dead)
+				return;
+
+			LastActiveF = _p.F;
+			_viewMat = MatrixD.Transpose(Controller.WorldMatrix);
+			_pos = Controller.WorldMatrix.Translation;
+
+			Vector3D
+				icpt = tgt.Position,
+				rP = icpt - _pos,
+				rV = tgt.Velocity - Controller.GetShipVelocities().LinearVelocity,
+				rA = tgt.Accel - Controller.GetNaturalGravity();
+
+			var r = rP.Length();
+
+			// idk what im doing
+			if (r < FUSE_DIST)
+			{
+				if (_arm)
+				{
+					_arm = !_arm;
+					foreach (var w in _warhead)
+						w.IsArmed = true;
+					if ((int)tgt.Type == 3)
+						_ofs = Lib.RandomOffset(ref _p.RNG) * tgt.Radius * OFS_PCT;
+					else _ofs = Vector3D.Zero;
+				}
+				else if (r < tgt.Radius * PROX)
+				{
+					if (_warhead.Count > 0)
+					{
+						var w = _warhead[0];
+						w.Detonate();
+						_warhead.RemoveAtFast(0);
+					}
+					else
+					{
+						_dead = true;
+						NextStatusF = NextUpdateF;
+					}
+					return;
+				}
+
+				foreach (var s in _sensors)
+					if (s.WorldMatrix.Forward.Dot(rP) > CAM_ANG && s.CanScan(r))
+					{
+						var i = s.Raycast(tgt.Position + tgt.Velocity * Lib.TPS + _ofs * tgt.Radius * OFS_PCT);
+						if (!i.IsEmpty())
+						{
+							icpt = i.HitPosition.Value;
+							break;
+						}
+						else _ofs = Lib.RandomOffset(ref _p.RNG);
+					}
+			}
+
+			if (_checkAccel)
+			{
+				_accel = 0;
+				foreach (var th in _thrust)
+					_accel += th.MaxEffectiveThrust;
+				_accel /= Controller.CalculateShipMass().TotalMass;
+			}
+
+			double
+				a = 0.25 * rA.LengthSquared() - (_accel * _accel),
+				b = rA.Dot(rV),
+				c = rA.Dot(rP) + rV.LengthSquared(),
+				d = 2 * rP.Dot(rV),
+				e = rV.LengthSquared(),
+				t = FastSolver.Solve(a, b, c, d, e);
+
+			if (t == double.MaxValue || double.IsNaN(t)) t = 1000;
+
+			icpt += (rV * t) + (0.5 * rA * t * t);
+
+			if (_evade)
+			{
+				if (_p.F >= NextEvnAdjF)
+				{
+					Lib.RandomNormalVector(ref _p.RNG, ref rP, ref _evn);
+					_evn *= tgt.Radius;
+					NextEvnAdjF += EVN_ADJ;
+				}
+
+				if (r < _evMax && r > _evMin)
+					icpt += _evn;
+			}
+
+			_cmd = Vector3D.TransformNormal(icpt - _pos, ref _viewMat);
+
+			DEBUG = $"\n<{IDTG}> \nT {t:G3}S, MVEL {Controller.GetShipVelocities().LinearVelocity.Length():#0.#}, MACL {_accel:#0.#} MEVN {(_evade && r < _evMax && r > _evMin).ToString().ToUpper()}";
+			AimGyro();
 		}
 	}
 }

@@ -48,11 +48,9 @@ namespace IngameScript
                     string
                         grp = "Rotors",
                         def = " CAMS Azimuths",
-                        arys = p.String(H, "lidarTags", "[A]\n[B]\n[C]\n[D]");
+                        arys = p.String(H, "lidarTags", "[A],[B],[C],[D]");
 
-                    MastAryTags = arys.Split('\n');
-                    for (int i = 0; i < MastAryTags.Length; i++)
-                        MastAryTags[i] = MastAryTags[i].Trim('|');
+                    MastAryTags = arys.Split(',');
 
                     ShipTag = p.String(H, "tag", H);
                     ControllerTag = p.String(H, "controller", "Helm");
@@ -111,7 +109,7 @@ namespace IngameScript
                     }
                     else if (b is IMyTextSurfaceProvider)
                     {
-                        d = new Display(this, b, Lib.MS, Based);
+                        d = new Display(this, b, Lib.LN, Based);
                         Displays.Add(d.Name, d);
                     }
                 }
@@ -231,7 +229,7 @@ namespace IngameScript
 
         }
 
-        void AddSystemCommands()
+        void SystemCommands()
         {
             Commands.Add("switch", b =>
             {

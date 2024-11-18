@@ -12,7 +12,7 @@ namespace IngameScript
             for (int i = 1; i < ln.Report.Length; i++)
                 r += $"\n{ln.Report[i]}";
             s.Write(r, 1);
-            //s.Write(ln.Status.ToString().ToUpper(), 2);
+            s.Write(ln.Status.ToString().ToUpper(), 2);
             s.Color(p == 0 ? SDY : PMY, 6);
             s.Color(p == ReloadRR.IDs.Length - 1 ? SDY : PMY, 7);
         }
@@ -73,7 +73,7 @@ namespace IngameScript
                 UpdateRR.Next(ref Turrets).UpdateTurret();
         }
 
-        const long TGT_LOSS_TK = 32;
+        const long TGT_LOSS_TK = 91;
         void UpdateMissileGuidance()
         {
             if (Missiles.Count == 0) return;
@@ -85,10 +85,15 @@ namespace IngameScript
                     var t = Targets.Get(m.TEID);
                     if (t == null)
                     {
-                        if (F - m.NextUpdateF < TGT_LOSS_TK)
-                            continue;
                         if (Targets.Count > 0)
-                            m.TEID = Targets.Prioritized.Min.EID;
+                        {
+                            t = Targets.Prioritized.Min;
+                            m.TEID = t.EID;
+                            if (t.PriorityKill)
+                                ekvTargets.Add(t.EID);
+                        }
+                        else if (F - m.LastActiveF > TGT_LOSS_TK)
+                            m.Hold();
                         else mslCull.Add(m.MEID);
                     }
                     else
@@ -107,7 +112,6 @@ namespace IngameScript
                     mslReuse.Add(Missiles[id]);
                 Missiles.Remove(id);
             }
-
             mslCull.Clear();
         }
 
@@ -124,9 +128,13 @@ namespace IngameScript
             for (int i = 0; i < MaxTgtKillTracks && i < Targets.Prioritized.Count; i++)
             {
                 t = Targets.Prioritized.Min;
-                foreach (var n in AMSNames)
-                    if (t.PriorityKill && Launchers[n].Fire(t.EID, ref Missiles))
-                        Targets.Prioritized.Remove(t);            
+                if (!ekvTargets.Contains(t.EID))
+                    foreach (var n in AMSNames)
+                        if (t.PriorityKill && Launchers[n].Fire(t.EID, ref Missiles))
+                        {
+                            ekvTargets.Add(t.EID);
+                            Targets.Prioritized.Remove(t);       
+                        }     
             }
 
             PDT tur;

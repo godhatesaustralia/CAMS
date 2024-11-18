@@ -321,7 +321,7 @@ namespace IngameScript
             tgt.Priority = 0;
             bool uhoh = tgt.Velocity.Normalized().Dot(dir) > 0.9; // RUUUUUUUUUNNNNNNNNNNNNNN
 
-            if (tgt.Radius > 15 || (int)tgt.Type != 2)
+            if (tgt.Radius > 20 || (int)tgt.Type != 2)
                 tgt.Priority += uhoh ? 75 : 300;
             else if (uhoh)
             {
@@ -363,21 +363,21 @@ namespace IngameScript
             ScannedIDs.Clear();
             if ((u & Lib.u100) != 0)
             {
-                foreach (var k in _targets.Keys)
-                    _rmvEIDs.Add(k);
-
                 if (Count == 0)
                     return;
 
-                for (int i = Count - 1; i >= 0; i--)
-                    if (_targets[_rmvEIDs[i]].Elapsed(f) >= MAX_LIFETIME)
-                    {
-                        ScannedIDs.Remove(_rmvEIDs[i]);
-                        _targets.Remove(_rmvEIDs[i]);
-                        _iEIDs.Remove(_rmvEIDs[i]);
-                    }
-
                 _rmvEIDs.Clear();
+
+                foreach (var t in _targets.Values)
+                    if (t.Elapsed(f) >= MAX_LIFETIME)
+                        _rmvEIDs.Add(t.EID);
+
+                foreach (var id in _rmvEIDs)
+                {
+                    _targets.Remove(id);
+                    ScannedIDs.Remove(id);
+                    _iEIDs.Remove(id);
+                }
             }
             else if (_p.GlobalPriorityUpdateSwitch && f >= _nextPrioritySortF)
             {

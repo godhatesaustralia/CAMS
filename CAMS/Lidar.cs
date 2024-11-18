@@ -57,7 +57,7 @@ namespace IngameScript
                     var p1 = Vector3D.CalculatePerpendicularVector(tDir);
                     var p2 = p1.Cross(tDir);
                     p2.Normalize();
-                    return (p.GaussRNG() * p1 + p.GaussRNG() * p2) * dT * ofs;
+                    tPos += (p.GaussRNG() * p1 + p.GaussRNG() * p2) * dT * ofs;
                 }
             }
             return tPos + tDir * 2 * t.Radius;
@@ -86,7 +86,7 @@ namespace IngameScript
                     continue;
 
                 var pos = RaycastLead(t, c.WorldMatrix.Translation, p);
-                pos += spread ? Lib.RandomOffset(ref p.RNG, SCAT * t.Radius) : Vector3D.Zero;
+                pos += spread ? Lib.RandomOffset(ref p.RNG) * SCAT * t.Radius : Vector3D.Zero;
                 if (!c.CanScan(pos) || pos == Vector3D.Zero)
                     continue;
                     
