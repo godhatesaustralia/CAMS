@@ -33,7 +33,7 @@ namespace IngameScript
     public class Launcher
     {
         public readonly string Name;
-        public readonly string[] Report = new string[] { "", "" };
+        public Queue<string> Log = new Queue<string>(MSG_CT);
         public bool Auto;
         protected int _msgPtr = 0, _loadPtr = 0, _firePtr;
         public int Total = 0;
@@ -43,7 +43,8 @@ namespace IngameScript
         protected const int
             ACTIVE_T = 3,
             READY_T = 23,
-            RELOAD_T = 7;
+            RELOAD_T = 7,
+            MSG_CT = 4;
 
         protected IMyShipWelder _weld;
         protected IMyProjector _proj;
@@ -206,7 +207,9 @@ namespace IngameScript
         protected void AddReport(string s)
         {
             var now = NextUpdateF;
-            Report[Lib.Next(ref _msgPtr, Report.Length)] = $">{now:X4} " + s;
+            if (Log.Count >= MSG_CT)
+                Log.Dequeue();
+            Log.Enqueue($"\n>{now:X4} " + s);
         }
     }
 

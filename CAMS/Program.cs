@@ -104,9 +104,8 @@ namespace IngameScript
 
             int i = 0; 
             for (; i < AllTurrets.Count; i++)
-                GetTurretTgt(AllTurrets[_turCheckPtr]);
-                
-
+                GetTurretTgt(AllTurrets[i]);
+            
             for (i = Math.Min(AllTurrets.Count, _turCheckPtr + MaxAutoTgtChecks); _turCheckPtr < i; _turCheckPtr++)
                 GetTurretTgt(Artillery[i], true);
 

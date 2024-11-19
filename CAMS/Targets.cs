@@ -281,7 +281,7 @@ namespace IngameScript
             if (_targets.ContainsKey(id))
             {
                 t = _targets[id];
-                var dT = t.Elapsed(_p.F);
+                var dT = (_p.F - t.Frame) * Lib.TPS;
                 t.Frame = _p.F;
                 t.Position = i.Position;
                 t.LastVelocity = t.Velocity;
@@ -289,7 +289,7 @@ namespace IngameScript
                 t.Matrix = i.Orientation;
 
                 t.Accel = Vector3D.Zero;
-                var a = (t.Velocity - t.LastVelocity) * dT;
+                var a = (t.Velocity - t.LastVelocity) / dT;
                 if (a.LengthSquared() > 1)
                     t.Accel = (t.Accel * 0.25) + (a * 0.75);
 

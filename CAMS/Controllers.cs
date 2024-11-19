@@ -51,7 +51,7 @@ namespace IngameScript
             _fixAngle = fix;
             g_out = oGain;
             g_pre = pGain;
-            lim_out = oLim;
+            lim_out = oLim * Lib.RAD_PER_TICK;
         }
 
         // cur, exp, frame

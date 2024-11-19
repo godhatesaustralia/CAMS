@@ -8,9 +8,9 @@ namespace IngameScript
         {
             var ln = Launchers[ReloadRR.IDs[p]];
             s.Write(ln.Name, 0);
-            string r = ln.Report[0];
-            for (int i = 1; i < ln.Report.Length; i++)
-                r += $"\n{ln.Report[i]}";
+            string r = "";
+            foreach (var l in ln.Log)
+                r += l;
             s.Write(r, 1);
             s.Write(ln.Status.ToString().ToUpper(), 2);
             s.Color(p == 0 ? SDY : PMY, 6);
@@ -136,6 +136,7 @@ namespace IngameScript
                         {
                             ekvTargets.Add(t.EID);
                             Targets.Prioritized.Remove(t);
+                            break;
                         }
                     foreach (var n in PDTNames)
                     {

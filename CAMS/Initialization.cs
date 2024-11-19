@@ -354,7 +354,7 @@ namespace IngameScript
                 new MySprite[]
                 {
                     SPR(TXT, "", Lib.V2(24, 108), null, PMY, Lib.VB, 0, 1.3275f),
-                    SPR(TXT, "", Lib.V2(24, 188), null, PMY, Lib.VB, 0, 0.6025f),
+                    SPR(TXT, "", Lib.V2(24, 160), null, PMY, Lib.VB, 0, 0.6025f),
                     SPR(TXT, "", Lib.V2(24, 336), null, PMY, Lib.VB, 0, 0.9125f),
                     SPR(TXT, "", Lib.V2(0, 0)),
                     SPR(TXT, "", Lib.V2(0, 0)),
@@ -362,7 +362,7 @@ namespace IngameScript
                     SPR(SHP, Lib.TRI, Lib.V2(252, 126), Lib.V2(48, 28), PMY), // 6
                     SPR(SHP, Lib.TRI, Lib.V2(252, 162), Lib.V2(48, 28), PMY, null, cnr, MathHelper.Pi), // 7
                     SPR(SHP, Lib.SQS, Lib.V2(312, 256), Lib.V2(8, 288), PMY), // 8
-                    SPR(SHP, Lib.SQS, Lib.V2(156, 256), Lib.V2(308, 8), PMY), // 9
+                    SPR(SHP, Lib.SQS, Lib.V2(156, 320), Lib.V2(308, 8), PMY), // 9
                 },
                 ScrollLN, null, null
             ));

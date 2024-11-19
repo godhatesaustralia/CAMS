@@ -584,6 +584,7 @@ namespace IngameScript
 				t = FastSolver.Solve(a, b, c, d, e);
 
 			if (t == double.MaxValue || double.IsNaN(t)) t = 1000;
+			else t += tgt.Elapsed(_p.F);
 
 			icpt += (rV * t) + (0.5 * rA * t * t);
 

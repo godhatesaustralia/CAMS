@@ -95,7 +95,7 @@ namespace IngameScript
             {
                 if (F - lastVelT > 0)
                 {
-                    lastAccel = 0.5 * (lastAccel + (Velocity - lastVel) / (F - lastVelT));
+                    lastAccel = 0.5 * (lastAccel + (Velocity - lastVel) / ((F - lastVelT) * 2 * Lib.TPS));
                     lastVelT = F;
                     lastVel = Velocity;
                 }

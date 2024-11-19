@@ -135,6 +135,7 @@ namespace IngameScript
                     var list = new List<IMyUserControllableGun>();
                     m.Terminal.GetBlocksOfType(list, b => b.CubeGrid == _elevation.CubeGrid || b.CustomName.Contains(Name));
                     _weapons = new Weapons(list, p.Int(h, "salvo"), p.Int(h, "offset"));
+                    _weapons.Hold();
 
                     double a, e;
                     GetStatorAngles(out a, out e);
@@ -172,6 +173,7 @@ namespace IngameScript
                 aim -= _p.Gravity;
 
             // okay so does acceleration even fucking work
+            
             Vector3D
                 rP = aim - _elevation.WorldMatrix.Translation,
                 rV = tgt.Velocity - _p.Velocity,
@@ -193,8 +195,9 @@ namespace IngameScript
 
             if (double.IsNaN(t)) return false;
 
+            t += tgt.Elapsed(_p.F);
             if (!test)
-                aim += rA.LengthSquared() > 0.1 ? rV * t + 0.5 * rA * t * t : rV * t;
+                aim += rA.LengthSquared() > 0.1 ? rV * t + 0.25 * rA * t * t : rV * t;
 
             return true;
         }
@@ -439,7 +442,7 @@ namespace IngameScript
                 if (_useLidar || Interceptable(tgt, ref aim)) // admittedly not the best way to do this
                 {
                     var azm = _azimuth.WorldMatrix;
-                    aim -= azm.Translation;
+                    aim -= _weapons.AimPos;
                     var tgtDst = aim.Length();
 
                     if (!_useLidar && _spray != -1)
@@ -450,7 +453,7 @@ namespace IngameScript
                         aim += _sprayOfs * tgt.Radius / tgt.Distance;
                     }
 
-                    if ((_oobF > 31 && Status == AimState.Blocked) || tgtDst > TrackRange)
+                    if ((_oobF > 67 && Status == AimState.Blocked) || tgtDst > TrackRange)
                     {
                         Status = MoveToRest(a, e);
                         return;
