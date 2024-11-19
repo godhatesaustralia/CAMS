@@ -40,7 +40,7 @@ namespace IngameScript
         public IMyTurretControlBlock _ctc;
         PCtrl _aPCtrl, _ePCtrl;
         SectorCheck[] _limits;
-        protected IWeapons _weapons;
+        protected Weapons _weapons;
         protected Program _p;
         public long tEID = -1, lastUpdate = 0, _oobF = 0;
         public bool Inoperable = false, IsPDT, TgtSmall;
@@ -324,12 +324,12 @@ namespace IngameScript
                 if (Interceptable(tgt, ref aim))
                 {
                     var azm = _azimuth.WorldMatrix;
-                    aim -= _weapons.AimPos;
+                    aim -= _elevation.WorldMatrix.Translation; // ????? i have no fucking idea at this point is it htis????
                     var tgtDst = aim.Length();
 
                     if ((_oobF > RST_TKS && Status == AimState.Blocked) || tgtDst > TrackRange)
                     {
-                        Status = MoveToRest(a, e);
+                        Status = MoveToRest(a, e, true);
                         return;
                     }
 
@@ -355,9 +355,9 @@ namespace IngameScript
     {
         IMyCameraBlock[] _designators;
         LidarArray _lidar;
-        double _spray, _sprayTol = 7.5E-4;
+        double _spray;
         Vector3D _sprayOfs;
-        bool _switchOfs = true, _useLidar = false;
+        bool _useLidar = false;
         int _scanCtr, _scanMx;
 
         public PDT(IMyMotorStator a, Program m, int sMx) : base(a, m)
@@ -384,7 +384,6 @@ namespace IngameScript
                 l.Clear();
             }
             _spray = m.PDSpray;
-            //_tol += _spray != -1 ? _sprayTol : 0;
         }
 
         public bool AssignLidarTarget(Target t)
@@ -447,15 +446,15 @@ namespace IngameScript
 
                     if (!_useLidar && _spray != -1)
                     {
-                        if (_switchOfs)
-                            _sprayOfs = _p.RandomOffset() * _spray;
+                        if (_weapons.SwitchOffset)
+                            _sprayOfs = _p.RandomOffset() * _spray * tgt.Radius / tgt.Distance;
 
-                        aim += _sprayOfs * tgt.Radius / tgt.Distance;
+                        aim += _sprayOfs;
                     }
 
                     if ((_oobF > 67 && Status == AimState.Blocked) || tgtDst > TrackRange)
                     {
-                        Status = MoveToRest(a, e);
+                        Status = MoveToRest(a, e, true);
                         return;
                     }
 

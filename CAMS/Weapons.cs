@@ -4,16 +4,8 @@ using VRageMath;
 
 namespace IngameScript
 {
-    public interface IWeapons
-    {
-        bool SwitchOffset { get; }
-        Vector3D AimPos { get; }
-        Vector3D AimDir { get; }
-        void Fire(long f);
-        void Hold();
-    }
     // vanilla, who cares
-    public class Weapons : IWeapons
+    public class Weapons
     {
         List<IMyUserControllableGun> _guns = new List<IMyUserControllableGun>();
         readonly int salvoTicks = 0, offsetTicks; // 0 or lower means no salvoing
@@ -55,7 +47,10 @@ namespace IngameScript
             salvoTicks = s;
             offsetTicks = o;
             foreach (var w in _guns)
+            {
+                w.Enabled = true;
                 w.Shoot = false;
+            }
         }
 
         public void Fire(long f)
@@ -101,7 +96,7 @@ namespace IngameScript
         }
     }
 
-    public class CoreWeapons : IWeapons
+    public class CoreWeapons
     {
         WCAPI _wapi;
         List<IMyTerminalBlock> _guns = new List<IMyTerminalBlock>();

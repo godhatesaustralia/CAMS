@@ -1,9 +1,11 @@
-﻿using Sandbox.ModAPI.Ingame;
+﻿using System.CodeDom;
+using Sandbox.ModAPI.Ingame;
 
 namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
+        const long TGT_LOSS_TK = 91;
         void ScrollLN(int p, Screen s)
         {
             var ln = Launchers[ReloadRR.IDs[p]];
@@ -73,7 +75,7 @@ namespace IngameScript
                 UpdateRR.Next(ref Turrets).UpdateTurret();
         }
 
-        const long TGT_LOSS_TK = 91;
+
         void UpdateMissileGuidance()
         {
             if (Missiles.Count == 0) return;
@@ -138,14 +140,16 @@ namespace IngameScript
                             Targets.Prioritized.Remove(t);
                             break;
                         }
-                    foreach (var n in PDTNames)
-                    {
-                        tur = (PDT)Turrets[n];
-                        if (tur.tEID == -1 && tur.AssignLidarTarget(t))
-                            break;
-                    }
                 }
             }
+            foreach (var id in ekvTargets)
+                foreach (var n in PDTNames)
+                {
+                    tur = (PDT)Turrets[n];
+                    t = Targets.Get(id);
+                    if (tur.tEID == -1 && tur.AssignLidarTarget(t))
+                        break;
+                }
         }
     }
 }
