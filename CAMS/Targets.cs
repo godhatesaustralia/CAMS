@@ -138,7 +138,7 @@ namespace IngameScript
                 }
             });
 
-            m.LCDScreens.Add(Lib.RD, new Screen(() => Count, null, CreateRadar, null, null, false));
+            m.LCDScreens.Add(Lib.RD, new Screen(() => Count, _rdr, CreateRadar, null, null, false));
         }
 
         void UpdateBlacklist()

@@ -8,6 +8,7 @@ namespace IngameScript
     {
         bool SwitchOffset { get; }
         Vector3D AimPos { get; }
+        Vector3D AimDir { get; }
         void Fire(long f);
         void Hold();
     }
@@ -15,10 +16,10 @@ namespace IngameScript
     public class Weapons : IWeapons
     {
         List<IMyUserControllableGun> _guns = new List<IMyUserControllableGun>();
-        readonly int salvoTicks = 0 ,offsetTicks; // 0 or lower means no salvoing
+        readonly int salvoTicks = 0, offsetTicks; // 0 or lower means no salvoing
         int ptr = -1;
-        long lastF = 0, salvoCounter = 0,offsetCounter = 0;
-               
+        public long salvoCounter = 0, offsetCounter = 0;
+
         public bool SwitchOffset => offsetCounter <= 0;
         bool Shooting = false;
 
@@ -35,12 +36,26 @@ namespace IngameScript
             }
         }
 
+        public Vector3D AimDir
+        {
+            get
+            {
+                var r = Vector3D.Zero;
+                if (_guns.Count == 0) return r;
+                foreach (var g in _guns)
+                    r += g.WorldMatrix.Forward;
+                r /= _guns.Count;
+                return r;
+            }
+        }
+
         public Weapons(List<IMyUserControllableGun> g, int s = 0, int o = -1)
         {
             _guns = g;
             salvoTicks = s;
             offsetTicks = o;
-            Hold();
+            foreach (var w in _guns)
+                w.Shoot = false;
         }
 
         public void Fire(long f)
@@ -49,11 +64,10 @@ namespace IngameScript
             {
                 Shooting = true;
                 offsetCounter = offsetTicks;
-                lastF = f - 1;
             }
 
-            salvoCounter -= f - lastF;
-            offsetCounter -= f - lastF;
+            salvoCounter--;
+            offsetCounter--;
 
             if (_guns.Count == 0) return;
             while (_guns[0].Closed)
@@ -74,8 +88,6 @@ namespace IngameScript
             }
             if (offsetCounter < 0)
                 offsetCounter = offsetTicks;
-            
-            lastF = f;
         }
 
         public void Hold()
@@ -95,7 +107,7 @@ namespace IngameScript
         List<IMyTerminalBlock> _guns = new List<IMyTerminalBlock>();
         readonly int salvoTicks, offsetTicks; // 0 or lower means no salvoing
         int ptr = -1;
-        long lastF = 0, salvoCounter = 0,offsetCounter = 0;
+        long lastF = 0, salvoCounter = 0, offsetCounter = 0;
         public bool SwitchOffset => offsetCounter <= 0;
         bool Shooting = false;
 
@@ -107,6 +119,19 @@ namespace IngameScript
                 if (_guns.Count == 0) return r;
                 foreach (var g in _guns)
                     r += g.WorldMatrix.Translation;
+                r /= _guns.Count;
+                return r;
+            }
+        }
+
+        public Vector3D AimDir
+        {
+            get
+            {
+                var r = Vector3D.Zero;
+                if (_guns.Count == 0) return r;
+                foreach (var g in _guns)
+                    r += g.WorldMatrix.Forward;
                 r /= _guns.Count;
                 return r;
             }

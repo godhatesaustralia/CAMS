@@ -129,10 +129,10 @@ namespace IngameScript
             for (int i = 0; i < MaxTgtKillTracks && i < Targets.Prioritized.Count; i++)
             {
                 t = Targets.Prioritized.Min;
-                if (!ekvTargets.Contains(t.EID))
+                if (t.PriorityKill && !ekvTargets.Contains(t.EID))
                 {
                     foreach (var n in AMSNames)
-                        if (t.PriorityKill && Launchers[n].Fire(t.EID, ref Missiles))
+                        if (Launchers[n].Fire(t.EID, ref Missiles))
                         {
                             ekvTargets.Add(t.EID);
                             Targets.Prioritized.Remove(t);
