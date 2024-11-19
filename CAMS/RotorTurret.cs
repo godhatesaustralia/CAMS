@@ -173,7 +173,7 @@ namespace IngameScript
                 aim -= _p.Gravity;
 
             // okay so does acceleration even fucking work
-            
+
             Vector3D
                 rP = aim - _elevation.WorldMatrix.Translation,
                 rV = tgt.Velocity - _p.Velocity,
@@ -213,6 +213,27 @@ namespace IngameScript
             e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
         }
 
+        protected void SetAndMoveStators(double ac, double at, double ec, double et)
+        {
+            _azimuth.UpperLimitRad = _aMx;
+            _azimuth.LowerLimitRad = _aMn;
+            _elevation.UpperLimitRad = _eMx;
+            _elevation.LowerLimitRad = _eMn;
+
+            if (at - ac > 0.01)
+                _azimuth.UpperLimitRad = (float)(at + 0.01);
+            else if (at - ac < -0.01)
+                _azimuth.LowerLimitRad = (float)(at - 0.01);
+
+            if (et - ec > 0.01)
+                _elevation.UpperLimitRad = (float)(et + 0.01);
+            else if (et - ec < -0.01)
+                _elevation.LowerLimitRad = (float)(et - 0.01);
+
+            _azimuth.TargetVelocityRad = _aPCtrl.Filter(ac, at, _p.F);
+            _elevation.TargetVelocityRad = _ePCtrl.Filter(ec, et, _p.F);
+        }
+
         protected AimState MoveToRest(double aCur, double eCur, bool reset = false)
         {
             if (Status == AimState.Rest)
@@ -240,8 +261,8 @@ namespace IngameScript
                 _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
                 return AimState.Rest;
             }
-            _azimuth.TargetVelocityRad = _aPCtrl.Filter(aCur, _aRest, _p.F);
-            _elevation.TargetVelocityRad = _ePCtrl.Filter(eCur, _eRest, _p.F);
+
+            SetAndMoveStators(aCur, _aRest, eCur, _eRest);
 
             return AimState.Moving;
         }
@@ -259,21 +280,28 @@ namespace IngameScript
                 eTgtV = Lib.Projection(aim, azm.Up), // projection of target pos on z axis (elevation)
                 aTgtV = aim - eTgtV; // projection of target vector on xy plane (azimuth)
 
+            double aTgt, aChk, eTgt;
+
             // azimuth target angle
-            var aTgt = Lib.AngleBetween(ref aTgtV, azm.Backward) * Math.Sign(aTgtV.Dot(azm.Left));
+            aTgt = aChk = Lib.AngleBetween(ref aTgtV, azm.Backward) * Math.Sign(aTgtV.Dot(azm.Left));
 
             if (aTgt > _aMx || aTgt < _aMn)
                 return AimState.Blocked;
 
+            if (aTgt < 0)
+                aChk += Lib.PI2X;
+            else if (aTgt > Lib.PI2X)
+                aChk -= Lib.PI2X;
+
             // elevation target angle
-            var eTgt = Lib.AngleBetween(ref aTgtV, ref aim) * Math.Sign(aim.Dot(azm.Up));
+            eTgt = Lib.AngleBetween(ref aTgtV, ref aim) * Math.Sign(aim.Dot(azm.Up));
 
             if (eTgt > _eMx || eTgt < _eMn)
                 return AimState.Blocked;
 
             // check whether these are prohibited angleS
             for (int i = 0; i < (_limits?.Length ?? 0); i++)
-                if (_limits[i].aMn < aTgt && _limits[i].aMx > aTgt && _limits[i].eMn < eTgt && _limits[i].eMx > eTgt)
+                if (_limits[i].aMn < aChk && _limits[i].aMx > aChk && _limits[i].eMn < eTgt && _limits[i].eMx > eTgt)
                 {
                     _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
                     return AimState.Blocked;
@@ -285,10 +313,11 @@ namespace IngameScript
             EL = $"T{eTgt * DEG:+000;-000}°\nC{eCur * DEG:+000;-000}°";
 
             _oobF = 0;
-            _azimuth.TargetVelocityRad = _aPCtrl.Filter(aCur, aTgt, _p.F);
-            _elevation.TargetVelocityRad = _ePCtrl.Filter(eCur, eTgt, _p.F);
 
-            return Math.Abs(aTgt - aCur) < _tol && Math.Abs(eTgt - eCur) < _tol ? AimState.OnTarget : AimState.Moving;
+            SetAndMoveStators(aCur, aTgt, eCur, eTgt);
+            //bool r = Math.Abs(aTgt - aCur) < _tol && Math.Abs(eTgt - eCur) < _tol;
+            bool r = _weapons.AimDir.Dot(aim) > 0.995;
+            return r ? AimState.OnTarget : AimState.Moving;
         }
 
         #endregion
@@ -297,7 +326,7 @@ namespace IngameScript
         {
             if (Inoperable || ActiveCTC || !_p.Targets.Exists(eid))
                 return false;
-        
+
             var tgt = _p.Targets.Get(eid);
             if (tgt.Distance > TrackRange || (!TgtSmall && (int)tgt.Type == 2))
                 return false;
