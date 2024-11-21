@@ -147,8 +147,8 @@ namespace IngameScript
         #endregion
 
         double _lastRT, _totalRT = 0, _worstRT, _avgRT;
-        int _turCheckPtr = 0;
-        long _frame = 0, _worstF;
+        int _turCheckPtr = 0, _launchCt = 0;
+        long _frame = 0, _worstF, _nxtFireF, _fireID;
         Queue<double> _runtimes = new Queue<double>(10);
         public double RuntimeMS => _totalRT;
         public long F => _frame;
@@ -170,7 +170,7 @@ namespace IngameScript
         List<Missile> mslReuse;
         Dictionary<long, Missile> Missiles;
         Dictionary<string, Launcher> Launchers = new Dictionary<string, Launcher>();
-        RoundRobin<string, Launcher> ReloadRR;
+        RoundRobin<string, Launcher> ReloadRR, FireRR;
         HashSet<long> ekvTargets, mslCull = new HashSet<long>();
         Dictionary<string, RotorTurret> Turrets = new Dictionary<string, RotorTurret>();
         RoundRobin<string, RotorTurret> AssignRR, UpdateRR;

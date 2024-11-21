@@ -2,12 +2,8 @@
 using Sandbox.ModAPI.Interfaces;
 using System;
 using System.Collections.Generic;
-using System.Data;
-using VRage;
 using VRage.Game.GUI.TextPanel;
 using VRageMath;
-using VRage.Game.ModAPI.Ingame;
-using System.Linq;
 
 namespace IngameScript
 {

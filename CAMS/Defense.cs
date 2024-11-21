@@ -1,11 +1,10 @@
-﻿using System.CodeDom;
-using Sandbox.ModAPI.Ingame;
+﻿using Sandbox.ModAPI.Ingame;
 
 namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        const long TGT_LOSS_TK = 91;
+        const long TGT_LOSS_TK = 91, FIRE_TK = 7;
         void ScrollLN(int p, Screen s)
         {
             var ln = Launchers[ReloadRR.IDs[p]];
@@ -17,6 +16,8 @@ namespace IngameScript
             s.Write(ln.Status.ToString().ToUpper(), 2);
             s.Color(p == 0 ? SDY : PMY, 6);
             s.Color(p == ReloadRR.IDs.Length - 1 ? SDY : PMY, 7);
+            for (int i = 0; i < ln.Total; i++)
+            ;
         }
 
         void EnterLN(int p, Screen s)
@@ -26,20 +27,25 @@ namespace IngameScript
 
         void ScrollTR(int p, Screen s)
         {
-            var turret = Turrets[UpdateRR.IDs[p]];
-            string n = turret.Name, st = turret.Status.ToString().ToUpper();
-            int ct = p >= 9 ? 12 : 13;
-            ct -= turret.Name.Length;
+            var t = Turrets[UpdateRR.IDs[p]];
+            string n = t.Name;
+            int ct = 12;
+            ct -= t.Name.Length;
 
             for (; ct-- > 0;)
                 n += " ";
-            ct = 17 - st.Length;
-            for (; ct-- > 8;)
-                st += " ";
-            st += $"TGT {turret.TGT}";
-            s.Write(n + $"{p + 1}/{UpdateRR.IDs.Length}", 0);
-            s.Write(turret.AZ + "\n" + turret.EL, 2);
-            s.Write(st, 3);
+
+            s.Write(n + $"{p + 1:00}/{UpdateRR.IDs.Length:00}", 0);
+
+            n = "ST " + t.Status.ToString().ToUpper();
+            ct = 17 - n.Length;
+            for (; ct-- > 5;)
+                n += " ";
+            n += $">{t.TGT}";
+            s.Write(t.AZ + "\n" + t.EL, 3);
+            s.Write(n, 4);
+            s.Write($"{(t.ActiveCTC ? "MANL" : "AUTO")}\n{t.Speed:0000}\n{t.Range:0000}\n{t.TrackRange:0000}\n{t.aRPM:0000}\n{t.eRPM:0000}", 6);
+
         }
 
         void UpdateRotorTurrets()
@@ -52,7 +58,7 @@ namespace IngameScript
                     RotorTurret tur;
                     Target temp = null;
                     GlobalPriorityUpdateSwitch = AssignRR.Next(ref Turrets, out tur);
-                    if (tur.tEID != -1 && tur.CanTarget(tur.tEID) && (tur.Status != AimState.Blocked || tur.Status != AimState.Rest))
+                    if (tur.tEID != -1 && tur.CanTarget(tur.tEID) && (tur.Status != AimState.Blocked || tur.Status != AimState.Resting))
                         return;
 
                     foreach (var tgt in Targets.Prioritized)
@@ -125,6 +131,29 @@ namespace IngameScript
 
             if (Targets.Count == 0)
                 return;
+
+            if (_launchCt > 0 && F >= _nxtFireF)
+            {
+                if (Targets.Exists(_fireID))
+                {
+                    var r = FireRR.Next(ref Launchers);
+
+                    while (r.Auto || r.Status != RackState.Ready)
+                        if (!FireRR.Next(ref Launchers, out r))
+                            break;
+
+                    if (r.Fire(Targets.Selected, ref Missiles))
+                    {
+                        _launchCt--;
+                        _nxtFireF += FIRE_TK;
+                    }
+                }
+                else 
+                {
+                    _launchCt = 0;
+                    FireRR.Reset();
+                }
+            }
 
             Target t;
             PDT tur;

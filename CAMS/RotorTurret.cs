@@ -2,7 +2,6 @@
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
-using VRage.Extensions;
 using VRageMath;
 
 namespace IngameScript
@@ -12,7 +11,7 @@ namespace IngameScript
     {
         Offline,
         Manual,
-        Rest,
+        Resting,
         Blocked, // target out of bounds (sorry)
         Moving,
         OnTarget
@@ -25,7 +24,7 @@ namespace IngameScript
 
         const float RAD = (float)Math.PI / 180, DEG = 1 / RAD;
         const int RST_TKS = 23;
-        public string Name; // yeah
+        public string Name, AZ, EL, TGT; // yeah
         protected IMyMotorStator _azimuth, _elevation;
         public AimState Status { get; protected set; }
         protected float
@@ -50,7 +49,6 @@ namespace IngameScript
         #region debugFields
         public double aRPM => _azimuth.TargetVelocityRPM;
         public double eRPM => _elevation.TargetVelocityRPM;
-        public string AZ, EL, TGT;
         #endregion
 
         class SectorCheck
@@ -135,7 +133,6 @@ namespace IngameScript
                     var list = new List<IMyUserControllableGun>();
                     m.Terminal.GetBlocksOfType(list, b => b.CubeGrid == _elevation.CubeGrid || b.CustomName.Contains(Name));
                     _weapons = new Weapons(list, p.Int(h, "salvo"), p.Int(h, "offset"));
-                    _weapons.Hold();
 
                     double a, e;
                     GetStatorAngles(out a, out e);
@@ -236,7 +233,7 @@ namespace IngameScript
 
         protected AimState MoveToRest(double aCur, double eCur, bool reset = false)
         {
-            if (Status == AimState.Rest)
+            if (Status == AimState.Resting)
                 return Status;
             else if (ActiveCTC)
                 return AimState.Manual;
@@ -252,14 +249,14 @@ namespace IngameScript
                 _p.Targets.MarkLost(tEID);
             }
 
-            AZ = $"T{_aRest * DEG:+000;-000}°\nC{aCur * DEG:+000;-000}°";
-            EL = $"T{_eRest * DEG:+000;-000}°\nC{eCur * DEG:+000;-000}°";
-            TGT = "NONE";
+            AZ = $"{_aRest * DEG:+000;-000}°\n{aCur * DEG:+000;-000}°";
+            EL = $"{_eRest * DEG:+000;-000}°\n{eCur * DEG:+000;-000}°";
+            TGT = "NULL";
 
             if (Math.Abs(aCur - _aRest) < _tol && Math.Abs(eCur - _eRest) < _tol)
             {
                 _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
-                return AimState.Rest;
+                return AimState.Resting;
             }
 
             SetAndMoveStators(aCur, _aRest, eCur, _eRest);
@@ -309,8 +306,8 @@ namespace IngameScript
 
             if (test) return AimState.OnTarget;
 
-            AZ = $"T{aTgt * DEG:+000;-000}°\nC{aCur * DEG:+000;-000}°";
-            EL = $"T{eTgt * DEG:+000;-000}°\nC{eCur * DEG:+000;-000}°";
+            AZ = $"{aTgt * DEG:+000;-000}°\n{aCur * DEG:+000;-000}°";
+            EL = $"{eTgt * DEG:+000;-000}°\n{eCur * DEG:+000;-000}°";
 
             _oobF = 0;
 

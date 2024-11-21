@@ -10,16 +10,16 @@ namespace IngameScript
             var l = Masts[MastNames[p]];
             for (; i < l.Lidars.Count; i++)
             {
-                var scan = l.Lidars[i].scanAVG != 0 ? $"{l.Lidars[i].scanAVG:G1}M\n" : "READY\n";
+                var scan = l.Lidars[i].scanAVG != 0 ? $"{l.Lidars[i].scanAVG:G1}M\n" : "#READY\n";
                 grps += $"{l.Lidars[i].tag[1]} " + scan;
             }
 
-            grps += $">{(!l.Manual ? "DETECT" : "MANUAL")}  SN {l.Scans:00}";
+            grps += $"{(!l.Manual ? "SCN" : "DES")} MODE SN {l.Scans:00}";
             s.Write(MastNames[p], 0);
             s.Write(grps, 1);
             s.Color(p == 0 ? SDY : PMY, 6);
             s.Color(p == MastNames.Length - 1 ? SDY : PMY, 7);
-            s.Write($"A/E RPM: {l.aRPM:00}/{l.eRPM:00}", 9);
+            s.Write($"A/E SPIN {l.aRPM:00}/{l.eRPM:00}", 9);
             s.Write(Targets.Log, 8);
 
             for (i = 0; i < l.Lidars.Count; i++)

@@ -10,7 +10,7 @@ namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        public const string H = "CAMS", IgcFleet = "[FLT-CA]";
+        public const string H = "CAMS", P = "pri", IgcFleet = "[FLT-CA]";
         public Color PMY, SDY, BKG;
         public const SpriteType TXT = SpriteType.TEXT, SHP = SpriteType.TEXTURE, CLP = SpriteType.CLIP_RECT;
         public bool Based;
@@ -218,10 +218,12 @@ namespace IngameScript
             for (int i = 0; i < antmp.Count; i++)
                 AMSNames[i] = antmp[i];
 
+            var temp = Lib.Keys(ref Launchers);
 
-            ReloadRR = new RoundRobin<string, Launcher>(Lib.Keys(ref Launchers));
+            ReloadRR = new RoundRobin<string, Launcher>(temp);
+            FireRR = new RoundRobin<string, Launcher>(temp);
 
-            var temp = Lib.Keys(ref Turrets);
+            temp = Lib.Keys(ref Turrets);
 
             AssignRR = new RoundRobin<string, RotorTurret>(temp);
             UpdateRR = new RoundRobin<string, RotorTurret>(temp);
@@ -257,13 +259,11 @@ namespace IngameScript
                     Launchers[b.Argument(1)].Fire(Targets.Selected, ref Missiles);
             });
 
-            Commands.Add("dump", b =>
+            Commands.Add("spread", b =>
             {
-                if (!Targets.Exists(Targets.Selected))
-                    return;
-                if (b.ArgumentCount == 2 && Launchers.ContainsKey(b.Argument(1)))
-                    while (Launchers[b.Argument(1)].Status == RackState.Ready)
-                        Launchers[b.Argument(1)].Fire(Targets.Selected, ref Missiles);
+                _fireID = b.Argument(1) == P ? Targets.Prioritized.Min.EID : Targets.Selected;
+                if(int.TryParse(b.Argument(2), out _launchCt))
+                    _nxtFireF = F;
             });
 
             Commands.Add("turret_reset", b =>
@@ -301,7 +301,6 @@ namespace IngameScript
                 sqvsz = Lib.V2(88, 24), // standard rect size
                 sqoff = Lib.V2(0, 32); // standard rect offset
 
-            var al = Lib.LFT;
             var cnr = TextAlignment.CENTER;
 
             CtrlScreens.Add(Lib.MS, new Screen
@@ -311,15 +310,15 @@ namespace IngameScript
                 {
                     SPR(TXT, "", Lib.V2(20, 108), null, PMY, Lib.VB, 0, 1.3275f),// 0. TUR NAME
                     SPR(TXT, "", Lib.V2(20, 184), null, PMY, Lib.VB, 0, 0.6785f), // 1
-                    SPR(SHP, Lib.SQS, sqvpos, sqvsz, PMY, "", al), // 2
-                    SPR(SHP, Lib.SQS, sqvpos + sqoff, sqvsz, PMY, "", al), // 3
-                    SPR(SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, PMY, "", al), // 4
-                    SPR(SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, PMY, "", al), // 5
+                    SPR(SHP, Lib.SQS, sqvpos, sqvsz, PMY, "", 0), // 2
+                    SPR(SHP, Lib.SQS, sqvpos + sqoff, sqvsz, PMY, "", 0), // 3
+                    SPR(SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, PMY, "", 0), // 4
+                    SPR(SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, PMY, "", 0), // 5
                     SPR(SHP, Lib.TRI, Lib.V2(252, 126), Lib.V2(48, 28), PMY), // 6
                     SPR(SHP, Lib.TRI, Lib.V2(252, 162), Lib.V2(48, 28), PMY, null, cnr, MathHelper.Pi), // 7
-                    SPR(TXT, "", Lib.V2(320, 112), null, SDY, Lib.V, al, 0.5935f),
-                    SPR(TXT, "", Lib.V2(20, 362), null, PMY, Lib.VB, al, 0.6785f),
-                    SPR(TXT, "NX_TGT_PRI\n\nNX_IGC_RCV\n\nNX_IGC_SND\n\nSYS_TGT_CT\n\nIGC_FRN_CT", Lib.V2(320, 112), null, PMY, Lib.VB, al, 0.5935f),
+                    SPR(TXT, "", Lib.V2(320, 112), null, SDY, Lib.V, 0, 0.5935f),
+                    SPR(TXT, "", Lib.V2(20, 362), null, PMY, Lib.VB, 0, 0.6785f),
+                    SPR(TXT, "NX_TGT_PRI\n\nNX_IGC_RCV\n\nNX_IGC_SND\n\nSYS_TGT_CT\n\nIGC_FRN_CT", Lib.V2(320, 112), null, PMY, Lib.VB, 0, 0.5935f),
                     SPR(SHP, Lib.SQS, Lib.V2(312, 256), Lib.V2(8, 288), PMY), // 8
                     SPR(SHP, Lib.SQS, Lib.V2(156, 180), Lib.V2(308, 8), PMY), // 9
                     SPR(SHP, Lib.SQS, Lib.V2(156, 356), Lib.V2(308, 8), PMY), // 10
@@ -336,12 +335,15 @@ namespace IngameScript
                 new MySprite[]
                 {
                     SPR(TXT, "", Lib.V2(20, 112), null, PMY, Lib.VB, 0, 0.925f),// 1. TUR NAME
-                    SPR(TXT, "AZ\nEL", Lib.V2(20, 160), null, PMY, Lib.VB, 0, 1.825f),// 2. ANGLE HDR
-                    SPR(TXT, "", Lib.V2(132, 164), null, PMY, Lib.VB, 0, 0.9125f),// 3. ANGLE DATA
+                    SPR(TXT, "AZ\nEL", Lib.V2(20, 160), null, PMY, Lib.VB, 0, 1.825f),// 2. ANGLE HDR 1
+                    SPR(TXT, "TG\nCR\nTG\nCR", Lib.V2(132, 164), null, PMY, Lib.VB, 0, 0.9125f), // 2. ANGLE HDR 2
+                    SPR(TXT, "", Lib.V2(192, 164), null, SDY, Lib.V, 0, 0.9125f),// 4. ANGLE DATA
                     SPR(TXT, "", Lib.V2(20, 348), null, PMY, Lib.VB, 0, 0.925f),// 5. STATE
+                    SPR(TXT, "MODE\nWSPD\nFIRE\nTRCK\nARPM\nERPM", Lib.V2(342, 164), null, PMY, Lib.VB, Lib.LFT, 0.6045f),
+                    SPR(TXT, "", Lib.V2(496, 164), null, SDY, Lib.V, Lib.RGT, 0.6045f),
                     SPR(SHP, Lib.SQS, Lib.V2(256, 162), Lib.V2(496, 4), PMY, null),
-                    SPR(SHP, Lib.SQS, Lib.V2(256, 346), Lib.V2(496, 4), PMY, null)
-
+                    SPR(SHP, Lib.SQS, Lib.V2(256, 346), Lib.V2(496, 4), PMY, null),
+                    SPR(SHP, Lib.SQS, Lib.V2(332, 255), Lib.V2(4, 296), PMY)
                 },
                 ScrollTR, null, null
             ));
