@@ -445,8 +445,8 @@ namespace IngameScript
             else Log += DSB;
             #endregion
 
-            Log += $"\n\n>>{Count:00000000}";
-            Log += rcv ? $"\n\n>>{_offsets.Count:00000000}" : DSB;
+            Log += $"\n\n>>{Count:000} TGTS";
+            Log += rcv ? $"\n\n>>{_offsets.Count:00} PAIRS" : DSB;
         }
 
         public Target Get(long eid) => _targets.ContainsKey(eid) ? _targets[eid] : null;

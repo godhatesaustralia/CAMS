@@ -116,7 +116,7 @@ namespace IngameScript
 
             if (c != 0)
             {
-                _weld.Enabled = _bases[0].Base.Enabled = true;
+                _proj.Enabled = _weld.Enabled = _bases[0].Base.Enabled = true;
                 Status = RackState.Reload;
             }
             else Status = RackState.Empty;
@@ -131,7 +131,7 @@ namespace IngameScript
             var m = _bases[_load];
             if (Status == RackState.Reload)
             {
-                _proj.Enabled = true;
+                //proj.Enabled = true;
                 if (m.CollectMissileBlocks() && m.IsMissileReady(ref _msls[_load]))
                 {
                     _load++;
@@ -142,7 +142,7 @@ namespace IngameScript
                     AddReport($"READY {_load}/{Total}");
                     if (_load < Total)
                     {
-                        _bases[_load].Base.Enabled = _weld.Enabled = _proj.Enabled = true;
+                        _bases[_load].Base.Enabled = _weld.Enabled = true;
                         AddReport("RELOADING");
                         Status = RackState.Reload;
                     }

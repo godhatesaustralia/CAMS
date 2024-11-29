@@ -77,6 +77,9 @@ namespace IngameScript
                     PMY = p.Color(H, "primaryColor", new Color(100, 250, 100));
                     SDY = p.Color(H, "secondaryColor", new Color(50, 125, 50));
 
+                    _surf.BackgroundColor = BKG;
+                    sprites = p.Sprites(H, "sprites");
+
                     Targets.UpdateRadarSettings(this);
 
                     mslReuse = new List<Missile>(HardpointsCount);
@@ -300,6 +303,7 @@ namespace IngameScript
                 sqvpos = Lib.V2(206, 204), // standard rect pos
                 sqvsz = Lib.V2(88, 24), // standard rect size
                 sqoff = Lib.V2(0, 32); // standard rect offset
+            Vector2? n = null;
 
             var cnr = TextAlignment.CENTER;
 
@@ -308,16 +312,16 @@ namespace IngameScript
                 () => MastNames.Length,
                 new MySprite[]
                 {
-                    SPR(TXT, "", Lib.V2(20, 108), null, PMY, Lib.VB, 0, 1.3275f),// 0. TUR NAME
-                    SPR(TXT, "", Lib.V2(20, 184), null, PMY, Lib.VB, 0, 0.6785f), // 1
+                    SPR(TXT, "", Lib.V2(20, 108), n, PMY, Lib.VB, 0, 1.3275f),// 0. TUR NAME
+                    SPR(TXT, "", Lib.V2(20, 184), n, PMY, Lib.VB, 0, 0.6785f), // 1
                     SPR(SHP, Lib.SQS, sqvpos, sqvsz, PMY, "", 0), // 2
                     SPR(SHP, Lib.SQS, sqvpos + sqoff, sqvsz, PMY, "", 0), // 3
                     SPR(SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, PMY, "", 0), // 4
                     SPR(SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, PMY, "", 0), // 5
                     SPR(SHP, Lib.TRI, Lib.V2(252, 126), Lib.V2(48, 28), PMY), // 6
                     SPR(SHP, Lib.TRI, Lib.V2(252, 162), Lib.V2(48, 28), PMY, null, cnr, MathHelper.Pi), // 7
-                    SPR(TXT, "", Lib.V2(320, 112), null, SDY, Lib.V, 0, 0.5935f),
-                    SPR(TXT, "", Lib.V2(20, 362), null, PMY, Lib.VB, 0, 0.6785f),
+                    SPR(TXT, "", Lib.V2(320, 112), n, SDY, Lib.V, 0, 0.5935f),
+                    SPR(TXT, "", Lib.V2(20, 362), n, PMY, Lib.VB, 0, 0.6785f),
                     SPR(TXT, "NX_TGT_PRI\n\nNX_IGC_RCV\n\nNX_IGC_SND\n\nSYS_TGT_CT\n\nIGC_FRN_CT", Lib.V2(320, 112), null, PMY, Lib.VB, 0, 0.5935f),
                     SPR(SHP, Lib.SQS, Lib.V2(312, 256), Lib.V2(8, 288), PMY), // 8
                     SPR(SHP, Lib.SQS, Lib.V2(156, 180), Lib.V2(308, 8), PMY), // 9
@@ -334,13 +338,13 @@ namespace IngameScript
                 () => UpdateRR.IDs.Length,
                 new MySprite[]
                 {
-                    SPR(TXT, "", Lib.V2(20, 112), null, PMY, Lib.VB, 0, 0.925f),// 1. TUR NAME
-                    SPR(TXT, "AZ\nEL", Lib.V2(20, 160), null, PMY, Lib.VB, 0, 1.825f),// 2. ANGLE HDR 1
-                    SPR(TXT, "TG\nCR\nTG\nCR", Lib.V2(132, 164), null, PMY, Lib.VB, 0, 0.9125f), // 2. ANGLE HDR 2
-                    SPR(TXT, "", Lib.V2(192, 164), null, SDY, Lib.V, 0, 0.9125f),// 4. ANGLE DATA
-                    SPR(TXT, "", Lib.V2(20, 348), null, PMY, Lib.VB, 0, 0.925f),// 5. STATE
-                    SPR(TXT, "MODE\nWSPD\nFIRE\nTRCK\nARPM\nERPM", Lib.V2(342, 164), null, PMY, Lib.VB, Lib.LFT, 0.6045f),
-                    SPR(TXT, "", Lib.V2(496, 164), null, SDY, Lib.V, Lib.RGT, 0.6045f),
+                    SPR(TXT, "", Lib.V2(20, 112), n, PMY, Lib.VB, 0, 0.925f),// 1. TUR NAME
+                    SPR(TXT, "AZ\nEL", Lib.V2(20, 160), n, PMY, Lib.VB, 0, 1.825f),// 2. ANGLE HDR 1
+                    SPR(TXT, "TG\nCR\nTG\nCR", Lib.V2(132, 164), n, PMY, Lib.VB, 0, 0.9125f), // 2. ANGLE HDR 2
+                    SPR(TXT, "", Lib.V2(192, 164), n, SDY, Lib.V, 0, 0.9125f),// 4. ANGLE DATA
+                    SPR(TXT, "", Lib.V2(20, 348), n, PMY, Lib.VB, 0, 0.925f),// 5. STATE
+                    SPR(TXT, "MODE\nWSPD\nFIRE\nTRCK\nARPM\nERPM", Lib.V2(342, 164), n, PMY, Lib.VB, Lib.LFT, 0.6045f),
+                    SPR(TXT, "", Lib.V2(496, 164), n, SDY, Lib.V, Lib.RGT, 0.6045f),
                     SPR(SHP, Lib.SQS, Lib.V2(256, 162), Lib.V2(496, 4), PMY, null),
                     SPR(SHP, Lib.SQS, Lib.V2(256, 346), Lib.V2(496, 4), PMY, null),
                     SPR(SHP, Lib.SQS, Lib.V2(332, 255), Lib.V2(4, 296), PMY)
@@ -355,16 +359,17 @@ namespace IngameScript
                 () => ReloadRR.IDs.Length,
                 new MySprite[]
                 {
-                    SPR(TXT, "", Lib.V2(24, 108), null, PMY, Lib.VB, 0, 1.3275f),
-                    SPR(TXT, "", Lib.V2(24, 160), null, PMY, Lib.VB, 0, 0.6025f),
-                    SPR(TXT, "", Lib.V2(24, 336), null, PMY, Lib.VB, 0, 0.9125f),
-                    SPR(TXT, "", Lib.V2(0, 0)),
-                    SPR(TXT, "", Lib.V2(0, 0)),
+                    SPR(TXT, "", Lib.V2(24, 108), n, PMY, Lib.VB, 0, 1.3275f),
+                    SPR(TXT, "", Lib.V2(136, 160), n, SDY, Lib.V, 0, 0.6025f),
+                    SPR(TXT, "", Lib.V2(24, 160), n, PMY, Lib.VB, 0, 0.6025f),
+                    SPR(TXT, "", Lib.V2(320, 112), n, SDY, Lib.V, 0, 0.5935f),
+                    SPR(TXT, "TGT_SELCTD\n\nMX_PRY_TGT\n\nEKV_TGT_CT\n\nSYS_TGT_CT\n\nSYS_MSL_CT", Lib.V2(320, 112), null, PMY, Lib.VB, 0, 0.5935f),
                     SPR(SHP, Lib.SQS, Lib.V2(156, 180), Lib.V2(308, 8), PMY), // 5
                     SPR(SHP, Lib.TRI, Lib.V2(252, 126), Lib.V2(48, 28), PMY), // 6
                     SPR(SHP, Lib.TRI, Lib.V2(252, 162), Lib.V2(48, 28), PMY, null, cnr, MathHelper.Pi), // 7
                     SPR(SHP, Lib.SQS, Lib.V2(312, 256), Lib.V2(8, 288), PMY), // 8
                     SPR(SHP, Lib.SQS, Lib.V2(156, 320), Lib.V2(308, 8), PMY), // 9
+                    SPR(SHP, Lib.SQS, Lib.V2(120, 252), Lib.V2(8, 144), PMY, null, Lib.LFT)
                 },
                 ScrollLN, null, null
             ));

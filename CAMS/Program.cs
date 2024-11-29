@@ -1,5 +1,6 @@
 ﻿using Sandbox.ModAPI.Ingame;
 using System;
+using VRage.Game.GUI.TextPanel;
 
 namespace IngameScript
 {
@@ -9,6 +10,9 @@ namespace IngameScript
         {
             Runtime.UpdateFrequency |= UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;
             ID = Me.CubeGrid.EntityId;
+
+            _surf = Me.GetSurface(0);
+            _surf.ContentType = ContentType.SCRIPT;
             
             Debug = new DebugAPI(this, true);
 
@@ -50,6 +54,19 @@ namespace IngameScript
                 foreach (var qr in _runtimes)
                     _avgRT += qr;
                 _avgRT /= 10;
+
+                #region pb-display
+                var f = _surf.DrawFrame();
+                sprites[4].Data = $"RUNTIME {_avgRT:0.000} MS";
+
+                if (F % 200 == 0)
+                    f.Add(X);
+                foreach (var s in sprites)
+                    f.Add(s);
+
+                f.Dispose();
+                #endregion
+
                 Gravity = Controller.GetNaturalGravity();
             }
 

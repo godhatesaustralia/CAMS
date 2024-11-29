@@ -1,6 +1,7 @@
 ﻿using Sandbox.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
+using VRage.Game.GUI.TextPanel;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using VRageMath;
 
@@ -43,7 +44,6 @@ namespace IngameScript
         }
 
         public void Reset() => _start = _current = 0;
-
     }
 
     public partial class Program
@@ -52,6 +52,9 @@ namespace IngameScript
         string[] MastNames, MastAryTags, PDTNames, AMSNames;
         public IMyGridTerminalSystem Terminal => GridTerminalSystem;
         public DebugAPI Debug;
+        public static MySprite X = new MySprite();
+        IMyTextSurface _surf;
+        MySprite[] sprites;
 
         #region rng
         public Random RNG = new Random();

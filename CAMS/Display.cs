@@ -8,11 +8,13 @@ namespace IngameScript
 {
     public class Display
     {
+        const int REF_TKS = 800;
         Program _m;
         IMyTextSurface _surf;
         MySprite[] _sprites = null;
         public readonly string Name = null;
         string _active;
+        long _nxSprRef;
         public readonly bool isLarge = false;
         Dictionary<string, Screen> _screens => isLarge ? _m.LCDScreens : _m.CtrlScreens;
         public int ptr { get; private set; }
@@ -31,6 +33,7 @@ namespace IngameScript
                     _sprites = p.Sprites(Lib.H, vcr ? Lib.SPR : Lib.SPR + "_V");
                 }
                 else return;
+            _nxSprRef = m.RNG.Next(REF_TKS / 10) + _nxSprRef;
             SetActive(a ?? Lib.MS);
         }
 
@@ -65,10 +68,19 @@ namespace IngameScript
         {
             int i = 0;
             var s = _screens[_active];
+
+
             _surf.ScriptBackgroundColor = _bg;
             s.Refresh(ptr);
 
             var f = _surf.DrawFrame();
+
+            if (_m.F >= _nxSprRef)
+            {
+                f.Add(Program.X);
+                _nxSprRef += REF_TKS;
+            }
+
             for (; i < s.Sprites.Length; i++)
                 f.Add(s.Sprites[i]);
 

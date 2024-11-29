@@ -13,11 +13,17 @@ namespace IngameScript
             foreach (var l in ln.Log)
                 r += l;
             s.Write(r, 1);
-            s.Write(ln.Status.ToString().ToUpper(), 2);
+            r = "";
+            foreach(var t in ln.Time)
+                r += t;
+            s.Write(r, 2);
+
+            r = Targets.Count != 0 ? $"\n>>{Targets.Selected:X8}\n\n>>{Targets.Prioritized.Min.EID:X8}" : "\n>>NO TRGTS\n\n>>NO TRGTS";
+            r += $"\n\n>>{ekvTargets.Count:000} TGTS\n\n>>{Targets.Count:000} TGTS\n\n>>{Missiles.Count:000} MSLS";
+
+            s.Write(r, 3);
             s.Color(p == 0 ? SDY : PMY, 6);
             s.Color(p == ReloadRR.IDs.Length - 1 ? SDY : PMY, 7);
-            for (int i = 0; i < ln.Total; i++)
-            ;
         }
 
         void EnterLN(int p, Screen s)
