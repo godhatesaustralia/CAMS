@@ -15,6 +15,7 @@ namespace IngameScript
         public readonly string Name = null;
         string _active;
         long _nxSprRef;
+        bool _hasList;
         public readonly bool isLarge = false;
         Dictionary<string, Screen> _screens => isLarge ? _m.LCDScreens : _m.CtrlScreens;
         public int ptr { get; private set; }
@@ -95,13 +96,11 @@ namespace IngameScript
     {
         public MySprite[] Sprites;
         public readonly bool UseBaseSprites;
-        public int ptr { get; protected set; }
         public Func<int> pMax = null;
         public Action<int, Screen> Data = null, Enter = null, Return = null; 
         public readonly int MinTicks;
         public Screen(Func<int> m, MySprite[] s, Action<int, Screen> d = null, Action<int, Screen> e = null, Action<int, Screen> r = null, bool u = true)
         {
-            ptr = 0;
             Sprites = s;
             pMax = m;
             Data = d;
@@ -117,48 +116,48 @@ namespace IngameScript
 
     public class ListScreen : Screen
     {
-        public int pgs, cur, cnt; // pages #, current page, allowed items count (def 4)
+        public int Pages, Sel, Max; // pages #, current page, allowed items count (def 4)
 
         public ListScreen(Func<int> m, int mx = 4, MySprite[] spr = null, Action<int, Screen> d = null, Action<int, Screen> e = null, Action<int, Screen> r = null, bool def = false) : base(m, spr, d, e, r, def)
         {
-            cur = 1;
-            cnt = mx - 1;
+            Sel = 1;
+            Max = mx - 1;
         }
 
-        public void Up()
+        public void Up(ref int p)
         {
-            if (pMax.Invoke() == 0 || (ptr == 0 && cur == 1)) return;
+            if (pMax.Invoke() == 0 || (p == 0 && Sel == 1)) return;
             else
             {
-                if (ptr == 0 && cur > 1)
+                if (p == 0 && Sel > 1)
                 {
-                    ptr = cnt;
-                    cur--;
+                    p = Max;
+                    Sel--;
                     //sprites["tst"].Clear(256, 293);
                 }
-                else if (ptr <= cnt)
+                else if (p <= Max)
                 {
-                    ptr--;
+                    p--;
                     //sprites["tst"].Move(0, -tH);
                 }
             }
 
         }
-        public void Down()
+        public void Down(ref int p)
         {
             var ct = pMax.Invoke();
-            if (ct == 0 || ((ptr == 9 || ptr == ct % 10 - 1) && cur == pgs)) return;
+            if (ct == 0 || ((p == 9 || p == ct % 10 - 1) && Sel == Pages)) return;
             else
             {
-                if (ptr == 9 && cur < pgs)
+                if (p == 9 && Sel < Pages)
                 {
-                    ptr = 0;
-                    cur++;
+                    p = 0;
+                    Sel++;
                     //sprites["tst"].Clear(256, 108);
                 }
-                else if (ptr < cnt)
+                else if (p < Max)
                 {
-                    ptr++;
+                    p++;
                     //sprites["tst"].Move(0, tH);
                 }
             }

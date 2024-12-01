@@ -22,8 +22,6 @@ namespace IngameScript
             r += $"\n\n>>{ekvTargets.Count:000} TGTS\n\n>>{Targets.Count:000} TGTS\n\n>>{Missiles.Count:000} MSLS";
 
             s.Write(r, 3);
-            s.Color(p == 0 ? SDY : PMY, 6);
-            s.Color(p == ReloadRR.IDs.Length - 1 ? SDY : PMY, 7);
         }
 
         void EnterLN(int p, Screen s)

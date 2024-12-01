@@ -1,6 +1,7 @@
 ﻿using Sandbox.ModAPI.Ingame;
 using System;
 using VRage.Game.GUI.TextPanel;
+using System.Collections.Generic;
 
 namespace IngameScript
 {
@@ -17,6 +18,7 @@ namespace IngameScript
             Debug = new DebugAPI(this, true);
 
             Targets = new TargetProvider(this);
+            Targets.Update(Lib.u1, -1);
 
             ParseComputerSettings();
 
@@ -24,7 +26,15 @@ namespace IngameScript
 
             AddSystemScreens();
 
-            CacheMainSystems();  
+            CacheMainSystems();
+
+            UpdateRotorTurrets();
+
+            UpdateLaunchers();
+
+            UpdateMissileGuidance();
+
+            _frame = 0;  
         }
 
         public void Save()
@@ -119,15 +129,25 @@ namespace IngameScript
                 foreach (var m in Masts.Values)
                     m.Update();
 
-            int i = 0; 
-            for (; i < AllTurrets.Count; i++)
-                GetTurretTgt(AllTurrets[i]);
+            int i = AllTurrets.Count - 1; 
+            for (; i > 0; i--)
+            {
+                var at = AllTurrets[i];
+                if (at.Closed || !at.IsFunctional)
+                    AllTurrets.RemoveAtFast(i);
+                else GetTurretTgt(at);
+            }
             
-            for (i = Math.Min(AllTurrets.Count, _turCheckPtr + MaxAutoTgtChecks); _turCheckPtr < i; _turCheckPtr++)
-                GetTurretTgt(Artillery[i], true);
+            for (i = Math.Max(0, _turCheckPtr - MaxAutoTgtChecks); _turCheckPtr > i; _turCheckPtr--)
+            {
+                var at = Artillery[_turCheckPtr];
+                if (at.Closed || !at.IsFunctional)
+                    AllTurrets.RemoveAtFast(_turCheckPtr);
+                else GetTurretTgt(at, true);
+            }
 
-            if (i == Artillery.Count)
-                _turCheckPtr = 0;
+            if (_turCheckPtr <= 0)
+                _turCheckPtr = Artillery.Count - 1;
             #endregion
 
             #region main-sys-update
@@ -142,10 +162,9 @@ namespace IngameScript
             DisplayRR.Next(ref Displays).Update();
             #endregion
 
-            string r = "====<CAMS>====\n\n";
-            r += $"RUNS - {_frame}\nRUNTIME - {_lastRT} ms\nAVG - {_avgRT:0.####} ms\nWORST - {_worstRT} ms, F{_worstF}\n";
-            foreach (var msl in Missiles.Values)
-            r+= '\n' + msl.DEBUG;
+            string r = "====<CAMS>====\n\n=<PERF>=\n";
+            r += $"RUNS - {_frame}\nRUNTIME - {_lastRT} ms\nAVG - {_avgRT:0.####} ms\nWORST - {_worstRT} ms, F{_worstF}\n\n=<TGTS>=\n";
+            r += Targets.Log;
             Echo(r);
         }
     }

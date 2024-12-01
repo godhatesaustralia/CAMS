@@ -21,6 +21,7 @@ namespace IngameScript
             SPR = "SPRITES",
             TR = "turrets",
             RD = "radar",
+            ML = "missiles",
             LN = "launchers",
             TG = "targets",
             MS = "masts",

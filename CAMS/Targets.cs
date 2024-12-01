@@ -1,6 +1,7 @@
 ﻿using Sandbox.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using VRage;
 using VRage.Game.GUI.TextPanel;
 using VRageMath;
@@ -81,12 +82,15 @@ namespace IngameScript
         long ID, _nextPrioritySortF = 0, _nextIGCCheck = 0, _nextIGCSend = 0, _nextOffsetSend = 0;
         const double INV_MAX_D = 0.0001, R_SIDE_L = 154;
         const int MAX_LIFETIME = 2, OFS_TMIT = 256; // s
-        const string IgcTgt = "[FLT-TG]", DSB = "\n\n>>DISABLED";
+        const SpriteType TXT = SpriteType.TEXT, SHP = SpriteType.TEXTURE;
+        const string IgcTgt = "[FLT-TG]";
         public long Selected = -1;
-        string selTag;
+        string _sTag;
+        bool _showMsls;
+        double _invD;
         public string Log { get; private set; }
 
-        public int Count => _iEIDs.Count;   
+        public int Count => _iEIDs.Count;
         public SortedSet<Target> Prioritized = new SortedSet<Target>();
         List<long> _rmvEIDs = new List<long>(), _iEIDs = new List<long>();
         Dictionary<long, Target> _targets = new Dictionary<long, Target>();
@@ -120,17 +124,25 @@ namespace IngameScript
             UpdateBlacklist();
             m.Commands.Add(Lib.TG, b =>
             {
-                if (b.ArgumentCount != 2)
-                    return;
                 switch (b.Argument(1))
                 {
+                    case Lib.RD:
+                    {
+                        if (b.Argument(2) == "close")
+                            _invD = 0.0004;
+                        else if (b.Argument(2) == "reset")
+                            _invD = INV_MAX_D;
+                        else if (b.Argument(2) == Lib.ML)
+                            _showMsls = !_showMsls;
+                        break;
+                    }
                     default:
                     case "clear":
                         {
                             Clear();
                             break;
                         }
-                    case "reset_blacklist":
+                    case "reset":
                         {
                             UpdateBlacklist();
                             break;
@@ -167,44 +179,44 @@ namespace IngameScript
             m.CtrlScreens[Lib.TG] = new Screen(
               () => Count, new MySprite[]
               {
-                new MySprite(Program.TXT, "", Lib.V2(24, 112), null, m.PMY, Lib.VB, 0, 1.5f),
-                new MySprite(Program.TXT, "", Lib.V2(24, 192), null, m.PMY, Lib.VB, 0, 0.8195f),
+                new MySprite(TXT, "", Lib.V2(20, 112), null, m.PMY, Lib.VB, 0, 0.925f),
+                new MySprite(TXT, "", Lib.V2(24, 192), null, m.PMY, Lib.VB, 0, 0.8195f),
+                new MySprite(TXT, "", Lib.V2(32, 192), null, m.PMY, Lib.VB, 0, 0.8195f),
+                new MySprite(SHP, Lib.SQS, Lib.V2(256, 162), Lib.V2(496, 4), m.PMY, null),
+                new MySprite(SHP, Lib.SQS, Lib.V2(256, 346), Lib.V2(496, 4), m.PMY, null),
+                new MySprite(SHP, Lib.SQS, Lib.V2(332, 255), Lib.V2(4, 296), m.PMY)
               },
             List, Select, Deselect);
         }
 
         void List(int p, Screen s)
         {
-            if (Count == 0)
-            {
-                s.Write("NO TARGET", 0);
-                s.Write("SWITCH TO MASTS SCR\nFOR TGT ACQUISITION", 1);
+            if (Count == 0)    
                 return;
-            }
 
             var ty = "";
             var t = _targets[_iEIDs[p]];
-            s.Write($"{t.eIDString}", 0);
+            s.Write($"{t.eIDString}    {p + 1:00}/{Count:00}", 0);
 
             if ((int)t.Type == 3)
-                ty = "LARGE GRID";
+                ty = "LR ";
             else if ((int)t.Type == 2)
-                ty = "SMALL GRID";
+                ty = "SMALL";
 
-            s.Write($"DIST {t.Distance / 1000:F2} KM\nASPD {t.Velocity.Length():F0} M/S\nACCL {t.Accel.Length():F0} M/S\nSIZE {ty}\n{(Selected == -1 ? "NO TGT SELECTED" : "TGT " + selTag + " LOCKED")}", 1);
+            s.Write($"DISTANCE {t.Distance:0000}M\nVELOCITY {t.Velocity.Length():0000}M/S\nEST ACCL {t.Accel.Length():000}M/S2\nSIZE {ty}\n{(Selected == -1 ? "NO TGT SELECTED" : "TGT " + _sTag + " LOCKED")}", 1);
         }
 
         void Select(int p, Screen s)
         {
             Selected = _iEIDs[p];
-            selTag = _targets[Selected].eIDTag;
+            _sTag = _targets[Selected].eIDTag;
             s.Data(p, s);
         }
 
         void Deselect(int p, Screen s)
         {
             Selected = -1;
-            selTag = "";
+            _sTag = "";
             s.Data(p, s);
         }
 
@@ -224,6 +236,18 @@ namespace IngameScript
                 var id = _iEIDs[i];
                 var rPos = _p.Center - _targets[id].Position;
                 _rdrBuffer.Add(DisplayTarget(ref rPos, ref mat, _targets[id].eIDTag, id == Selected));
+            }
+
+            if (_showMsls)
+            {
+                foreach (var m in _p.Missiles.Values)
+                {
+                    var mat = _p.Controller.WorldMatrix;
+                    var id = m.IDTG;
+                    var rPos = _p.Center - m.Controller.WorldMatrix.Translation;
+                    _rdrBuffer.Add(DisplayTarget(ref rPos, ref mat, id, false, true));
+                }
+
             }
 
             int l = _rdrBuffer.Count + _rdr.Length;
@@ -247,7 +271,7 @@ namespace IngameScript
         /// <param name="relPos">relative position</param>
         /// <param name="mat">World Matrix of the reference</param>
         /// <param name="sel">if currently selected</param>
-        MySprite DisplayTarget(ref Vector3D relPos, ref MatrixD mat, string eid, bool sel)
+        MySprite DisplayTarget(ref Vector3D relPos, ref MatrixD mat, string eid, bool sel, bool msl = false)
         {
             // Get the Left, Forward, and Up vectors from the mat
             // Project the relative position onto the radar's plane defined by Left and Forward vectors
@@ -257,8 +281,8 @@ namespace IngameScript
 
             // Calculate the screen position
             // Adjust for screen center
-                scrX = R_SIDE_L * xProj * INV_MAX_D + rdrCNR.X,
-                scrY = R_SIDE_L * yProj * INV_MAX_D + rdrCNR.Y;
+                scrX = R_SIDE_L * xProj * _invD + rdrCNR.X,
+                scrY = R_SIDE_L * yProj * _invD + rdrCNR.Y;
 
             // clamp into a region that doesn't neatly correspond with screen size ( i have autism)
             scrX = MathHelper.Clamp(scrX, X_MIN, X_MAX);
@@ -269,8 +293,9 @@ namespace IngameScript
                 pos = Lib.V2((float)scrX, (float)scrY),
                 txt = (sel ? 2.375F : 1.75f) * tgtSz;
 
-            _rdrBuffer.Add(new MySprite(Program.TXT, eid, scrX > 2 * X_MIN ? pos - txt : pos + 0.5f * txt, null, _p.PMY, Lib.V, rotation: 0.375f));
-            return new MySprite(Program.SHP, sel ? Lib.SQS : Lib.TRI, pos, (sel ? 1.5f : 1) * tgtSz, _p.PMY, null); // Center
+            if (!msl) _rdrBuffer.Add(new MySprite(TXT, eid, scrX > 2 * X_MIN ? pos - txt : pos + 0.5f * txt, null, _p.PMY, Lib.V, rotation: 0.375f));
+            else return new MySprite(TXT, "M", pos, null, _p.PMY, Lib.VB, rotation: 0.425f);
+            return new MySprite(SHP, sel ? Lib.SQS : Lib.TRI, pos, (sel ? 1.5f : 1) * tgtSz, _p.PMY, null); // Center
         }
         #endregion
 
@@ -390,34 +415,32 @@ namespace IngameScript
                 _nextPrioritySortF = f + _p.PriorityCheckTicks;
                 _p.GlobalPriorityUpdateSwitch = false;
             }
-            Log = $"\n>>{_nextPrioritySortF:X8}";
+
+            Log = $"NX_TGT_PRI - {_nextPrioritySortF}";
 
             #region igc target sharing
             bool rcv = _p.ReceiveIGCTicks > 0;
-            if (rcv)
+            if (rcv && f >= _nextIGCCheck)
             {
-                if (f >= _nextIGCCheck)
+                while (_TGT.HasPendingMessage)
                 {
-                    while (_TGT.HasPendingMessage)
+                    var m = _TGT.AcceptMessage();
+                    if (m.Data is MyTuple<long, long>)
                     {
-                        var m = _TGT.AcceptMessage();
-                        if (m.Data is MyTuple<long, long>)
-                        {
-                            var d = (MyTuple<long, long>)m.Data;
-                            _offsets[d.Item1] = f - (d.Item2 + 1);
-                        }
-                        else if (m.Data is MyTuple<MyTuple<long, long, long, int>, MyTuple<Vector3D, Vector3D, MatrixD, double>>)
-                        {
-                            var d = (MyTuple<MyTuple<long, long, long, int>, MyTuple<Vector3D, Vector3D, MatrixD, double>>)m.Data;
-                            if (!_targets.ContainsKey(d.Item1.Item1) || _targets[d.Item1.Item1].Source != ID)
-                                _targets[d.Item1.Item1] = new Target(ref d);
-                        }
+                        var d = (MyTuple<long, long>)m.Data;
+                        _offsets[d.Item1] = f - (d.Item2 + 1);
                     }
-                    _nextIGCCheck = f + _p.ReceiveIGCTicks;
+                    else if (m.Data is MyTuple<MyTuple<long, long, long, int>, MyTuple<Vector3D, Vector3D, MatrixD, double>>)
+                    {
+                        var d = (MyTuple<MyTuple<long, long, long, int>, MyTuple<Vector3D, Vector3D, MatrixD, double>>)m.Data;
+                        if (!_targets.ContainsKey(d.Item1.Item1) || _targets[d.Item1.Item1].Source != ID)
+                            _targets[d.Item1.Item1] = new Target(ref d);
+                    }
                 }
-                Log += $"\n\n>>{_nextIGCCheck:X8}";
+                _nextIGCCheck = f + _p.ReceiveIGCTicks;
             }
-            else Log += DSB;
+
+            Log += $"\nNX_IGC_RCV - {_nextIGCCheck}";
 
             if (_p.SendIGCTicks > 0)
             {
@@ -439,16 +462,11 @@ namespace IngameScript
                         );
                     _nextIGCSend = f + _p.SendIGCTicks;
                 }
-
-                Log += $"\n\n>>{_nextIGCSend:X8}";
             }
-            else Log += DSB;
+
+            Log += $"\nNX_IGC_SND - {_nextIGCSend}\nSYS_TGT_CT - {Count}\nSYS_OFS_CT - {_offsets.Count}";
             #endregion
-
-            Log += $"\n\n>>{Count:000} TGTS";
-            Log += rcv ? $"\n\n>>{_offsets.Count:00} PAIRS" : DSB;
         }
-
         public Target Get(long eid) => _targets.ContainsKey(eid) ? _targets[eid] : null;
         public bool Exists(long id) => _targets.ContainsKey(id);
 

@@ -73,7 +73,7 @@ namespace IngameScript
                     PriorityCheckTicks = p.Int(H, "priorityUpdateTicks", 10);
                     HardpointsCount = p.Int(H, "mslHardpoints", 16);
 
-                    BKG = p.Color(H, "backgroundColor", new Color(7, 16, 7));
+                    BKG = p.Color(H, "backgroundColor", new Color(3, 8, 3));
                     PMY = p.Color(H, "primaryColor", new Color(100, 250, 100));
                     SDY = p.Color(H, "secondaryColor", new Color(50, 125, 50));
 
@@ -92,14 +92,16 @@ namespace IngameScript
         void CacheMainSystems()
         {
             #region controller and displays
-            Terminal.GetBlocksOfType<IMyShipController>(null, (b) =>
+            Terminal.GetBlocksOfType<IMyShipController>(null, b =>
             {
                 if (b.CubeGrid == Me.CubeGrid && b.CustomName.Contains(ControllerTag))
                     Controller = b;
                 return false;
             });
+
             var dspGrp = new List<IMyTerminalBlock>();
             Terminal.GetBlockGroupWithName(DisplayGroup).GetBlocks(dspGrp);
+
             if (dspGrp.Count > 0)
             {
                 foreach (var b in dspGrp)
@@ -112,7 +114,7 @@ namespace IngameScript
                     }
                     else if (b is IMyTextSurfaceProvider)
                     {
-                        d = new Display(this, b, Lib.LN, Based);
+                        d = new Display(this, b, Lib.MS, Based);
                         Displays.Add(d.Name, d);
                     }
                 }
@@ -120,7 +122,6 @@ namespace IngameScript
             }
             else throw new Exception($"\nNo displays found with tag \'{DisplayGroup}\'.");
             #endregion
-
             #region masts and sensors
             Terminal.GetBlocksOfType<IMyLargeTurretBase>(null, b =>
             {
@@ -145,7 +146,7 @@ namespace IngameScript
             });
             MastNames = Lib.Keys(ref Masts);
             #endregion
-
+            
             #region turrets and racks
             var r = new List<IMyMotorStator>();
 
@@ -256,14 +257,16 @@ namespace IngameScript
 
             Commands.Add("fire", b =>
             {
-                if (!Targets.Exists(Targets.Selected))
-                    return;
+                if (!Targets.Exists(Targets.Selected)) return;
+
                 if (b.ArgumentCount == 2 && Launchers.ContainsKey(b.Argument(1)))
                     Launchers[b.Argument(1)].Fire(Targets.Selected, ref Missiles);
             });
 
             Commands.Add("spread", b =>
             {
+                if (Targets.Count == 0) return;
+                
                 _fireID = b.Argument(1) == P ? Targets.Prioritized.Min.EID : Targets.Selected;
                 if(int.TryParse(b.Argument(2), out _launchCt))
                     _nxtFireF = F;
@@ -300,9 +303,9 @@ namespace IngameScript
         {
             #region masts screen
             Vector2
-                sqvpos = Lib.V2(206, 204), // standard rect pos
-                sqvsz = Lib.V2(88, 24), // standard rect size
-                sqoff = Lib.V2(0, 32); // standard rect offset
+                sqvpos = Lib.V2(20, 244), // standard rect pos
+                sqvsz = Lib.V2(132, 36), // standard rect size
+                sqoff = Lib.V2(0, 42); // standard rect offset
             Vector2? n = null;
 
             var cnr = TextAlignment.CENTER;
@@ -312,21 +315,14 @@ namespace IngameScript
                 () => MastNames.Length,
                 new MySprite[]
                 {
-                    SPR(TXT, "", Lib.V2(20, 108), n, PMY, Lib.VB, 0, 1.3275f),// 0. TUR NAME
-                    SPR(TXT, "", Lib.V2(20, 184), n, PMY, Lib.VB, 0, 0.6785f), // 1
-                    SPR(SHP, Lib.SQS, sqvpos, sqvsz, PMY, "", 0), // 2
-                    SPR(SHP, Lib.SQS, sqvpos + sqoff, sqvsz, PMY, "", 0), // 3
-                    SPR(SHP, Lib.SQS,  sqvpos + 2 * sqoff, sqvsz, PMY, "", 0), // 4
-                    SPR(SHP, Lib.SQS, sqvpos + 3 * sqoff, sqvsz, PMY, "", 0), // 5
-                    SPR(SHP, Lib.TRI, Lib.V2(252, 126), Lib.V2(48, 28), PMY), // 6
-                    SPR(SHP, Lib.TRI, Lib.V2(252, 162), Lib.V2(48, 28), PMY, null, cnr, MathHelper.Pi), // 7
-                    SPR(TXT, "", Lib.V2(320, 112), n, SDY, Lib.V, 0, 0.5935f),
-                    SPR(TXT, "", Lib.V2(20, 362), n, PMY, Lib.VB, 0, 0.6785f),
-                    SPR(TXT, "NX_TGT_PRI\n\nNX_IGC_RCV\n\nNX_IGC_SND\n\nSYS_TGT_CT\n\nIGC_FRN_CT", Lib.V2(320, 112), null, PMY, Lib.VB, 0, 0.5935f),
-                    SPR(SHP, Lib.SQS, Lib.V2(312, 256), Lib.V2(8, 288), PMY), // 8
-                    SPR(SHP, Lib.SQS, Lib.V2(156, 180), Lib.V2(308, 8), PMY), // 9
-                    SPR(SHP, Lib.SQS, Lib.V2(156, 356), Lib.V2(308, 8), PMY), // 10
-                    SPR(SHP, Lib.SQS, Lib.V2(188, 264), Lib.V2(8, 176), PMY),   // 11
+                    SPR(TXT, "", Lib.V2(20, 108), n, PMY, Lib.VB, 0, 0.8735f),// 4
+                    SPR(TXT, "", Lib.V2(272, 108), n, SDY, Lib.V, Lib.RGT, 0.8735f),
+                    SPR(TXT, "", Lib.V2(20, 248), n, PMY, Lib.VB, 0, 0.6135f), // 5
+                    SPR(TXT, "", Lib.V2(272, 248), n, SDY, Lib.V, Lib.RGT, 0.6135f), //7
+                    
+                    SPR(TXT, "", Lib.V2(20, 362), n, PMY, Lib.VB, 0, 0.5935f),       
+                    SPR(SHP, Lib.SQS, Lib.V2(282, 256), Lib.V2(8, 288), PMY), // 9
+                    SPR(SHP, Lib.SQS, Lib.V2(144, 242), Lib.V2(268, 8), PMY)
                 },
                 ScrollMS, null, null
             ));
@@ -359,14 +355,12 @@ namespace IngameScript
                 () => ReloadRR.IDs.Length,
                 new MySprite[]
                 {
-                    SPR(TXT, "", Lib.V2(24, 108), n, PMY, Lib.VB, 0, 1.3275f),
+                    SPR(TXT, "", Lib.V2(24, 108), n, PMY, Lib.VB, 0, 0.925f),
                     SPR(TXT, "", Lib.V2(136, 160), n, SDY, Lib.V, 0, 0.6025f),
                     SPR(TXT, "", Lib.V2(24, 160), n, PMY, Lib.VB, 0, 0.6025f),
                     SPR(TXT, "", Lib.V2(320, 112), n, SDY, Lib.V, 0, 0.5935f),
                     SPR(TXT, "TGT_SELCTD\n\nMX_PRY_TGT\n\nEKV_TGT_CT\n\nSYS_TGT_CT\n\nSYS_MSL_CT", Lib.V2(320, 112), null, PMY, Lib.VB, 0, 0.5935f),
                     SPR(SHP, Lib.SQS, Lib.V2(156, 180), Lib.V2(308, 8), PMY), // 5
-                    SPR(SHP, Lib.TRI, Lib.V2(252, 126), Lib.V2(48, 28), PMY), // 6
-                    SPR(SHP, Lib.TRI, Lib.V2(252, 162), Lib.V2(48, 28), PMY, null, cnr, MathHelper.Pi), // 7
                     SPR(SHP, Lib.SQS, Lib.V2(312, 256), Lib.V2(8, 288), PMY), // 8
                     SPR(SHP, Lib.SQS, Lib.V2(156, 320), Lib.V2(308, 8), PMY), // 9
                     SPR(SHP, Lib.SQS, Lib.V2(120, 252), Lib.V2(8, 144), PMY, null, Lib.LFT)

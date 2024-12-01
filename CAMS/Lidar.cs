@@ -75,8 +75,11 @@ namespace IngameScript
             scanAVG = 0;
             for (; i < _cameras.Length; i++)
             {
-                scanAVG += _cameras[i].AvailableScanRange;
-                _camerasByRange.Add(_cameras[i]);
+                var c = _cameras[i];
+                if (c.Closed || !c.IsFunctional) continue;
+            
+                scanAVG += c.AvailableScanRange;
+                _camerasByRange.Add(c);
             }
             scanAVG /= Count;
 
@@ -104,28 +107,27 @@ namespace IngameScript
 
     public class LidarMast
     {
-        IMyMotorStator _azimuth, _elevation;
+        IMyMotorStator _az, _el;
         IMyTurretControlBlock _ctc;
         Program _p;
         public IMyCameraBlock Main;
-        public string Name;
+        public string Name, RPM, TGT;
         public List<LidarArray> Lidars = new List<LidarArray>();
         bool _activeCTC => _ctc?.IsUnderControl ?? false;
         public bool Manual => _stopSpin || _activeCTC;
         double _maxAzD, _maxCamD;
         float _azR, _elR, _max = float.MaxValue, _min = float.MinValue; // rest angles - it's my code, i can name stuff as terribly as i want!!!!
         bool _stopSpin = false;
-        public int aRPM = 20, eRPM = 53;
+        int _aRPM = 20, _eRPM = 53;
         public int Scans;
-        public string MinScan;
     
 
         public LidarMast(Program p, IMyMotorStator azi)
         {
-            _azimuth = azi;
+            _az = azi;
             _p = p;
-            aRPM = 29;
-            eRPM = 53;
+            _aRPM = 29;
+            _eRPM = 53;
         }
 
         public void Setup(Program m, ref string[] tags)
@@ -133,7 +135,7 @@ namespace IngameScript
             bool hasCTC = false;
             using (var p = new iniWrap())
             {
-                if (p.CustomData(_azimuth))
+                if (p.CustomData(_az))
                 {
                     var rad = (float)(Math.PI / 180);
                     Name = p.String(Lib.H, Lib.N, "ARY");
@@ -146,22 +148,22 @@ namespace IngameScript
                 }
             }
 
-            _azimuth.UpperLimitRad = _max;
-            _azimuth.LowerLimitRad = _min;
+            _az.UpperLimitRad = _max;
+            _az.LowerLimitRad = _min;
 
-            var azTop = _azimuth.TopGrid;
+            var azTop = _az.TopGrid;
             m.Terminal.GetBlocksOfType<IMyMotorStator>(null, b =>
             {
                 if (b.CustomName.Contains(Name))
-                    _elevation = b;
+                    _el = b;
 
                 if (b.CubeGrid == azTop)
-                    _elevation = b;
+                    _el = b;
 
                 return false;
             });
 
-            var elTop = _elevation?.TopGrid;
+            var elTop = _el?.TopGrid;
             if (hasCTC)
                 m.Terminal.GetBlocksOfType<IMyTurretControlBlock>(null, b =>
                 {
@@ -174,7 +176,7 @@ namespace IngameScript
                     return false;
                 });
 
-            if (_elevation != null && tags != null)
+            if (_el != null && tags != null)
             {
                 foreach (var tg in tags)
                 {
@@ -183,25 +185,22 @@ namespace IngameScript
                     {
                         bool b = cam.CubeGrid == elTop;
                         if (b && cam.CustomName.ToUpper().Contains("MAIN"))
-                        {
                             Main = cam;
-                            Main.EnableRaycast = true;
-                            //_mainName = cam.CustomName;
-                        }
+
                         return b && cam.CustomName.Contains(tg);
                     });
                     Lidars.Add(new LidarArray(list, tg));
                 }
 
-                _elevation.LowerLimitRad = _min;
-                _elevation.UpperLimitRad = _max;
+                _el.LowerLimitRad = _min;
+                _el.UpperLimitRad = _max;
             }
         }
 
         public void Retvrn()
         {
-            _azimuth.UpperLimitRad = _azR;
-            _elevation.UpperLimitRad = _elR;
+            _az.UpperLimitRad = _azR;
+            _el.UpperLimitRad = _elR;
             _stopSpin = true;
         }
 
@@ -218,28 +217,35 @@ namespace IngameScript
             {
                 if (_stopSpin)
                 {
-                    _azimuth.LowerLimitRad = _elevation.LowerLimitRad = _min;
-                    _azimuth.UpperLimitRad = _elevation.UpperLimitRad = _max;
+                    _az.LowerLimitRad = _el.LowerLimitRad = _min;
+                    _az.UpperLimitRad = _el.UpperLimitRad = _max;
                     _stopSpin = false;
                 }
                 return;
             }
             else if (!_stopSpin)
             {
-                _azimuth.TargetVelocityRPM = aRPM;
-                _elevation.TargetVelocityRPM = eRPM;
+                _az.TargetVelocityRPM = _aRPM;
+                _el.TargetVelocityRPM = _eRPM;
             }
             else
             {
-                if (Math.Abs(_azimuth.Angle - _azR) < 0.05)
-                    _azimuth.TargetVelocityRPM = 0;
+                if (Math.Abs(_az.Angle - _azR) < 0.05)
+                    _az.TargetVelocityRPM = 0;
 
-                if (Math.Abs(_elevation.Angle - _elR) < 0.05)
-                    _elevation.TargetVelocityRPM = 0;
+                if (Math.Abs(_el.Angle - _elR) < 0.05)
+                    _el.TargetVelocityRPM = 0;
+                
             }
-
+            RPM = $"\n{_az.TargetVelocityRPM:000}\n{_el.TargetVelocityRPM:000}";
+            
             double min = _max;
             Scans = 0;
+            if (_p.Targets.Count == 0)
+            {
+                TGT = "NO TRGTS";
+                return;
+            }
 
             foreach (var t in _p.Targets.AllTargets())
                 if (!_p.Targets.ScannedIDs.Contains(t.EID))
@@ -249,19 +255,19 @@ namespace IngameScript
                         icpt.Normalize();
   
 
-                        if (icpt.Dot(_azimuth.WorldMatrix.Down) > _maxAzD ||
+                        if (icpt.Dot(_az.WorldMatrix.Down) > _maxAzD ||
                             icpt.Dot(Lidars[i].First.WorldMatrix.Backward) > 0 ||
                             icpt.Dot(Lidars[i].First.WorldMatrix.Down) > _maxCamD)
                             continue;
 
                         if (Lidars[i].Scan(_p, t) != ScanResult.Failed)
+                        {
+                            TGT = $"TGT {t.eIDTag}";
                             Scans+= Lidars[i].Scans;
+                        }
 
                         if (Lidars[i].scanAVG < min)
-                        {
-                            min = Lidars[i].scanAVG;
-                            MinScan = $"{Lidars[i].tag} {min/1000:0000}KM";
-                        }               
+                            min = Lidars[i].scanAVG;             
                     }
         }
     }

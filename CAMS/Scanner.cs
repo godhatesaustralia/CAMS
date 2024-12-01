@@ -6,24 +6,22 @@ namespace IngameScript
     {
         void ScrollMS(int p, Screen s)
         {
-            string grps = ""; int i = 0;
+            var g = "SCAN"; int i = 0;
             var l = Masts[MastNames[p]];
+            
             for (; i < l.Lidars.Count; i++)
-            {
-                var scan = l.Lidars[i].scanAVG != 0 ? $"{l.Lidars[i].scanAVG:G1}M\n" : "#READY\n";
-                grps += $"{l.Lidars[i].tag[1]} " + scan;
-            }
+                g += $"\nSD-{l.Lidars[i].tag[1]}";
+            s.Write(g, 2);
 
-            grps += $"{(!l.Manual ? "SCN" : "DES")} MODE SN {l.Scans:00}";
-            s.Write(MastNames[p], 0);
-            s.Write(grps, 1);
-            s.Color(p == 0 ? SDY : PMY, 6);
-            s.Color(p == MastNames.Length - 1 ? SDY : PMY, 7);
-            s.Write($"A/E SPIN {l.aRPM:00}/{l.eRPM:00}", 9);
-            s.Write(Targets.Log, 8);
-
+            g = l.TGT;
             for (i = 0; i < l.Lidars.Count; i++)
-                s.Color(l.Lidars[i].Scans > 0 ? PMY : SDY, i + 2);
+                g += l.Lidars[i].scanAVG != 0 ? $"\n{l.Lidars[i].scanAVG:0000E00}M" : "\nCHARGING";
+            s.Write(g, 3);
+            s.Write($"{MastNames[p]}\nRPM-AZ\nRPM-EL", 0);
+
+            g = l.Manual ? "CTC" : "SPN";
+            g += l.RPM;
+            s.Write(g, 1);
         }
 
         void GetTurretTgt(IMyLargeTurretBase t, bool arty = false)
@@ -32,7 +30,7 @@ namespace IngameScript
             if (t.HasTarget)
             {
                 info = t.GetTargetedEntity();
-                if (Targets.Exists(info.EntityId))
+                if (info.IsEmpty() || Targets.Exists(info.EntityId))
                     return;
                 else if (PassTarget(info) && arty && (int)info.Type == 2) // if small, retarget
                 {
