@@ -29,8 +29,15 @@ namespace IngameScript
                 },
                 { "designate", b =>
                     {
-                        if (b.ArgumentCount == 2 && Masts.ContainsKey(b.Argument(1)))
-                            Masts[b.Argument(1)].Designate();
+                        if (b.ArgumentCount == 2 || b.ArgumentCount == 3)
+                            if (Masts.ContainsKey(b.Argument(1)))
+                                Masts[b.Argument(1)].Designate();
+                            else if (Turrets.ContainsKey(b.Argument(1)))
+                            {
+                                var t = Turrets[b.Argument(1)] as PDT;
+                                if (t != null && t.ActiveCTC)
+                                    t.Designate((b?.Argument(2) ?? "") == "track");
+                            }
                     }
                 },
                 { "manual", b =>
@@ -84,13 +91,17 @@ namespace IngameScript
 
             CacheMainSystems();
 
+            #region jit
+
+            var m = new Missile();
+            m.Update(null);
+            CommandFire(_cmd);
             UpdateRotorTurrets();
-
             UpdateLaunchers();
-
             UpdateMissileGuidance();
-
             _frame = 0;  
+            
+            #endregion
         }
 
         public void Save()

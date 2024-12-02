@@ -284,7 +284,7 @@ namespace IngameScript
 
 	public class Missile
 	{
-		const int DEF_UPDATE = 8, DEF_STAT = 29, EVN_ADJ = 600, FUSE_D = 220;
+		const int DEF_UPDATE = 8, DEF_STAT = 29, EVN_ADJ = 500, TRACK_D = 800, FUSE_D = 220;
 		const double TOL = .00001, CAM_ANG = .707, PROX_R = .375, OFS_PCT = .58, PD_AIM_LIM = 6.3;
 		public long MEID, TEID, LastActiveF, NextUpdateF, NextStatusF, NextEvnAdjF;
 		public bool Inoperable => _dead || !Controller.IsFunctional || Controller.Closed;
@@ -299,7 +299,7 @@ namespace IngameScript
 		List<IMyThrust> _thrust = new List<IMyThrust>();
 		List<IMyWarhead> _warhead = new List<IMyWarhead>();
 
-		bool _evade, _checkAccel, _dead, _arm, _trip, _kill;
+		bool _evade, _checkAccel, _turTrack, _dead, _arm, _cams, _kill;
 		byte _gYaw, _gPitch, _gRoll;
 		double _accel, _evMax, _evMin;
 
@@ -308,7 +308,7 @@ namespace IngameScript
 		MatrixD _viewMat;
 		Vector3D _pos, _cmd, _evn, _ofs;
 
-		#region gyro
+		#region msl-gyro
 		static Action<IMyGyro, float>[] _profiles =
 		{
 			(g, v) => { g.Yaw = -v; },
@@ -367,7 +367,7 @@ namespace IngameScript
 
 		#endregion
 
-		public string Status()
+		public string Data()
 		{
 			if (MEID == -1) return "\nN/A\nN/A\nN/A\nN/A";
 
@@ -378,10 +378,12 @@ namespace IngameScript
 			foreach (var t in _tanks)
 				p += t.FilledRatio;
 			p /= _tanks.Count;
+
 			r += $"\n{p * 100:000}\n{(_ctor.IsConnected ? "LCK" : "OFF")}\n{(_sensors.Count > 0 ? "RAY" : "PRX")}";
 			return r;
 		}
 
+		#region msl-reset
 		public void Reset(double a, byte y, byte p, byte r, int pg, int dg, int eMx, int eMn)
 		{
 			_dead = false;
@@ -424,33 +426,6 @@ namespace IngameScript
 			return true;
 		}
 
-		public void Launch(long teid, Program p)
-		{
-			TEID = teid;
-			_p = p;
-			_ofs = p.RandomOffset();
-
-			LastActiveF = _p.F;
-			NextUpdateF = p.F + DEF_UPDATE;
-			NextStatusF = NextUpdateF + DEF_STAT;
-
-			foreach (var g in _tanks)
-				g.Stockpile = false;
-			foreach (var t in _thrust)
-			{
-				t.Enabled = true;
-				t.ThrustOverridePercentage = 1;
-			}
-
-			_ctor.Disconnect();
-			_batt.ChargeMode = ChargeMode.Discharge;
-			_merge.Enabled = _arm = false;
-
-			_trip = _sensors.Count > 0;
-			_checkAccel = _accel == -1;
-			_gyro.GyroOverride = true;
-		}
-
 		public void Clear()
 		{
 			if (!_dead)
@@ -481,7 +456,9 @@ namespace IngameScript
 			MEID = TEID = -1;
 			IDTG = "NULL";
 		}
+		#endregion
 
+		#region msl-control
 		public void CheckStatus()
 		{
 			NextStatusF += DEF_STAT;
@@ -513,6 +490,33 @@ namespace IngameScript
 			_dead |= fuel <= TOL && _tanks.Count == 0 && _thrust.Count == 0;
 		}
 
+		public void Launch(long teid, Program p)
+		{
+			TEID = teid;
+			_p = p;
+			_ofs = p.RandomOffset();
+
+			LastActiveF = _p.F;
+			NextUpdateF = p.F + DEF_UPDATE;
+			NextStatusF = NextUpdateF + DEF_STAT;
+
+			foreach (var g in _tanks)
+				g.Stockpile = false;
+			foreach (var t in _thrust)
+			{
+				t.Enabled = true;
+				t.ThrustOverridePercentage = 1;
+			}
+
+			_ctor.Disconnect();
+			_batt.ChargeMode = ChargeMode.Discharge;
+			_merge.Enabled = _arm = false;
+
+			_cams = _sensors.Count > 0;
+			_checkAccel = _accel == -1;
+			_gyro.GyroOverride = true;
+		}
+
 		public void Hold()
 		{
 			var v = Controller.GetShipVelocities().LinearVelocity;
@@ -524,7 +528,9 @@ namespace IngameScript
 
 			AimGyro();
 		}
+		#endregion
 
+		#region msl-main
 		public void Update(Target tgt)
 		{
 			if (tgt == null || _dead)
@@ -542,8 +548,12 @@ namespace IngameScript
 
 			var r = rP.Length();
 
-			// idk what im doing
-			if (r < FUSE_D)
+			#region main-final
+			if (!_turTrack && r < TRACK_D) 
+			{
+				_turTrack = (int)tgt.Type == 2 || _p.TrackOnFinal(tgt);
+			}
+			else if (r < FUSE_D)
 			{
 				if (_arm)
 				{
@@ -551,13 +561,15 @@ namespace IngameScript
 					foreach (var w in _warhead)
 						w.IsArmed = true;
 					if ((int)tgt.Type == 3)
-						_ofs = _p.RandomOffset() * tgt.Radius * OFS_PCT;
+					{
+						int h = tgt.HitPoints.Count;
+						
+						if (h > 0) _ofs = tgt.HitPoints[_p.RNG.Next(h)].Hit;
+						else _ofs = _p.RandomOffset() * tgt.Radius * OFS_PCT;
+					}
 					else _ofs = Vector3D.Zero;
 				}
-				else if (!_trip && r < tgt.Radius * PROX_R)
-				{
-					_kill = true;
-				}
+				else if (!_cams && r < tgt.Radius * PROX_R)	_kill = true;
 				else 
 				{
 					r = 2 * FUSE_D;
@@ -607,7 +619,9 @@ namespace IngameScript
 					return;
 				}
 			}
+			#endregion
 
+			#region main-icpt
 			if (_checkAccel)
 			{
 				_accel = 0;
@@ -646,6 +660,8 @@ namespace IngameScript
 
 			DEBUG = $"\n<{IDTG}> \nT {t:G3}S, MVEL {Controller.GetShipVelocities().LinearVelocity.Length():#0.#}, MACL {_accel:#0.#} MEVN {(_evade && r < _evMax && r > _evMin).ToString().ToUpper()}";
 			AimGyro();
+			#endregion
 		}
 	}
+	#endregion
 }

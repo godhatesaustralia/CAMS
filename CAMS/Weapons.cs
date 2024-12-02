@@ -58,7 +58,7 @@ namespace IngameScript
             if (!Shooting)
             {
                 Shooting = true;
-                offsetCounter = offsetTicks;
+                //offsetCounter = offsetTicks;
             }
 
             salvoCounter--;
@@ -91,7 +91,7 @@ namespace IngameScript
                 return;
             for (int i = 0; i < _guns.Count; i++)
                 _guns[i].Shoot = false;
-            offsetCounter = salvoCounter = 0;
+            /*offsetCounter = */salvoCounter = 0;
             Shooting = false;
         }
     }

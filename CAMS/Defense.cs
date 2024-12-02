@@ -1,12 +1,11 @@
-﻿using System;
-using Sandbox.ModAPI.Ingame;
+﻿using Sandbox.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
 
 namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        const int TGT_LOSS_TK = 91, FIRE_TK = 7;
+        const int TGT_LOSS_T = 91, FIRE_T = 7;
         void ScrollLN(int p, Screen s)
         {
             int i = s.Sel ? s.Index : p;
@@ -18,17 +17,16 @@ namespace IngameScript
             foreach (var l in ln.Log)
                 r += l;
             s.Write(r, 2);
-            r = $"FRAME";
+            r = $"CLOCK";
             foreach (var t in ln.Time)
                 r += t;
             s.Write(r, 3);
-            
+
             i = s.Sel ? p : 0;
             var m = ln.Get(i);
             s.Write($"{i + 1}/{ln.Total}\n{(ln.Auto ? "AMS" : "DEF")}\n", 5);
-            
-            s.Write(m.IDTG + m.Status(), 7);
 
+            s.Write(m.IDTG + m.Data(), 7);
         }
 
         void EnterLN(int p, Screen s)
@@ -37,7 +35,7 @@ namespace IngameScript
             s.Index = p;
             var ln = Launchers[ReloadRR.IDs[p]];
             _lnSel = ln.Name;
-            
+
             s.Max = () => ln.Total;
         }
 
@@ -85,7 +83,7 @@ namespace IngameScript
             if (spr && int.TryParse(b.Argument(2), out _launchCt))
                 _nxtFireF = F;
 
-            if (!Launchers.ContainsKey(_lnFire)) 
+            if (!Launchers.ContainsKey(_lnFire))
             {
                 _lnFire = "";
                 return;
@@ -93,6 +91,23 @@ namespace IngameScript
 
             _launchCt = Launchers[_lnFire].Total;
             _nxtFireF = F;
+        }
+
+        public bool TrackOnFinal(Target t)
+        {
+            if (mslTargets.Contains(t.EID))
+                return true;
+
+            foreach (var n in PDTNames)
+            {
+                var tur = (PDT)Turrets[n];
+                if ((tur.tEID == -1 || (tur.Status & AimState.Blocked) != 0) && tur.AssignLidarTarget(t, true))
+                {
+                    mslTargets.Add(t.EID);
+                    return true;
+                }
+            }
+            return false;
         }
 
         void UpdateRotorTurrets()
@@ -147,7 +162,7 @@ namespace IngameScript
                             if (t.PriorityKill)
                                 ekvTargets.Add(t.EID);
                         }
-                        else if (F > m.LastActiveF + TGT_LOSS_TK)
+                        else if (F > m.LastActiveF + TGT_LOSS_T)
                             m.Hold();
                         else mslCull.Add(m.MEID);
                     }
@@ -198,12 +213,12 @@ namespace IngameScript
                     if (r.Fire(_fireID))
                     {
                         _launchCt--;
-                        _nxtFireF += FIRE_TK;
+                        _nxtFireF += FIRE_T;
                     }
                 }
                 else
                 {
-                    _launchCt = 0;
+                    _fireID = _launchCt = 0;
                     FireRR.Reset();
                 }
             }
@@ -224,14 +239,20 @@ namespace IngameScript
                         }
                 }
             }
-            foreach (var id in ekvTargets)
+            if (ekvTargets.Count > 0)
+            {
                 foreach (var n in PDTNames)
                 {
                     tur = (PDT)Turrets[n];
+                    var id = ekvTargets.GetEnumerator().Current;
                     t = Targets.Get(id);
-                    if (tur.tEID == -1 && tur.AssignLidarTarget(t))
+                    if ((tur.tEID == -1 || (tur.Status & AimState.Blocked) != 0) && tur.AssignLidarTarget(t))
+                    {
+                        ekvTargets.Remove(id);
                         break;
+                    }
                 }
+            }
         }
     }
 }

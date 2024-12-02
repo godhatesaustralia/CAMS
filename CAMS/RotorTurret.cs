@@ -6,15 +6,16 @@ using VRageMath;
 
 namespace IngameScript
 {
-    // fuck it
+    
+    [Flags]
     public enum AimState
     {
         Offline,
         Manual,
         Resting,
-        Blocked, // target out of bounds (sorry)
+        Blocked,
         Moving,
-        OnTarget
+        OnTarget = 8 // when i uh. er
     }
 
     // rotor hinge turret. fuck yopu. DYCJ YOIU
@@ -23,10 +24,11 @@ namespace IngameScript
         #region you aint built for these fields son
 
         const float RAD = (float)Math.PI / 180, DEG = 1 / RAD;
-        const int RST_TKS = 23;
+        const int REST_T = 23;
         public string Name, AZ, EL, TGT; // yeah
         protected IMyMotorStator _azimuth, _elevation;
         public AimState Status { get; protected set; }
+
         protected float
             _aMx,
             _aMn,
@@ -353,7 +355,7 @@ namespace IngameScript
                     aim -= _elevation.WorldMatrix.Translation; // ????? i have no fucking idea at this point is it htis????
                     var tgtDst = aim.Length();
 
-                    if ((_oobF > RST_TKS && Status == AimState.Blocked) || tgtDst > TrackRange)
+                    if ((_oobF > REST_T && Status == AimState.Blocked) || tgtDst > TrackRange)
                     {
                         Status = MoveToRest(a, e, true);
                         return;
@@ -382,8 +384,9 @@ namespace IngameScript
         IMyCameraBlock[] _designators;
         LidarArray _lidar;
         double _spray;
+        const int REST_T = 67;
         Vector3D _sprayOfs;
-        bool _useLidar = false;
+        bool _useLidar = false, _sctLidar;
         int _scanCtr, _scanMx;
 
         public PDT(IMyMotorStator a, Program m, int sMx) : base(a, m)
@@ -398,21 +401,30 @@ namespace IngameScript
                 {
                     if (c.CubeGrid == g)
                     {
+            
                         if (c.CustomName.Contains(Lib.ARY))
                             return true;
                         else d.Add(c);
                     }
                     return false;
                 });
+
                 _lidar = new LidarArray(l);
+
                 if (d.Count > 0)
-                    _designators = d.ToArray();
-                l.Clear();
+                {
+                    _designators = new IMyCameraBlock[d.Count];
+                    for (int i = 0; i < d.Count; i++)
+                    {
+                        d[i].EnableRaycast = true;
+                        _designators[i] = d[i];
+                    }
+                }
             }
             _spray = m.PDSpray;
         }
 
-        public bool AssignLidarTarget(Target t)
+        public bool AssignLidarTarget(Target t, bool offset = false)
         {
             if (t == null || Inoperable)
                 return false;
@@ -427,6 +439,7 @@ namespace IngameScript
             if (r)
             {
                 _useLidar = r;
+                _sctLidar = offset;
                 tEID = t.EID;
             }
             return r;
@@ -434,7 +447,7 @@ namespace IngameScript
 
         public void Designate(bool track = false)
         {
-            if (Inoperable || !ActiveCTC || _designators == null)
+            if (Inoperable || _designators == null)
                 return;
             for (int i = 0; i < _designators.Length; i++)
                 if (_designators[i].CanScan(_scanMx))
@@ -442,7 +455,7 @@ namespace IngameScript
                     var t = _designators[i].Raycast(_scanMx);
                     if (_p.PassTarget(t))
                     {
-                        tEID = track ? t.EntityId : tEID;
+                        if (track) AssignLidarTarget(_p.Targets.Get(t.EntityId));
                         break;
                     }
                 }
@@ -478,7 +491,7 @@ namespace IngameScript
                         aim += _sprayOfs;
                     }
 
-                    if ((_oobF > 67 && Status == AimState.Blocked) || tgtDst > TrackRange)
+                    if ((_oobF > REST_T && Status == AimState.Blocked) || tgtDst > TrackRange)
                     {
                         Status = MoveToRest(a, e, true);
                         return;
@@ -493,7 +506,7 @@ namespace IngameScript
                         {
                             var r = ScanResult.Failed;
                             for (_scanCtr = 0; _scanCtr++ < _scanMx && r == ScanResult.Failed;)
-                                r = _lidar.Scan(_p, tgt, true);
+                                r = _lidar.Scan(_p, tgt, _sctLidar);
                         }
 
                         if (tgtDst < Range)

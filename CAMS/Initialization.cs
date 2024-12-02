@@ -122,6 +122,7 @@ namespace IngameScript
             }
             else throw new Exception($"\nNo displays found with tag \'{DisplayGroup}\'.");
             #endregion
+            
             #region masts and sensors
             Terminal.GetBlocksOfType<IMyLargeTurretBase>(null, b =>
             {
@@ -246,9 +247,7 @@ namespace IngameScript
                 sqoff = Lib.V2(0, 42); // standard rect offset
             Vector2? n = null;
 
-            var cnr = TextAlignment.CENTER;
-
-            CtrlScreens.Add(Lib.MS, new Screen
+            if (Masts.Count > 0) CtrlScreens.Add(Lib.MS, new Screen
             (
                 () => MastNames.Length,
                 new MySprite[]
@@ -299,7 +298,7 @@ namespace IngameScript
                     SPR(TXT, "", Lib.V2(24, 248), n, PMY, Lib.VB, 0, 0.6135f),
                     SPR(TXT, "", Lib.V2(326, 108), n, PMY, Lib.VB, 0, 0.8915f),
                     SPR(TXT, "", Lib.V2(490, 108), n, SDY, Lib.V, Lib.RGT, 0.8915f),
-                    SPR(TXT, "SCROLL\nFMODE\n\n\nIDTAG\nCHRGE\nTANKS\nCNVYR\nFUSED", Lib.V2(326, 250), n, PMY, Lib.VB, 0, 0.5985f),
+                    SPR(TXT, "IDTAG\nCHRGE\nTANKS\nCNVYR\nFUSED", Lib.V2(326, 250), n, PMY, Lib.VB, 0, 0.5985f),
                     SPR(TXT, "", Lib.V2(490, 250), n, SDY, Lib.V, Lib.RGT, 0.5985f),
                     SPR(SHP, Lib.SQS, Lib.V2(160, 242), Lib.V2(308, 8), PMY), // 5
                     SPR(SHP, Lib.SQS, Lib.V2(314, 256), Lib.V2(8, 288), PMY), // 8

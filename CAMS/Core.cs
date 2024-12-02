@@ -111,6 +111,8 @@ namespace IngameScript
         public TargetProvider Targets;
         public bool GlobalPriorityUpdateSwitch = true;
         Dictionary<string, LidarMast> Masts = new Dictionary<string, LidarMast>();
+        Dictionary<string, LidarArray> Panels = new Dictionary<string, LidarArray>();
+
         List<IMyLargeTurretBase> 
             AllTurrets = new List<IMyLargeTurretBase>(), 
             Artillery = new List<IMyLargeTurretBase>();
@@ -176,7 +178,7 @@ namespace IngameScript
         public Dictionary<long, Missile> Missiles;
         Dictionary<string, Launcher> Launchers = new Dictionary<string, Launcher>();
         RoundRobin<string, Launcher> ReloadRR, FireRR;
-        HashSet<long> ekvTargets, mslCull = new HashSet<long>();
+        HashSet<long> ekvTargets, mslTargets = new HashSet<long>(), mslCull = new HashSet<long>();
         Dictionary<string, RotorTurret> Turrets = new Dictionary<string, RotorTurret>();
         RoundRobin<string, RotorTurret> AssignRR, UpdateRR;
         #endregion

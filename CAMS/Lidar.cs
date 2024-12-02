@@ -3,6 +3,7 @@ using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using VRage.ModAPI;
 using VRageMath;
 
 namespace IngameScript
@@ -11,28 +12,31 @@ namespace IngameScript
     public class LidarArray
     {
         public IMyCameraBlock First => _cameras[0];
-        public IMyCameraBlock[] AllCameras => _cameras;
         SortedSet<IMyCameraBlock> _camerasByRange = new SortedSet<IMyCameraBlock>(new RangeComparer());
         IMyCameraBlock[] _cameras;
-        ScanResult _lastScan = ScanResult.Hit;
-        public readonly string tag;
-        public double scanAVG;
-        const float SCAT = 0.2f;
+        ScanResult _lastScan;
+        public readonly string Tag;
+        public double ScanAVG;
+        const float SCAT_R = 0.2f;
         public int Scans = 0;
-        bool _useRand = false;
+        bool _missed = false;
         public int Count => _cameras.Length;
+
+        // for standalone array panels:
+        // first camera should be main. its kind of jank but like whatever
         public LidarArray(List<IMyCameraBlock> c, string t = "")
         {
             if (c != null)
             {
                 _cameras = new IMyCameraBlock[c.Count];
-                for (int j = 0;  j < c.Count; j++)
+                for (int j = 0; j < c.Count; j++)
                     _cameras[j] = c[j];
             }
-            tag = t;
+            Tag = t;
             foreach (var c2 in _cameras)
                 c2.EnableRaycast = true;
         }
+
         class RangeComparer : IComparer<IMyCameraBlock>
         {
             public int Compare(IMyCameraBlock x, IMyCameraBlock y)
@@ -51,8 +55,8 @@ namespace IngameScript
 
             if (_lastScan == ScanResult.Failed)
             {
-                _useRand = !_useRand;
-                if (_useRand)
+                _missed = !_missed;
+                if (_missed)
                 {
                     var p1 = Vector3D.CalculatePerpendicularVector(tDir);
                     var p2 = p1.Cross(tDir);
@@ -63,7 +67,7 @@ namespace IngameScript
             return tPos + tDir * 2 * t.Radius;
         }
 
-        public ScanResult Scan(Program p, Target t, bool spread = false)
+        public ScanResult Scan(Program p, Target t, bool offset = false)
         {
             var r = _lastScan = ScanResult.Failed;
             int i = Scans = 0;
@@ -72,16 +76,16 @@ namespace IngameScript
                 return r;
 
             _camerasByRange.Clear();
-            scanAVG = 0;
+            ScanAVG = 0;
             for (; i < _cameras.Length; i++)
             {
                 var c = _cameras[i];
                 if (c.Closed || !c.IsFunctional) continue;
-            
-                scanAVG += c.AvailableScanRange;
+
+                ScanAVG += c.AvailableScanRange;
                 _camerasByRange.Add(c);
             }
-            scanAVG /= Count;
+            ScanAVG /= Count;
 
             foreach (var c in _camerasByRange)
             {
@@ -89,11 +93,31 @@ namespace IngameScript
                     continue;
 
                 var pos = RaycastLead(t, c.WorldMatrix.Translation, p);
-                pos += spread ? p.RandomOffset() * SCAT * t.Radius : Vector3D.Zero;
+                pos += offset ? p.RandomOffset() * SCAT_R * t.Radius : Vector3D.Zero;
                 if (!c.CanScan(pos) || pos == Vector3D.Zero)
                     continue;
-                    
-                if (p.PassTarget(c.Raycast(pos), out r))
+
+                var info = c.Raycast(pos);
+
+                if (offset)
+                {
+                    if (info.IsEmpty())
+                    {
+                        _lastScan = ScanResult.Failed;
+                        continue;
+                    }
+                    else if (p.Targets.Exists(info.EntityId) && p.Targets.AddHit(info.EntityId, p.F, info.HitPosition.Value))
+                    {
+                        Scans++;
+                        _lastScan = ScanResult.Update;
+                    }
+                    else if (p.PassTarget(info, out r))
+                    {
+                        Scans++;
+                        _lastScan = r;
+                    }
+                }
+                else if (p.PassTarget(info, out r))
                 {
                     Scans++;
                     _lastScan = r;
@@ -112,7 +136,7 @@ namespace IngameScript
         Program _p;
         public IMyCameraBlock Main;
         public string Name, RPM, TGT;
-        public List<LidarArray> Lidars = new List<LidarArray>();
+        public LidarArray[] Lidars;
         bool _activeCTC => _ctc?.IsUnderControl ?? false;
         public bool Manual => _stopSpin || _activeCTC;
         double _maxAzD, _maxCamD;
@@ -120,7 +144,6 @@ namespace IngameScript
         bool _stopSpin = false;
         int _aRPM = 20, _eRPM = 53;
         public int Scans;
-    
 
         public LidarMast(Program p, IMyMotorStator azi)
         {
@@ -178,19 +201,31 @@ namespace IngameScript
 
             if (_el != null && tags != null)
             {
-                foreach (var tg in tags)
-                {
-                    var list = new List<IMyCameraBlock>();
-                    m.Terminal.GetBlocksOfType(list, (cam) =>
-                    {
-                        bool b = cam.CubeGrid == elTop;
-                        if (b && cam.CustomName.ToUpper().Contains("MAIN"))
-                            Main = cam;
+                int i = 0;
+                var l = new List<LidarArray>();
+                var c = new List<IMyCameraBlock>();
 
-                        return b && cam.CustomName.Contains(tg);
+                for (; i < tags.Length; i++)
+                {
+                    var t = tags[i];
+
+                    c.Clear();
+                    m.Terminal.GetBlocksOfType(c, b =>
+                    {
+                        bool ok = b.CubeGrid == elTop;
+                        if (ok && b.CustomName.ToUpper().Contains("MAIN"))
+                            Main = b;
+
+                        return ok && b.CustomName.Contains(t);
                     });
-                    Lidars.Add(new LidarArray(list, tg));
+
+                    var ldr = new LidarArray(c, t);
+                    if (ldr.First != null) l.Add(ldr);
                 }
+
+                Lidars = new LidarArray[l.Count];
+                for (i = 0; i < l.Count; i++)
+                    Lidars[i] = l[i];
 
                 _el.LowerLimitRad = _min;
                 _el.UpperLimitRad = _max;
@@ -235,10 +270,10 @@ namespace IngameScript
 
                 if (Math.Abs(_el.Angle - _elR) < 0.05)
                     _el.TargetVelocityRPM = 0;
-                
+
             }
             RPM = $"\n{_az.TargetVelocityRPM:000}\n{_el.TargetVelocityRPM:000}";
-            
+
             double min = _max;
             Scans = 0;
             if (_p.Targets.Count == 0)
@@ -249,11 +284,10 @@ namespace IngameScript
 
             foreach (var t in _p.Targets.AllTargets())
                 if (!_p.Targets.ScannedIDs.Contains(t.EID))
-                    for (int i = 0; i < Lidars.Count; i++)
+                    for (int i = 0; i < Lidars.Length; i++)
                     {
                         var icpt = t.Position + t.Elapsed(_p.F) * t.Velocity - Main.WorldMatrix.Translation;
                         icpt.Normalize();
-  
 
                         if (icpt.Dot(_az.WorldMatrix.Down) > _maxAzD ||
                             icpt.Dot(Lidars[i].First.WorldMatrix.Backward) > 0 ||
@@ -263,11 +297,11 @@ namespace IngameScript
                         if (Lidars[i].Scan(_p, t) != ScanResult.Failed)
                         {
                             TGT = $"TGT {t.eIDTag}";
-                            Scans+= Lidars[i].Scans;
+                            Scans += Lidars[i].Scans;
                         }
 
-                        if (Lidars[i].scanAVG < min)
-                            min = Lidars[i].scanAVG;             
+                        if (Lidars[i].ScanAVG < min)
+                            min = Lidars[i].ScanAVG;
                     }
         }
     }

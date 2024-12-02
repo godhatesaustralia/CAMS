@@ -14,13 +14,13 @@ namespace IngameScript
             s.Write(g, 1);
             
             g = "SCAN";
-            for (i = 0; i < l.Lidars.Count; i++)
-                g += $"\nSD-{l.Lidars[i].tag[1]}";
+            for (i = 0; i < l.Lidars.Length; i++)
+                g += $"\nSD-{l.Lidars[i].Tag[1]}";
             s.Write(g, 2);
 
             g = l.TGT;
-            for (i = 0; i < l.Lidars.Count; i++)
-                g += l.Lidars[i].scanAVG != 0 ? $"\n{l.Lidars[i].scanAVG:0000E00}M" : "\nCHARGING";
+            for (i = 0; i < l.Lidars.Length; i++)
+                g += l.Lidars[i].ScanAVG != 0 ? $"\n{l.Lidars[i].ScanAVG:0000E00}M" : "\nCHARGING";
             s.Write(g, 3);
             s.Write($"{MastNames[p]}\nRPM-AZ\nRPM-EL", 0);
         }

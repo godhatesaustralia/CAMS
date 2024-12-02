@@ -11,9 +11,14 @@ namespace IngameScript
     public enum ScanResult
     {
         Failed,
-        Hit,
         Update,
-        Added = Hit | Update
+        Added
+    }
+
+    public class Offset
+    {
+        public long Frame;
+        public Vector3D Hit;
     }
 
     public class Target : IComparable<Target>, IEquatable<Target>
@@ -25,6 +30,7 @@ namespace IngameScript
         public int Priority = -1;
         public MatrixD Matrix;
         public Vector3D Position, Velocity, LastVelocity, Accel;
+        public List<Offset> HitPoints = new List<Offset>(4);
         public readonly MyDetectedEntityType Type;
         public readonly string eIDString, eIDTag;
         public bool PriorityKill, Engaged;
@@ -81,7 +87,7 @@ namespace IngameScript
 
         long ID, _nextPrioritySortF = 0, _nextIGCCheck = 0, _nextIGCSend = 0, _nextOffsetSend = 0;
         const double INV_MAX_D = 0.0001, R_SIDE_L = 154;
-        const int MAX_LIFETIME = 2, OFS_TMIT = 256; // s
+        const int MAX_LIFE_SEC = 2, HIT_T = 23, OFS_T = 256; // s
         const SpriteType TXT = SpriteType.TEXT, SHP = SpriteType.TEXTURE;
         const string IgcTgt = "[FLT-TG]";
         public long Selected = -1;
@@ -95,6 +101,7 @@ namespace IngameScript
         List<long> _rmvEIDs = new List<long>(), _iEIDs = new List<long>();
         Dictionary<long, Target> _targets = new Dictionary<long, Target>();
         Dictionary<long, long> _offsets = new Dictionary<long, long>();
+
         public HashSet<long>
             ScannedIDs = new HashSet<long>(),
             Blacklist = new HashSet<long>();
@@ -127,15 +134,15 @@ namespace IngameScript
                 switch (b.Argument(1))
                 {
                     case Lib.RD:
-                    {
-                        if (b.Argument(2) == "close")
-                            _invD = 0.0004;
-                        else if (b.Argument(2) == "reset")
-                            _invD = INV_MAX_D;
-                        else if (b.Argument(2) == Lib.ML)
-                            _showMsls = !_showMsls;
-                        break;
-                    }
+                        {
+                            if (b.Argument(2) == "close")
+                                _invD = 0.0004;
+                            else if (b.Argument(2) == "reset")
+                                _invD = INV_MAX_D;
+                            else if (b.Argument(2) == Lib.ML)
+                                _showMsls = !_showMsls;
+                            break;
+                        }
                     default:
                     case "clear":
                         {
@@ -191,7 +198,7 @@ namespace IngameScript
 
         void List(int p, Screen s)
         {
-            if (Count == 0)    
+            if (Count == 0)
                 return;
 
             var ty = "";
@@ -308,6 +315,14 @@ namespace IngameScript
                 t = _targets[id];
                 var dT = (_p.F - t.Frame) * Lib.TPS;
                 t.Frame = _p.F;
+
+                for (int j = t.HitPoints.Count - 1; j >= 0; j--)
+                {
+                    if (_p.F - t.HitPoints[j].Frame > HIT_T)
+                        t.HitPoints.RemoveAtFast(j);
+                    else t.HitPoints[j].Hit += i.Position - t.Position;
+                }
+
                 t.Position = i.Position;
                 t.LastVelocity = t.Velocity;
                 t.Velocity = i.Velocity;
@@ -394,7 +409,7 @@ namespace IngameScript
                 _rmvEIDs.Clear();
 
                 foreach (var t in _targets.Values)
-                    if (t.Elapsed(f) >= MAX_LIFETIME)
+                    if (t.Elapsed(f) >= MAX_LIFE_SEC)
                         _rmvEIDs.Add(t.EID);
 
                 foreach (var id in _rmvEIDs)
@@ -447,7 +462,7 @@ namespace IngameScript
                 if (f >= _nextOffsetSend)
                 {
                     _p.IGC.SendBroadcastMessage(IgcTgt, MyTuple.Create(ID, f));
-                    _nextOffsetSend = f + OFS_TMIT;
+                    _nextOffsetSend = f + OFS_T;
                 }
                 else if (f > _nextIGCSend && Count > 0)
                 {
@@ -469,6 +484,12 @@ namespace IngameScript
         }
         public Target Get(long eid) => _targets.ContainsKey(eid) ? _targets[eid] : null;
         public bool Exists(long id) => _targets.ContainsKey(id);
+        public bool AddHit(long id, long f, Vector3D h)
+        {
+            var t = _targets[id];
+            if (t.HitPoints.Count < 4) t.HitPoints.Add(new Offset { Frame = f, Hit = h });
+            return t.HitPoints.Count < 4;
+        }
 
         public void Clear()
         {
