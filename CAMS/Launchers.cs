@@ -11,7 +11,7 @@ namespace IngameScript
         /// <summary>
         /// Launcher has lost full functionality
         /// </summary>
-        Inoperable,
+        Offline,
         /// <summary>
         /// All missiles depleted
         /// </summary>
@@ -34,6 +34,7 @@ namespace IngameScript
     {
         public readonly string Name;
         public Queue<string> Time = new Queue<string>(MSG_CT), Log = new Queue<string>(MSG_CT);
+        public string Parts => $"{(_proj.Enabled ? "ENABL" : "OFFLN")}\n{(_weld.Enabled ? "ENABL" : "OFFLN")}";
         public bool Auto;
         protected int _load = 0, _fire;
         public int Total = 0;
@@ -42,7 +43,7 @@ namespace IngameScript
 
         protected const int
             ACTIVE_T = 3,
-            READY_T = 23,
+            READY_T = 31,
             RELOAD_T = 7,
             MSG_CT = 4;
 
@@ -58,7 +59,7 @@ namespace IngameScript
             _p = p;
         }
 
-        public string GetID(int p) => _msls[p].IDTG;
+        public Missile Get(int p) => _msls[p];
 
         protected bool Init(ref iniWrap q, out string[] tags)
         {
@@ -156,7 +157,7 @@ namespace IngameScript
                     return READY_T;
                 }
                 else if (m.Base.Closed || _weld.Closed || _proj.Closed)
-                    Status = RackState.Inoperable;
+                    Status = RackState.Offline;
                 else return RELOAD_T;
             }
             else if (Status == RackState.Empty)
@@ -179,17 +180,17 @@ namespace IngameScript
         /// <param name="dict"=>Reference to system missiles database</param>
         /// <param name="force"=>Whether to force a launch during sequenced reload (dangerous!)</param>
         /// <returns>Whether a missile was fired successfully.</returns>
-        public bool Fire(long teid, ref Dictionary<long, Missile> dict)
+        public bool Fire(long teid)
         {
             if (Status != RackState.Ready)
                 return false;
 
             var m = _msls[_fire];
-            if (dict.Count < _p.HardpointsCount * 2 && m.Controller != null)
+            if (_p.Missiles.Count < _p.HardpointsCount * 2 && m.Controller != null)
             {
-                try{ dict.Add(m.MEID, m); }
-                catch{ string s = ""; foreach (var kvp in dict) s += $"\n{kvp.Value.IDTG}"; throw new Exception(s); }
-                dict[m.MEID].Launch(teid, _p);
+                _p.Missiles[m.MEID] = m;
+                //catch{ string s = ""; foreach (var kvp in _p.Missiles) s += $"\n{kvp.Value.IDTG}"; throw new Exception(s); }
+                _p.Missiles[m.MEID].Launch(teid, _p);
                 AddReport($"FIRE {m.IDTG}");
 
                 _msls[_fire] = _p.RecycledMissile;
@@ -320,7 +321,7 @@ namespace IngameScript
                         }
                         else if (e.Base.Closed || _weld.Closed || _proj.Closed)
                         {
-                            Status = RackState.Inoperable;
+                            Status = RackState.Offline;
                             return 0;
                         }
                         else return RELOAD_T;

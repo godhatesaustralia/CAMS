@@ -2,6 +2,7 @@
 using System;
 using VRage.Game.GUI.TextPanel;
 using System.Collections.Generic;
+using VRage.Game.ModAPI.Ingame.Utilities;
 
 namespace IngameScript
 {
@@ -17,12 +18,67 @@ namespace IngameScript
             
             Debug = new DebugAPI(this, true);
 
+            #region commands
+            Commands = new Dictionary<string, Action<MyCommandLine>>
+            {
+                { "switch", b =>
+                    {
+                        if (_cmd.ArgumentCount == 3 && Displays.ContainsKey(_cmd.Argument(2)))
+                            Displays[_cmd.Argument(2)].SetActive(_cmd.Argument(1));
+                    }
+                },
+                { "designate", b =>
+                    {
+                        if (b.ArgumentCount == 2 && Masts.ContainsKey(b.Argument(1)))
+                            Masts[b.Argument(1)].Designate();
+                    }
+                },
+                { "manual", b =>
+                    {
+                        if (b.ArgumentCount == 2 && Masts.ContainsKey(b.Argument(1)))
+                            Masts[b.Argument(1)].Retvrn();
+                    }
+                },
+                { "fire", b =>
+                    {
+                        if (Targets.Count == 0) return;
+
+                        var s = !Launchers.ContainsKey(b?.Argument(1) ?? "") || !Targets.Exists(Targets.Selected);
+                        var id = s ? Targets.Prioritized.Min.EID : Targets.Selected;
+
+                        if (s && Launchers.ContainsKey(_lnSel))
+                            Launchers[_lnSel].Fire(id);
+                        else if (b.ArgumentCount == 2 && Launchers.ContainsKey(b.Argument(1)))
+                            Launchers[b.Argument(1)].Fire(Targets.Selected);
+                    }
+                },
+                { "salvo", CommandFire },
+                { "spread", CommandFire },
+                { "zero", b =>
+                    {
+                        foreach (var t in AllTurrets)
+                            t.Azimuth = t.Elevation = 0;
+                        foreach (var t in Artillery)
+                            t.Azimuth = t.Elevation = 0;
+                    }    
+                },
+                { "system_update", b =>
+                    {
+                        if (b.ArgumentCount != 2)
+                            return;
+                        else if (b.Argument(1) == "settings")
+                            ParseComputerSettings();
+                        else if (b.Argument(1) == "components")
+                            CacheMainSystems();
+                    }
+                }
+            };
+            #endregion
+
             Targets = new TargetProvider(this);
             Targets.Update(Lib.u1, -1);
 
             ParseComputerSettings();
-
-            SystemCommands();
 
             AddSystemScreens();
 
@@ -130,7 +186,7 @@ namespace IngameScript
                     m.Update();
 
             int i = AllTurrets.Count - 1; 
-            for (; i > 0; i--)
+            for (; i >= 0; i--)
             {
                 var at = AllTurrets[i];
                 if (at.Closed || !at.IsFunctional)
@@ -138,7 +194,7 @@ namespace IngameScript
                 else GetTurretTgt(at);
             }
             
-            for (i = Math.Max(0, _turCheckPtr - MaxAutoTgtChecks); _turCheckPtr > i; _turCheckPtr--)
+            for (i = Math.Max(0, _turCheckPtr - MaxAutoTgtChecks); _turCheckPtr >= i; _turCheckPtr--)
             {
                 var at = Artillery[_turCheckPtr];
                 if (at.Closed || !at.IsFunctional)

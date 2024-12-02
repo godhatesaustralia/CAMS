@@ -6,10 +6,15 @@ namespace IngameScript
     {
         void ScrollMS(int p, Screen s)
         {
-            var g = "SCAN"; int i = 0;
-            var l = Masts[MastNames[p]];
+            int i = s.Sel ? s.Index : p;
+            var l = Masts[MastNames[i]];
+            var g = $"{i + 1:0}/{MastNames.Length:0}"; 
+
+            g += l.RPM;
+            s.Write(g, 1);
             
-            for (; i < l.Lidars.Count; i++)
+            g = "SCAN";
+            for (i = 0; i < l.Lidars.Count; i++)
                 g += $"\nSD-{l.Lidars[i].tag[1]}";
             s.Write(g, 2);
 
@@ -18,10 +23,6 @@ namespace IngameScript
                 g += l.Lidars[i].scanAVG != 0 ? $"\n{l.Lidars[i].scanAVG:0000E00}M" : "\nCHARGING";
             s.Write(g, 3);
             s.Write($"{MastNames[p]}\nRPM-AZ\nRPM-EL", 0);
-
-            g = l.Manual ? "CTC" : "SPN";
-            g += l.RPM;
-            s.Write(g, 1);
         }
 
         void GetTurretTgt(IMyLargeTurretBase t, bool arty = false)

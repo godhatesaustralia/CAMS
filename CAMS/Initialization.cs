@@ -146,7 +146,7 @@ namespace IngameScript
             });
             MastNames = Lib.Keys(ref Masts);
             #endregion
-            
+
             #region turrets and racks
             var r = new List<IMyMotorStator>();
 
@@ -235,68 +235,6 @@ namespace IngameScript
 
         }
 
-        void SystemCommands()
-        {
-            Commands.Add("switch", b =>
-            {
-                if (_cmd.ArgumentCount == 3 && Displays.ContainsKey(_cmd.Argument(2)))
-                    Displays[_cmd.Argument(2)].SetActive(_cmd.Argument(1));
-            });
-
-            Commands.Add("designate", b =>
-            {
-                if (b.ArgumentCount == 2 && Masts.ContainsKey(b.Argument(1)))
-                    Masts[b.Argument(1)].Designate();
-            });
-
-            Commands.Add("manual", b =>
-            {
-                if (b.ArgumentCount == 2 && Masts.ContainsKey(b.Argument(1)))
-                    Masts[b.Argument(1)].Retvrn();
-            });
-
-            Commands.Add("fire", b =>
-            {
-                if (!Targets.Exists(Targets.Selected)) return;
-
-                if (b.ArgumentCount == 2 && Launchers.ContainsKey(b.Argument(1)))
-                    Launchers[b.Argument(1)].Fire(Targets.Selected, ref Missiles);
-            });
-
-            Commands.Add("spread", b =>
-            {
-                if (Targets.Count == 0) return;
-                
-                _fireID = b.Argument(1) == P ? Targets.Prioritized.Min.EID : Targets.Selected;
-                if(int.TryParse(b.Argument(2), out _launchCt))
-                    _nxtFireF = F;
-            });
-
-            Commands.Add("turret_reset", b =>
-            {
-                foreach (var t in AllTurrets)
-                {
-                    t.Azimuth = 0;
-                    t.Elevation = 0;
-                }
-                foreach (var t in Artillery)
-                {
-                    t.Azimuth = 0;
-                    t.Elevation = 0;
-                }
-            });
-
-            Commands.Add("system_update", b =>
-            {
-                if (b.ArgumentCount != 2)
-                    return;
-                else if (b.Argument(1) == "settings")
-                    ParseComputerSettings();
-                else if (b.Argument(1) == "components")
-                    CacheMainSystems();
-            });
-        }
-
         static MySprite SPR(SpriteType t, string d, Vector2 pos, Vector2? sz = null, Color? c = null, string f = null, TextAlignment a = TextAlignment.CENTER, float rs = 0) => new MySprite(t, d, pos, sz, c, f, a, rs);
 
         void AddSystemScreens()
@@ -320,7 +258,7 @@ namespace IngameScript
                     SPR(TXT, "", Lib.V2(20, 248), n, PMY, Lib.VB, 0, 0.6135f), // 5
                     SPR(TXT, "", Lib.V2(272, 248), n, SDY, Lib.V, Lib.RGT, 0.6135f), //7
                     
-                    SPR(TXT, "", Lib.V2(20, 362), n, PMY, Lib.VB, 0, 0.5935f),       
+                    SPR(TXT, "", Lib.V2(20, 362), n, PMY, Lib.VB, 0, 0.5935f),
                     SPR(SHP, Lib.SQS, Lib.V2(282, 256), Lib.V2(8, 288), PMY), // 9
                     SPR(SHP, Lib.SQS, Lib.V2(144, 242), Lib.V2(268, 8), PMY)
                 },
@@ -339,7 +277,7 @@ namespace IngameScript
                     SPR(TXT, "TG\nCR\nTG\nCR", Lib.V2(132, 164), n, PMY, Lib.VB, 0, 0.9125f), // 2. ANGLE HDR 2
                     SPR(TXT, "", Lib.V2(192, 164), n, SDY, Lib.V, 0, 0.9125f),// 4. ANGLE DATA
                     SPR(TXT, "", Lib.V2(20, 348), n, PMY, Lib.VB, 0, 0.925f),// 5. STATE
-                    SPR(TXT, "MODE\nWSPD\nFIRE\nTRCK\nARPM\nERPM", Lib.V2(342, 164), n, PMY, Lib.VB, Lib.LFT, 0.6045f),
+                    SPR(TXT, "MODE\nWSPD\nFIRE\nTRCK\nARPM\nERPM", Lib.V2(342, 164), n, PMY, Lib.VB, 0, 0.6045f),
                     SPR(TXT, "", Lib.V2(496, 164), n, SDY, Lib.V, Lib.RGT, 0.6045f),
                     SPR(SHP, Lib.SQS, Lib.V2(256, 162), Lib.V2(496, 4), PMY, null),
                     SPR(SHP, Lib.SQS, Lib.V2(256, 346), Lib.V2(496, 4), PMY, null),
@@ -355,17 +293,19 @@ namespace IngameScript
                 () => ReloadRR.IDs.Length,
                 new MySprite[]
                 {
-                    SPR(TXT, "", Lib.V2(24, 108), n, PMY, Lib.VB, 0, 0.925f),
-                    SPR(TXT, "", Lib.V2(136, 160), n, SDY, Lib.V, 0, 0.6025f),
-                    SPR(TXT, "", Lib.V2(24, 160), n, PMY, Lib.VB, 0, 0.6025f),
-                    SPR(TXT, "", Lib.V2(320, 112), n, SDY, Lib.V, 0, 0.5935f),
-                    SPR(TXT, "TGT_SELCTD\n\nMX_PRY_TGT\n\nEKV_TGT_CT\n\nSYS_TGT_CT\n\nSYS_MSL_CT", Lib.V2(320, 112), null, PMY, Lib.VB, 0, 0.5935f),
-                    SPR(SHP, Lib.SQS, Lib.V2(156, 180), Lib.V2(308, 8), PMY), // 5
-                    SPR(SHP, Lib.SQS, Lib.V2(312, 256), Lib.V2(8, 288), PMY), // 8
-                    SPR(SHP, Lib.SQS, Lib.V2(156, 320), Lib.V2(308, 8), PMY), // 9
-                    SPR(SHP, Lib.SQS, Lib.V2(120, 252), Lib.V2(8, 144), PMY, null, Lib.LFT)
+                    SPR(TXT, "", Lib.V2(24, 108), n, PMY, Lib.VB, 0, 0.8735f),
+                    SPR(TXT, "", Lib.V2(300, 108), n, SDY, Lib.V, Lib.RGT, 0.8735f),
+                    SPR(TXT, "", Lib.V2(300, 248), n, SDY, Lib.V, Lib.RGT, 0.6135f),
+                    SPR(TXT, "", Lib.V2(24, 248), n, PMY, Lib.VB, 0, 0.6135f),
+                    SPR(TXT, "", Lib.V2(326, 108), n, PMY, Lib.VB, 0, 0.8915f),
+                    SPR(TXT, "", Lib.V2(490, 108), n, SDY, Lib.V, Lib.RGT, 0.8915f),
+                    SPR(TXT, "SCROLL\nFMODE\n\n\nIDTAG\nCHRGE\nTANKS\nCNVYR\nFUSED", Lib.V2(326, 250), n, PMY, Lib.VB, 0, 0.5985f),
+                    SPR(TXT, "", Lib.V2(490, 250), n, SDY, Lib.V, Lib.RGT, 0.5985f),
+                    SPR(SHP, Lib.SQS, Lib.V2(160, 242), Lib.V2(308, 8), PMY), // 5
+                    SPR(SHP, Lib.SQS, Lib.V2(314, 256), Lib.V2(8, 288), PMY), // 8
+                    //SPR(SHP, Lib.SQS, Lib.V2(156, 320), Lib.V2(308, 8), PMY), // 9
                 },
-                ScrollLN, null, null
+                ScrollLN, EnterLN, BackLN
             ));
             #endregion
         }

@@ -15,16 +15,17 @@ namespace IngameScript
         public readonly string Name = null;
         string _active;
         long _nxSprRef;
-        bool _hasList;
+        int _ptr;
         public readonly bool isLarge = false;
         Dictionary<string, Screen> _screens => isLarge ? _m.LCDScreens : _m.CtrlScreens;
-        public int ptr { get; private set; }
-        Func<int> ptrMax = null;
+
+        Func<int> _pMax = null;
         Color _bg;
         public Display(Program m, IMyTerminalBlock b, string a, bool vcr = true)
         {
             _m = m;
             _surf = b is IMyTextPanel ? b as IMyTextSurface : (b is IMyTextSurfaceProvider ? ((IMyTextSurfaceProvider)b).GetSurface(0) : null);
+            
             using (var p = new iniWrap())
                 if (p.CustomData(b))
                 {
@@ -34,6 +35,7 @@ namespace IngameScript
                     _sprites = p.Sprites(Lib.H, vcr ? Lib.SPR : Lib.SPR + "_V");
                 }
                 else return;
+
             _nxSprRef = m.RNG.Next(REF_TKS / 10) + _nxSprRef;
             SetActive(a ?? Lib.MS);
         }
@@ -42,28 +44,40 @@ namespace IngameScript
         {
             if (!_screens.ContainsKey(a)) return;
 
-            ptr = 0;
-            ptrMax = _screens[a].pMax;
+            _ptr = 0;
+            _pMax = _screens[a].Max;
             _active = a;
         }
 
         public void Up()
         {
-            if (ptr == 0)
+            if (_ptr == 0)
                 return;
-            else ptr--;
+            else --_ptr;
         }
 
         public void Down()
         {
-            if (ptr == ptrMax.Invoke() - 1)
+            if (_ptr == _pMax() - 1)
                 return;
-            else ptr++;
+            else ++_ptr;
         }
 
-        public void Select() => _screens[_active].Enter?.Invoke(ptr, _screens[_active]);
+        public void Select()
+        {    
+            var s = _screens[_active];
+            s.Enter(_ptr, s);
+            _pMax = s.Max;
+            _ptr = 0;
+        }
 
-        public void Back() => _screens[_active].Return?.Invoke(ptr, _screens[_active]);
+        public void Back()
+        {
+            var s = _screens[_active];
+            _ptr = s.Index;
+            s.Return(_ptr, s);
+            _pMax = s.Max;
+        }
 
         public void Update() // cursed
         {
@@ -72,7 +86,7 @@ namespace IngameScript
 
 
             _surf.ScriptBackgroundColor = _bg;
-            s.Refresh(ptr);
+            s.Data(_ptr, s);
 
             var f = _surf.DrawFrame();
 
@@ -88,79 +102,28 @@ namespace IngameScript
             if (s.UseBaseSprites)
                 for (i = 0; i < _sprites.Length; i++)
                     f.Add(_sprites[i]);
-                
+
             f.Dispose();
         }
     }
     public class Screen
     {
+        public int Index;
         public MySprite[] Sprites;
-        public readonly bool UseBaseSprites;
-        public Func<int> pMax = null;
-        public Action<int, Screen> Data = null, Enter = null, Return = null; 
+        public bool UseBaseSprites, Sel;
+        public Func<int> Max = null;
+        public Action<int, Screen> Data = null, Enter = null, Return = null;
         public readonly int MinTicks;
         public Screen(Func<int> m, MySprite[] s, Action<int, Screen> d = null, Action<int, Screen> e = null, Action<int, Screen> r = null, bool u = true)
         {
             Sprites = s;
-            pMax = m;
+            Max = m;
             Data = d;
             Enter = e;
             Return = r;
             UseBaseSprites = u;
         }
-
-        public void Refresh(int p) => Data(p, this);
-        public void Write(string d, int i) => Sprites[i].Data = d;    
+        public void Write(string d, int i) => Sprites[i].Data = d;
         public void Color(Color c, int i) => Sprites[i].Color = c;
-    }
-
-    public class ListScreen : Screen
-    {
-        public int Pages, Sel, Max; // pages #, current page, allowed items count (def 4)
-
-        public ListScreen(Func<int> m, int mx = 4, MySprite[] spr = null, Action<int, Screen> d = null, Action<int, Screen> e = null, Action<int, Screen> r = null, bool def = false) : base(m, spr, d, e, r, def)
-        {
-            Sel = 1;
-            Max = mx - 1;
-        }
-
-        public void Up(ref int p)
-        {
-            if (pMax.Invoke() == 0 || (p == 0 && Sel == 1)) return;
-            else
-            {
-                if (p == 0 && Sel > 1)
-                {
-                    p = Max;
-                    Sel--;
-                    //sprites["tst"].Clear(256, 293);
-                }
-                else if (p <= Max)
-                {
-                    p--;
-                    //sprites["tst"].Move(0, -tH);
-                }
-            }
-
-        }
-        public void Down(ref int p)
-        {
-            var ct = pMax.Invoke();
-            if (ct == 0 || ((p == 9 || p == ct % 10 - 1) && Sel == Pages)) return;
-            else
-            {
-                if (p == 9 && Sel < Pages)
-                {
-                    p = 0;
-                    Sel++;
-                    //sprites["tst"].Clear(256, 108);
-                }
-                else if (p < Max)
-                {
-                    p++;
-                    //sprites["tst"].Move(0, tH);
-                }
-            }
-        }
     }
 }

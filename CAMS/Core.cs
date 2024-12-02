@@ -170,6 +170,8 @@ namespace IngameScript
                 else return new Missile();
             }
         }
+
+        string _lnSel, _lnFire;
         List<Missile> mslReuse;
         public Dictionary<long, Missile> Missiles;
         Dictionary<string, Launcher> Launchers = new Dictionary<string, Launcher>();

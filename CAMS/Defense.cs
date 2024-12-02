@@ -1,45 +1,65 @@
-﻿using Sandbox.ModAPI.Ingame;
+﻿using System;
+using Sandbox.ModAPI.Ingame;
+using VRage.Game.ModAPI.Ingame.Utilities;
 
 namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        const long TGT_LOSS_TK = 91, FIRE_TK = 7;
+        const int TGT_LOSS_TK = 91, FIRE_TK = 7;
         void ScrollLN(int p, Screen s)
         {
-            var ln = Launchers[ReloadRR.IDs[p]];
-            s.Write(ln.Name, 0);
-            string r = "";
+            int i = s.Sel ? s.Index : p;
+            var ln = Launchers[ReloadRR.IDs[i]];
+            s.Write($"{ln.Name}\nBLPRT\nWELDR", 0);
+            s.Write($"{i + 1:00}/{ReloadRR.IDs.Length:00}\n" + ln.Parts, 1);
+
+            var r = $"{ln.NextUpdateF:X9}";
             foreach (var l in ln.Log)
                 r += l;
-            s.Write(r, 1);
-            r = "";
-            foreach(var t in ln.Time)
-                r += t;
             s.Write(r, 2);
-
-            r = Targets.Count != 0 ? $"\n>>{Targets.Selected:X8}\n\n>>{Targets.Prioritized.Min.EID:X8}" : "\n>>NO TRGTS\n\n>>NO TRGTS";
-            r += $"\n\n>>{ekvTargets.Count:000} TGTS\n\n>>{Targets.Count:000} TGTS\n\n>>{Missiles.Count:000} MSLS";
-
+            r = $"FRAME";
+            foreach (var t in ln.Time)
+                r += t;
             s.Write(r, 3);
+            
+            i = s.Sel ? p : 0;
+            var m = ln.Get(i);
+            s.Write($"{i + 1}/{ln.Total}\n{(ln.Auto ? "AMS" : "DEF")}\n", 5);
+            
+            s.Write(m.IDTG + m.Status(), 7);
+
         }
 
         void EnterLN(int p, Screen s)
         {
+            s.Sel = true;
+            s.Index = p;
+            var ln = Launchers[ReloadRR.IDs[p]];
+            _lnSel = ln.Name;
+            
+            s.Max = () => ln.Total;
+        }
 
+        void BackLN(int p, Screen s)
+        {
+            s.Sel = false;
+            _lnSel = "";
+            s.Max = () => ReloadRR.IDs.Length;
         }
 
         void ScrollTR(int p, Screen s)
         {
-            var t = Turrets[UpdateRR.IDs[p]];
-            string n = t.Name;
+            int i = s.Sel ? s.Index : p;
+            var t = Turrets[UpdateRR.IDs[i]];
+            var n = t.Name;
             int ct = 12;
             ct -= t.Name.Length;
 
             for (; ct-- > 0;)
                 n += " ";
 
-            s.Write(n + $"{p + 1:00}/{UpdateRR.IDs.Length:00}", 0);
+            s.Write(n + $"{i + 1:00}/{UpdateRR.IDs.Length:00}", 0);
 
             n = "ST " + t.Status.ToString().ToUpper();
             ct = 17 - n.Length;
@@ -50,6 +70,29 @@ namespace IngameScript
             s.Write(n, 4);
             s.Write($"{(t.ActiveCTC ? "MANL" : "AUTO")}\n{t.Speed:0000}\n{t.Range:0000}\n{t.TrackRange:0000}\n{t.aRPM:0000}\n{t.eRPM:0000}", 6);
 
+        }
+
+        // this sucks lol
+        void CommandFire(MyCommandLine b)
+        {
+            if (Targets.Count == 0 || _launchCt > 0) return;
+
+            bool spr = b.Argument(0) == "spread", sel = b.Argument(1) == P;
+
+            _lnFire = spr ? "" : (sel ? _lnSel : b.Argument(1));
+            _fireID = !sel && (b?.Argument(2) ?? "") == P && Targets.Exists(Targets.Selected) ? Targets.Selected : Targets.Prioritized.Min.EID;
+
+            if (spr && int.TryParse(b.Argument(2), out _launchCt))
+                _nxtFireF = F;
+
+            if (!Launchers.ContainsKey(_lnFire)) 
+            {
+                _lnFire = "";
+                return;
+            }
+
+            _launchCt = Launchers[_lnFire].Total;
+            _nxtFireF = F;
         }
 
         void UpdateRotorTurrets()
@@ -104,7 +147,7 @@ namespace IngameScript
                             if (t.PriorityKill)
                                 ekvTargets.Add(t.EID);
                         }
-                        else if (F - m.LastActiveF > TGT_LOSS_TK)
+                        else if (F > m.LastActiveF + TGT_LOSS_TK)
                             m.Hold();
                         else mslCull.Add(m.MEID);
                     }
@@ -130,7 +173,7 @@ namespace IngameScript
         void UpdateLaunchers()
         {
             var l = ReloadRR.Next(ref Launchers);
-            if (F >= l.NextUpdateF && l.Status != RackState.Inoperable)
+            if (F >= l.NextUpdateF && l.Status != RackState.Offline)
                 l.NextUpdateF = F + l.Update();
 
             if (Targets.Count == 0)
@@ -140,19 +183,25 @@ namespace IngameScript
             {
                 if (Targets.Exists(_fireID))
                 {
-                    var r = FireRR.Next(ref Launchers);
+                    Launcher r;
+                    if (_lnFire != "")
+                        r = Launchers[_lnFire];
+                    else
+                    {
+                        r = FireRR.Next(ref Launchers);
 
-                    while (r.Auto || r.Status != RackState.Ready)
-                        if (!FireRR.Next(ref Launchers, out r))
-                            break;
+                        while (r.Auto || r.Status != RackState.Ready)
+                            if (!FireRR.Next(ref Launchers, out r))
+                                break;
+                    }
 
-                    if (r.Fire(Targets.Selected, ref Missiles))
+                    if (r.Fire(_fireID))
                     {
                         _launchCt--;
                         _nxtFireF += FIRE_TK;
                     }
                 }
-                else 
+                else
                 {
                     _launchCt = 0;
                     FireRR.Reset();
@@ -167,7 +216,7 @@ namespace IngameScript
                 if (t.PriorityKill && !ekvTargets.Contains(t.EID))
                 {
                     foreach (var n in AMSNames)
-                        if (Launchers[n].Fire(t.EID, ref Missiles))
+                        if (Launchers[n].Fire(t.EID))
                         {
                             ekvTargets.Add(t.EID);
                             Targets.Prioritized.Remove(t);

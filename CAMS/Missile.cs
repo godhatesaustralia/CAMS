@@ -168,7 +168,7 @@ namespace IngameScript
 		public readonly float Reload;
 		public IMyShipMergeBlock Base;
 		byte _gYaw, _gPitch, _gRoll;
-		bool _complete = false;
+		public bool Complete = false;
 		double _aVal;
 		int _cachePtr = 0, _gainP, _gainD, _evnMax, _evnMin;
 		Vector3I[] _blockPosCache;
@@ -236,7 +236,7 @@ namespace IngameScript
 
 		public bool CollectMissileBlocks()
 		{
-			if (!_complete)
+			if (!Complete)
 			{
 				while (_cachePtr < _blockPosCache.Length)
 				{
@@ -251,17 +251,17 @@ namespace IngameScript
 					else return false;
 				}
 				_cachePtr = 1;
-				_complete = true;
+				Complete = true;
 			}
 			return true;
 		}
 
 		public bool IsMissileReady(ref Missile m)
 		{
-			bool r = _complete && m.TrySetup(ref _cachePtr, ref _partsCache);
+			bool r = Complete && m.TrySetup(ref _cachePtr, ref _partsCache);
 			if (r)
 			{
-				_complete = false;
+				Complete = false;
 				m.Reset(_aVal, _gYaw, _gPitch, _gRoll, _gainP, _gainD, _evnMax, _evnMin);
 				for (int i = 0; i < _partsCache.Length; i++)
 					_partsCache[i] = null;
@@ -284,8 +284,8 @@ namespace IngameScript
 
 	public class Missile
 	{
-		const int DEF_UPDATE = 8, DEF_STAT = 29, EVN_ADJ = 600, FUSE_DIST = 220;
-		const double TOL = .00001, CAM_ANG = .707, PROX = .145, OFS_PCT = .58, PD_AIM_LIM = 6.3;
+		const int DEF_UPDATE = 8, DEF_STAT = 29, EVN_ADJ = 600, FUSE_D = 220;
+		const double TOL = .00001, CAM_ANG = .707, PROX_R = .375, OFS_PCT = .58, PD_AIM_LIM = 6.3;
 		public long MEID, TEID, LastActiveF, NextUpdateF, NextStatusF, NextEvnAdjF;
 		public bool Inoperable => _dead || !Controller.IsFunctional || Controller.Closed;
 		public string IDTG, DEBUG;
@@ -299,7 +299,7 @@ namespace IngameScript
 		List<IMyThrust> _thrust = new List<IMyThrust>();
 		List<IMyWarhead> _warhead = new List<IMyWarhead>();
 
-		bool _evade, _checkAccel, _dead, _arm;
+		bool _evade, _checkAccel, _dead, _arm, _trip, _kill;
 		byte _gYaw, _gPitch, _gRoll;
 		double _accel, _evMax, _evMin;
 
@@ -367,6 +367,21 @@ namespace IngameScript
 
 		#endregion
 
+		public string Status()
+		{
+			if (MEID == -1) return "\nN/A\nN/A\nN/A\nN/A";
+
+			double p = _batt.CurrentStoredPower / _batt.MaxStoredPower;
+			var r = $"\n{p * 100:000}";
+
+			p = 0;
+			foreach (var t in _tanks)
+				p += t.FilledRatio;
+			p /= _tanks.Count;
+			r += $"\n{p * 100:000}\n{(_ctor.IsConnected ? "LCK" : "OFF")}\n{(_sensors.Count > 0 ? "RAY" : "PRX")}";
+			return r;
+		}
+
 		public void Reset(double a, byte y, byte p, byte r, int pg, int dg, int eMx, int eMn)
 		{
 			_dead = false;
@@ -405,7 +420,7 @@ namespace IngameScript
 
 			p = 0;
 			MEID = Controller.EntityId;
-			IDTG = MEID.ToString("X").Remove(0, 11);
+			IDTG = MEID.ToString("X").Remove(0, 12);
 			return true;
 		}
 
@@ -431,6 +446,7 @@ namespace IngameScript
 			_batt.ChargeMode = ChargeMode.Discharge;
 			_merge.Enabled = _arm = false;
 
+			_trip = _sensors.Count > 0;
 			_checkAccel = _accel == -1;
 			_gyro.GyroOverride = true;
 		}
@@ -527,7 +543,7 @@ namespace IngameScript
 			var r = rP.Length();
 
 			// idk what im doing
-			if (r < FUSE_DIST)
+			if (r < FUSE_D)
 			{
 				if (_arm)
 				{
@@ -538,7 +554,44 @@ namespace IngameScript
 						_ofs = _p.RandomOffset() * tgt.Radius * OFS_PCT;
 					else _ofs = Vector3D.Zero;
 				}
-				else if (r < tgt.Radius * PROX)
+				else if (!_trip && r < tgt.Radius * PROX_R)
+				{
+					_kill = true;
+				}
+				else 
+				{
+					r = 2 * FUSE_D;
+					for (int i = _sensors.Count - 1; i >= 0; i--)
+					{
+						var s = _sensors[i];
+						
+						if (s.Closed || !s.IsFunctional)
+							_sensors.RemoveAtFast(i);
+						else if (s.CanScan(r))
+						{
+							var p = s.WorldMatrix.Forward;
+							var dot = p.Dot(rP);
+							if (dot < CAM_ANG * 0.5) continue;
+
+							p = tgt.Position + tgt.Velocity * Lib.TPS + tgt.Accel * Lib.TPS * Lib.TPS + _ofs * tgt.Radius * OFS_PCT;
+							p.Normalize();
+
+							_p.Debug.DrawLine(s.WorldMatrix.Translation, p * r, _p.PMY);
+							var det = s.Raycast(p * r);
+
+							if (!det.IsEmpty())
+							{
+								icpt = det.HitPosition.Value;
+								if ((icpt - _pos).Length() < tgt.Radius * PROX_R)
+									_kill = true;
+								break;
+							}
+							else if (dot > CAM_ANG * 2) _ofs = _p.RandomOffset();
+						}
+					}
+				}
+
+				if (_kill)
 				{
 					if (_warhead.Count > 0)
 					{
@@ -553,18 +606,6 @@ namespace IngameScript
 					}
 					return;
 				}
-
-				foreach (var s in _sensors)
-					if (s.WorldMatrix.Forward.Dot(rP) > CAM_ANG && s.CanScan(r))
-					{
-						var i = s.Raycast(tgt.Position + tgt.Velocity * Lib.TPS + _ofs * tgt.Radius * OFS_PCT);
-						if (!i.IsEmpty())
-						{
-							icpt = i.HitPosition.Value;
-							break;
-						}
-						else _ofs = _p.RandomOffset();
-					}
 			}
 
 			if (_checkAccel)

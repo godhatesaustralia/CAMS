@@ -87,7 +87,7 @@ namespace IngameScript
         public long Selected = -1;
         string _sTag;
         bool _showMsls;
-        double _invD;
+        double _invD = INV_MAX_D;
         public string Log { get; private set; }
 
         public int Count => _iEIDs.Count;
