@@ -530,7 +530,6 @@ namespace IngameScript
 		}
 		#endregion
 
-		#region msl-main
 		public void Update(Target tgt)
 		{
 			if (tgt == null || _dead)
@@ -663,5 +662,4 @@ namespace IngameScript
 			#endregion
 		}
 	}
-	#endregion
 }

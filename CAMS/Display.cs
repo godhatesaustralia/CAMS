@@ -66,6 +66,8 @@ namespace IngameScript
         public void Select()
         {    
             var s = _screens[_active];
+            if (s.Enter == null) return;
+
             s.Enter(_ptr, s);
             _pMax = s.Max;
             _ptr = 0;
@@ -74,6 +76,8 @@ namespace IngameScript
         public void Back()
         {
             var s = _screens[_active];
+            if (s.Return == null) return;
+
             _ptr = s.Index;
             s.Return(_ptr, s);
             _pMax = s.Max;
@@ -83,7 +87,6 @@ namespace IngameScript
         {
             int i = 0;
             var s = _screens[_active];
-
 
             _surf.ScriptBackgroundColor = _bg;
             s.Data(_ptr, s);

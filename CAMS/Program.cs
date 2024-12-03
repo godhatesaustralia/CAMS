@@ -87,9 +87,9 @@ namespace IngameScript
 
             ParseComputerSettings();
 
-            AddSystemScreens();
-
             CacheMainSystems();
+
+            AddSystemScreens();
 
             #region jit
 
@@ -100,10 +100,9 @@ namespace IngameScript
             UpdateLaunchers();
             UpdateMissileGuidance();
             _frame = 0;  
-            
+
             #endregion
         }
-
         public void Save()
         {
         }
@@ -230,7 +229,7 @@ namespace IngameScript
             #endregion
 
             string r = "====<CAMS>====\n\n=<PERF>=\n";
-            r += $"RUNS - {_frame}\nRUNTIME - {_lastRT} ms\nAVG - {_avgRT:0.####} ms\nWORST - {_worstRT} ms, F{_worstF}\n\n=<TGTS>=\n";
+            r += $"CLOCK - {_frame:X}\nRUNTIME - {_lastRT} ms\nAVG - {_avgRT:0.####} ms\nWORST - {_worstRT} ms, F{_worstF}\n\n=<TGTS>=\n";
             r += Targets.Log;
             Echo(r);
         }

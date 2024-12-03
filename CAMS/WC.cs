@@ -1,4 +1,3 @@
-using Microsoft.Build.Framework;
 using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
 using System;

@@ -431,7 +431,7 @@ namespace IngameScript
                 _p.GlobalPriorityUpdateSwitch = false;
             }
 
-            Log = $"NX_TGT_PRI - {_nextPrioritySortF}";
+            Log = $"NX_TGT_PRI - {_nextPrioritySortF:X}";
 
             #region igc target sharing
             bool rcv = _p.ReceiveIGCTicks > 0;
@@ -455,7 +455,7 @@ namespace IngameScript
                 _nextIGCCheck = f + _p.ReceiveIGCTicks;
             }
 
-            Log += $"\nNX_IGC_RCV - {_nextIGCCheck}";
+            Log += $"\nNX_IGC_RCV - {_nextIGCCheck:X}";
 
             if (_p.SendIGCTicks > 0)
             {
@@ -479,7 +479,7 @@ namespace IngameScript
                 }
             }
 
-            Log += $"\nNX_IGC_SND - {_nextIGCSend}\nSYS_TGT_CT - {Count}\nSYS_OFS_CT - {_offsets.Count}";
+            Log += $"\nNX_IGC_SND - {_nextIGCSend:X}\nSYS_TGT_CT - {Count}\nSYS_OFS_CT - {_offsets.Count}";
             #endregion
         }
         public Target Get(long eid) => _targets.ContainsKey(eid) ? _targets[eid] : null;
