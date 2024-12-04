@@ -1,7 +1,6 @@
 ﻿using Sandbox.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using VRage;
 using VRage.Game.GUI.TextPanel;
 using VRageMath;
@@ -40,7 +39,7 @@ namespace IngameScript
         {
             EID = i.EntityId;
             eIDString = EID.ToString("X").Remove(0, 5);
-            eIDTag = EID.ToString("X").Remove(0, 11);
+            eIDTag = EID.ToString("X").Remove(0, 10);
             Source = id;
             Type = i.Type;
             Position = i.Position;
@@ -89,12 +88,11 @@ namespace IngameScript
         const double INV_MAX_D = 0.0001, R_SIDE_L = 154;
         const int MAX_LIFE_SEC = 2, HIT_T = 23, OFS_T = 256; // s
         const SpriteType TXT = SpriteType.TEXT, SHP = SpriteType.TEXTURE;
-        const string IgcTgt = "[FLT-TG]";
+        const string IgcTgt = "[FLT-TG]", N = "▮▮▮▮▮";
         public long Selected = -1;
-        string _sTag;
         bool _showMsls;
         double _invD = INV_MAX_D;
-        public string Log { get; private set; }
+        public string Log, SelTag;
 
         public int Count => _iEIDs.Count;
         public SortedSet<Target> Prioritized = new SortedSet<Target>();
@@ -182,52 +180,39 @@ namespace IngameScript
             _rdr[0].Color = m.SDY;
             for (int i = 1; i < _rdr.Length; i++)
                 _rdr[i].Color = m.PMY;
-
-            m.CtrlScreens[Lib.TG] = new Screen(
-              () => Count, new MySprite[]
-              {
-                new MySprite(TXT, "", Lib.V2(20, 112), null, m.PMY, Lib.VB, 0, 0.925f),
-                new MySprite(TXT, "", Lib.V2(24, 192), null, m.PMY, Lib.VB, 0, 0.8195f),
-                new MySprite(TXT, "", Lib.V2(32, 192), null, m.PMY, Lib.VB, 0, 0.8195f),
-                new MySprite(SHP, Lib.SQS, Lib.V2(256, 162), Lib.V2(496, 4), m.PMY, null),
-                new MySprite(SHP, Lib.SQS, Lib.V2(256, 346), Lib.V2(496, 4), m.PMY, null),
-                new MySprite(SHP, Lib.SQS, Lib.V2(332, 255), Lib.V2(4, 296), m.PMY)
-              },
-            List, Select, Deselect);
         }
 
-        void List(int p, Screen s)
+        public void TargetData(int p, ref Screen s)
         {
             if (Count == 0)
+            {
+                s.Write($"CLEAR\n{N}\n{N}\n{N}\n{N}\n{N}\n{N}\n{N}\n{N}", 5);
                 return;
+            }
 
-            var ty = "";
             var t = _targets[_iEIDs[p]];
-            s.Write($"{t.eIDString}    {p + 1:00}/{Count:00}", 0);
+            var r = t.EID == Selected ? "SLCTD" : $"{p + 1:00}/{Count:00}";
+            var e = Lib.Projection(_p.Center - t.Position, _p.Controller.WorldMatrix.Up).Length();
+            
+            r += $"\n{t.eIDTag}\n{t.Distance:00000}\n{e:+0000;-0000}";
+            r += $"\n{t.Velocity.Length():00000}\n{t.Accel.Length():00000}\n{t.Radius:0000}M\n{t.Priority:000}PT\n{(t.Engaged ? "ENGAG" : "UNTGT")}";
 
-            if ((int)t.Type == 3)
-                ty = "LR ";
-            else if ((int)t.Type == 2)
-                ty = "SMALL";
-
-            s.Write($"DISTANCE {t.Distance:0000}M\nVELOCITY {t.Velocity.Length():0000}M/S\nEST ACCL {t.Accel.Length():000}M/S2\nSIZE {ty}\n{(Selected == -1 ? "NO TGT SELECTED" : "TGT " + _sTag + " LOCKED")}", 1);
+            s.Write(r, 5);
         }
 
-        void Select(int p, Screen s)
+        public void TargetMode(int p, Screen s)
+        {
+            s.Max = () => Count;
+            s.Enter = Enter;
+        }
+
+        void Enter(int p, Screen s)
         {
             Selected = _iEIDs[p];
-            _sTag = _targets[Selected].eIDTag;
-            s.Data(p, s);
+            SelTag = _targets[Selected].eIDTag;
         }
 
-        void Deselect(int p, Screen s)
-        {
-            Selected = -1;
-            _sTag = "";
-            s.Data(p, s);
-        }
-
-        void CreateRadar(int p, Screen s)
+        void CreateRadar(int p, int x, bool b, Screen s)
         {
             if (Count == 0)
             {
@@ -242,7 +227,7 @@ namespace IngameScript
                 var mat = _p.Controller.WorldMatrix;
                 var id = _iEIDs[i];
                 var rPos = _p.Center - _targets[id].Position;
-                _rdrBuffer.Add(DisplayTarget(ref rPos, ref mat, _targets[id].eIDTag, id == Selected));
+                _rdrBuffer.Add(DisplayTarget(ref rPos, ref mat, _targets[id].eIDTag, i == x));
             }
 
             if (_showMsls)

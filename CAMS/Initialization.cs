@@ -114,7 +114,7 @@ namespace IngameScript
                     }
                     else if (b is IMyTextSurfaceProvider)
                     {
-                        d = new Display(this, b, Lib.TG, Based);
+                        d = new Display(this, b, Lib.LN, Based);
                         Displays.Add(d.Name, d);
                     }
                 }
@@ -247,7 +247,7 @@ namespace IngameScript
                 sqoff = Lib.V2(0, 42); // standard rect offset
             Vector2? n = null;
 
-            if (Masts.Count > 0) CtrlScreens.Add(Lib.MS, new Screen
+            CtrlScreens[Lib.MS] = new Screen
             (
                 () => MastNames.Length,
                 new MySprite[]
@@ -255,18 +255,18 @@ namespace IngameScript
                     SPR(TXT, "", Lib.V2(20, 108), n, PMY, Lib.VB, 0, 0.8735f),// 4
                     SPR(TXT, "", Lib.V2(272, 108), n, SDY, Lib.V, Lib.RGT, 0.8735f),
                     SPR(TXT, "", Lib.V2(20, 248), n, PMY, Lib.VB, 0, 0.6135f), // 5
-                    SPR(TXT, "", Lib.V2(272, 248), n, SDY, Lib.V, Lib.RGT, 0.6135f), //7
-                    
-                    SPR(TXT, "", Lib.V2(20, 362), n, PMY, Lib.VB, 0, 0.5935f),
+                    SPR(TXT, "", Lib.V2(272, 248), n, SDY, Lib.V, Lib.RGT, 0.6135f), //7                 
+                    SPR(TXT, "TGTS\nTEID\nDIST\nELEV\nASPD\nACCL\nSIZE\nSCOR\nSTAT", Lib.V2(292, 112), n, PMY, Lib.VB, 0, 0.6495f),
+                    SPR(TXT, "", Lib.V2(492, 112), n, SDY, Lib.V, Lib.RGT, 0.6495f),
                     SPR(SHP, Lib.SQS, Lib.V2(282, 256), Lib.V2(8, 288), PMY), // 9
                     SPR(SHP, Lib.SQS, Lib.V2(144, 242), Lib.V2(268, 8), PMY)
                 },
-                ScrollMS, null, null
-            ));
+                ScrollMS, Targets.TargetMode, BackMS
+            );
             #endregion
 
             #region turrets screen
-            CtrlScreens.Add(Lib.TR, new Screen
+            CtrlScreens[Lib.TR] = new Screen
             (
                 () => UpdateRR.IDs.Length,
                 new MySprite[]
@@ -283,29 +283,28 @@ namespace IngameScript
                     SPR(SHP, Lib.SQS, Lib.V2(332, 255), Lib.V2(4, 296), PMY)
                 },
                 ScrollTR, null, null
-            ));
+            );
             #endregion
 
             #region launchers
-            CtrlScreens.Add(Lib.LN, new Screen
+            CtrlScreens[Lib.LN] = new Screen
             (
                 () => ReloadRR.IDs.Length,
                 new MySprite[]
                 {
+                    SPR(SHP, Lib.SQS, Lib.V2(89, 131.625f), Lib.V2(128, 36), SDY),
                     SPR(TXT, "", Lib.V2(24, 108), n, PMY, Lib.VB, 0, 0.8735f),
                     SPR(TXT, "", Lib.V2(300, 108), n, SDY, Lib.V, Lib.RGT, 0.8735f),
                     SPR(TXT, "", Lib.V2(300, 248), n, SDY, Lib.V, Lib.RGT, 0.6135f),
-                    SPR(TXT, "", Lib.V2(24, 248), n, PMY, Lib.VB, 0, 0.6135f),
-                    SPR(TXT, "", Lib.V2(326, 108), n, PMY, Lib.VB, 0, 0.8915f),
-                    SPR(TXT, "", Lib.V2(490, 108), n, SDY, Lib.V, Lib.RGT, 0.8915f),
-                    SPR(TXT, "MSLID\nCHRGE\nTANKS\nCNVYR\nFUSED", Lib.V2(326, 250), n, PMY, Lib.VB, 0, 0.5985f),
-                    SPR(TXT, "", Lib.V2(490, 250), n, SDY, Lib.V, Lib.RGT, 0.5985f),
+                    SPR(TXT, "", Lib.V2(24, 248), n, PMY, Lib.VB, 0, 0.6135f), 
+                    SPR(TXT, "MEID\nBATT\nFUEL\nCONN\n\nMEID\nBATT\nFUEL\nCONN", Lib.V2(326, 112), n, PMY, Lib.VB, 0, 0.6495f),
+                    SPR(TXT, "", Lib.V2(490, 112), n, SDY, Lib.V, Lib.RGT, 0.6495f),
                     SPR(SHP, Lib.SQS, Lib.V2(160, 242), Lib.V2(308, 8), PMY), // 5
+                    SPR(SHP, Lib.SQS, Lib.V2(408, 254), Lib.V2(184, 8), PMY),
                     SPR(SHP, Lib.SQS, Lib.V2(314, 256), Lib.V2(8, 288), PMY), // 8
-                    //SPR(SHP, Lib.SQS, Lib.V2(156, 320), Lib.V2(308, 8), PMY), // 9
                 },
                 ScrollLN, EnterLN, BackLN
-            ));
+            );
             #endregion
         }
     }

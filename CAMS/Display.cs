@@ -15,7 +15,8 @@ namespace IngameScript
         public readonly string Name = null;
         string _active;
         long _nxSprRef;
-        int _ptr;
+        int _ptr, _idx;
+        bool _sel;
         public readonly bool isLarge = false;
         Dictionary<string, Screen> _screens => isLarge ? _m.LCDScreens : _m.CtrlScreens;
 
@@ -44,7 +45,7 @@ namespace IngameScript
         {
             if (!_screens.ContainsKey(a)) return;
 
-            _ptr = 0;
+            _ptr = _idx = 0;
             _pMax = _screens[a].Max;
             _active = a;
         }
@@ -68,6 +69,9 @@ namespace IngameScript
             var s = _screens[_active];
             if (s.Enter == null) return;
 
+            _idx = _ptr;
+
+            _sel = true;
             s.Enter(_ptr, s);
             _pMax = s.Max;
             _ptr = 0;
@@ -78,7 +82,8 @@ namespace IngameScript
             var s = _screens[_active];
             if (s.Return == null) return;
 
-            _ptr = s.Index;
+            _ptr = _idx;
+            _sel = false;
             s.Return(_ptr, s);
             _pMax = s.Max;
         }
@@ -89,7 +94,7 @@ namespace IngameScript
             var s = _screens[_active];
 
             _surf.ScriptBackgroundColor = _bg;
-            s.Data(_ptr, s);
+            s.Data(_ptr, _idx, _sel, s);
 
             var f = _surf.DrawFrame();
 
@@ -115,9 +120,10 @@ namespace IngameScript
         public MySprite[] Sprites;
         public bool UseBaseSprites, Sel;
         public Func<int> Max = null;
-        public Action<int, Screen> Data = null, Enter = null, Return = null;
+        public Action<int, int, bool, Screen> Data = null;
+        public Action<int, Screen> Enter = null, Return = null;
         public readonly int MinTicks;
-        public Screen(Func<int> m, MySprite[] s, Action<int, Screen> d = null, Action<int, Screen> e = null, Action<int, Screen> r = null, bool u = true)
+        public Screen(Func<int> m, MySprite[] s, Action<int, int, bool, Screen> d = null, Action<int, Screen> e = null, Action<int, Screen> r = null, bool u = true)
         {
             Sprites = s;
             Max = m;

@@ -253,7 +253,7 @@ namespace IngameScript
 
             AZ = $"{_aRest * DEG:+000;-000}°\n{aCur * DEG:+000;-000}°";
             EL = $"{_eRest * DEG:+000;-000}°\n{eCur * DEG:+000;-000}°";
-            TGT = "NULL";
+            TGT = "CLEAR";
 
             if (Math.Abs(aCur - _aRest) < _tol && Math.Abs(eCur - _eRest) < _tol)
             {

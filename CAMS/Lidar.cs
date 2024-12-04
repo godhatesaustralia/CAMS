@@ -296,7 +296,7 @@ namespace IngameScript
 
                         if (Lidars[i].Scan(_p, t) != ScanResult.Failed)
                         {
-                            TGT = $"TGT {t.eIDTag}";
+                            TGT = $"ID {t.eIDTag}";
                             Scans += Lidars[i].Scans;
                         }
 

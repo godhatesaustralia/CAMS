@@ -87,9 +87,9 @@ namespace IngameScript
 
             ParseComputerSettings();
 
-            CacheMainSystems();
-
             AddSystemScreens();
+
+            CacheMainSystems();
 
             #region jit
 

@@ -286,9 +286,9 @@ namespace IngameScript
 	{
 		const int DEF_UPDATE = 8, DEF_STAT = 29, EVN_ADJ = 500, TRACK_D = 800, FUSE_D = 220;
 		const double TOL = .00001, CAM_ANG = .707, PROX_R = .375, OFS_PCT = .58, PD_AIM_LIM = 6.3;
-		public long MEID, TEID, LastActiveF, NextUpdateF, NextStatusF, NextEvnAdjF;
+		public long MEID = -1, TEID, LastActiveF, NextUpdateF, NextStatusF, NextEvnAdjF;
 		public bool Inoperable => _dead || !Controller.IsFunctional || Controller.Closed;
-		public string IDTG, DEBUG;
+		public string IDTG = "NULL", DEBUG;
 		public IMyRemoteControl Controller;
 		IMyShipConnector _ctor;
 		IMyShipMergeBlock _merge;
@@ -369,7 +369,7 @@ namespace IngameScript
 
 		public string Data()
 		{
-			if (MEID == -1) return "\nN/A\nN/A\nN/A\nN/A";
+			if (MEID == -1) return "\n▮▮▮\n▮▮▮\n▮▮▮";
 
 			double p = _batt.CurrentStoredPower / _batt.MaxStoredPower;
 			var r = $"\n{p * 100:000}";
@@ -379,7 +379,7 @@ namespace IngameScript
 				p += t.FilledRatio;
 			p /= _tanks.Count;
 
-			r += $"\n{p * 100:000}\n{(_ctor.IsConnected ? "LCK" : "OFF")}\n{(_sensors.Count > 0 ? "RAY" : "PRX")}";
+			r += $"\n{p * 100:000}\n{(_ctor.IsConnected ? "LCK" : "OFF")}";
 			return r;
 		}
 

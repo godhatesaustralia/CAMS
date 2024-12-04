@@ -1,4 +1,5 @@
-﻿using Sandbox.ModAPI.Ingame;
+﻿using System.Runtime.CompilerServices;
+using Sandbox.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
 
 namespace IngameScript
@@ -6,47 +7,80 @@ namespace IngameScript
     public partial class Program : MyGridProgram
     {
         const int TGT_LOSS_T = 91, FIRE_T = 7;
-        void ScrollLN(int p, Screen s)
+        void ScrollLN(int p, int x, bool b, Screen s)
         {
-            int i = s.Sel ? s.Index : p;
+            int i = b ? x : p;
             var ln = Launchers[ReloadRR.IDs[i]];
-            s.Write($"{ln.Name}\nBLPRT\nWELDR", 0);
-            s.Write($"{i + 1:00}/{ReloadRR.IDs.Length:00}\n" + ln.Parts, 1);
+            var r = "";
 
-            var r = $"{ln.NextUpdateF:X9}";
+            if (ln.Name == _lnSel)
+            {
+                s.Color(SDY, 0);
+                r = "SLCTD";
+            }
+            else
+            {
+                s.Color(BKG, 0);
+                r = $"{i + 1:00}/{ReloadRR.IDs.Length:00}";
+            }
+
+            s.Write($"{ln.Name}\nBLPRT\nWELDR", 1);
+            s.Write(r + "\n" + ln.Parts, 2);
+
+            r = $"{ln.NextUpdateF:X9}";
             foreach (var l in ln.Log)
                 r += l;
-            s.Write(r, 2);
+            s.Write(r, 3);
             r = $"CLOCK";
             foreach (var t in ln.Time)
                 r += t;
-            s.Write(r, 3);
+            s.Write(r, 4);
 
-            i = s.Sel ? p : 0;
+            i = b ? p : 0;
+            b = ln.Total == 1;
+
+            if (!b && i == ln.Total - 1) --i;
+
             var m = ln.Get(i);
-            s.Write($"{i + 1}/{ln.Total}\n{(ln.Auto ? "AMS" : "DEF")}\n", 5);
+            r = m.IDTG + m.Data() + "\n\n";
 
-            s.Write(m.IDTG + m.Data(), 7);
+            if (b) r += "▮▮▮\n▮▮▮\n▮▮▮\n▮▮▮";
+            else
+            {
+                m = ln.Get(i + 1);
+                r += m.IDTG + m.Data();
+            }
+
+            s.Write(r, 6);
         }
 
         void EnterLN(int p, Screen s)
         {
-            s.Sel = true;
             s.Index = p;
+            s.Enter = FireLN;
+
             var ln = Launchers[ReloadRR.IDs[p]];
             _lnSel = ln.Name;
-
             s.Max = () => ln.Total;
+        }
+
+        void FireLN(int p, Screen s)
+        {
+            if (Targets.Count == 0) return;
+
+            var t = Targets.Selected == -1 ? Targets.Prioritized.Min.EID : Targets.Selected;
+            Launchers[_lnSel].Fire(t);
         }
 
         void BackLN(int p, Screen s)
         {
-            s.Sel = false;
-            _lnSel = "";
+            s.Enter = EnterLN;
             s.Max = () => ReloadRR.IDs.Length;
+
+            _lnSel = "";
         }
 
-        void ScrollTR(int p, Screen s)
+        void ScrollTR(int p, int x, bool b, Screen s)
         {
             int i = s.Sel ? s.Index : p;
             var t = Turrets[UpdateRR.IDs[i]];
@@ -63,7 +97,7 @@ namespace IngameScript
             ct = 17 - n.Length;
             for (; ct-- > 5;)
                 n += " ";
-            n += $">{t.TGT}";
+            n += $"{t.TGT}";
             s.Write(t.AZ + "\n" + t.EL, 3);
             s.Write(n, 4);
             s.Write($"{(t.ActiveCTC ? "MANL" : "AUTO")}\n{t.Speed:0000}\n{t.Range:0000}\n{t.TrackRange:0000}\n{t.aRPM:0000}\n{t.eRPM:0000}", 6);
@@ -75,10 +109,16 @@ namespace IngameScript
         {
             if (Targets.Count == 0 || _launchCt > 0) return;
 
-            bool spr = b.Argument(0) == "spread", sel = b.Argument(1) == P;
+            bool spr = b.Argument(0) == "spread", pri = b.Argument(1) == P;
 
-            _lnFire = spr ? "" : (sel ? _lnSel : b.Argument(1));
-            _fireID = !sel && (b?.Argument(2) ?? "") == P && Targets.Exists(Targets.Selected) ? Targets.Selected : Targets.Prioritized.Min.EID;
+            _lnFire = spr ? "" : (!pri && b.Argument(1) == "sel" ? _lnSel ?? "" : b.Argument(1));
+
+            if (spr && !pri && b.Argument(2) != P)
+            {
+                _fireID = Targets.Selected;
+                if (!Targets.Exists(_fireID)) return;
+            }
+            else _fireID = Targets.Prioritized.Min.EID;
 
             if (spr && int.TryParse(b.Argument(2), out _launchCt))
                 _nxtFireF = F;

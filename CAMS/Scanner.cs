@@ -4,9 +4,9 @@ namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        void ScrollMS(int p, Screen s)
+        void ScrollMS(int p, int x, bool b, Screen s)
         {
-            int i = s.Sel ? s.Index : p;
+            int i = b ? x : p;
             var l = Masts[MastNames[i]];
             var g = $"{i + 1:0}/{MastNames.Length:0}"; 
 
@@ -22,7 +22,18 @@ namespace IngameScript
             for (i = 0; i < l.Lidars.Length; i++)
                 g += l.Lidars[i].ScanAVG != 0 ? $"\n{l.Lidars[i].ScanAVG:0000E00}M" : "\nCHARGING";
             s.Write(g, 3);
-            s.Write($"{MastNames[p]}\nRPM-AZ\nRPM-EL", 0);
+            s.Write($"{l.Name}\nRPM-AZ\nRPM-EL", 0);
+
+            i = b ? p : 0;
+            Targets.TargetData(i, ref s);
+        }
+
+        void BackMS(int p, Screen s)
+        {
+            Targets.Selected = -1;
+            s.Enter = Targets.TargetMode;
+            Targets.SelTag = "";
+            s.Max = () => MastNames.Length;
         }
 
         void GetTurretTgt(IMyLargeTurretBase t, bool arty = false)

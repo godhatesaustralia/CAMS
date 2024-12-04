@@ -36,6 +36,7 @@ namespace IngameScript
         public Queue<string> Time = new Queue<string>(MSG_CT), Log = new Queue<string>(MSG_CT);
         public string Parts => $"{(_proj.Enabled ? "ENABL" : "OFFLN")}\n{(_weld.Enabled ? "ENABL" : "OFFLN")}";
         public bool Auto;
+        bool _resetProj;
         protected int _load = 0, _fire;
         public int Total = 0;
         public long NextUpdateF = 0;
@@ -45,6 +46,7 @@ namespace IngameScript
             ACTIVE_T = 3,
             READY_T = 31,
             RELOAD_T = 7,
+            BLPRT_T = 10,
             MSG_CT = 4;
 
         protected IMyShipWelder _weld;
@@ -77,7 +79,7 @@ namespace IngameScript
                 _proj = _p.Terminal.GetBlockWithName(q.String(Name, "projector")) as IMyProjector;
 
                 if (_proj == null || _weld == null) return false;
-                _proj.Enabled = _weld.Enabled = false;
+                _weld.Enabled = false;
                 return true;
             }
 
@@ -132,13 +134,15 @@ namespace IngameScript
             var m = _bases[_load];
             if (Status == RackState.Reload)
             {
-                //proj.Enabled = true;
+                if (_resetProj)
+                {
+                    _proj.Enabled = _resetProj;
+                    _resetProj = false;
+                }
+
                 if (m.CollectMissileBlocks() && m.IsMissileReady(ref _msls[_load]))
                 {
                     _load++;
-
-                    // if reload set is now empty, go to firing position
-                    // otherwise go to next reload position
 
                     AddReport($"READY {_load}/{Total}");
                     if (_load < Total)
@@ -155,6 +159,11 @@ namespace IngameScript
                         Status = RackState.Ready;
                     }
                     return READY_T;
+                }
+                else if (!_proj.Enabled)
+                {
+                    _resetProj = true;
+                    return BLPRT_T;
                 }
                 else if (m.Base.Closed || _weld.Closed || _proj.Closed)
                     Status = RackState.Offline;
