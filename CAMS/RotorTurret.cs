@@ -23,7 +23,9 @@ namespace IngameScript
     {
         #region you aint built for these fields son
 
-        const float RAD = (float)Math.PI / 180, DEG = 1 / RAD;
+        const float RAD = (float)Math.PI / 180, DEG = 1 / RAD, OFS_TAN_HZ = 0.0091387f;
+        // https://github.com/wellstat/SpaceEngineers/blob/master/IngameScripts/DiamondDomeDefense.cs#L3903
+
         const int REST_T = 23;
         public string Name, AZ, EL, TGT; // yeah
         protected IMyMotorStator _azimuth, _elevation;
@@ -43,6 +45,7 @@ namespace IngameScript
         SectorCheck[] _limits;
         protected Weapons _weapons;
         protected Program _p;
+        protected Vector3D _curOfsStart, _curOfsEnd;
         public long tEID = -1, lastUpdate = 0, _oobF = 0;
         public bool Inoperable = false, IsPDT, TgtSmall;
         public bool ActiveCTC => _ctc?.IsUnderControl ?? false;
@@ -330,7 +333,7 @@ namespace IngameScript
             if (tgt.Distance > TrackRange || (!TgtSmall && (int)tgt.Type == 2))
                 return false;
 
-            return Interceptable(tgt, ref tgt.Position, true);
+            return Interceptable(tgt, ref tgt.Center, true);
         }
 
         public virtual void UpdateTurret()
@@ -348,7 +351,15 @@ namespace IngameScript
                     return;
                 }
 
-                var aim = tgt.Position;
+                Vector3D aim;
+                if (tgt.HitPoints.Count > 0)
+                {
+                    var h = tgt.HitPoints[_p.RNG.Next(5)];
+                    var dt = Math.Max(1, _p.F - h.Frame);
+                    aim = h.Hit + tgt.Velocity * dt * tgt.Accel * dt * dt;
+                }
+                else aim = tgt.AdjustedPosition(_p.F);
+
                 if (Interceptable(tgt, ref aim))
                 {
                     var azm = _azimuth.WorldMatrix;
@@ -433,7 +444,7 @@ namespace IngameScript
             GetStatorAngles(out a, out e);
 
             var azm = _azimuth.WorldMatrix;
-            var aim = t.Position - azm.Translation;
+            var aim = t.Center - azm.Translation;
 
             bool r = AimAtTarget(ref azm, ref aim, a, e, true) == AimState.OnTarget;
             if (r)
@@ -453,7 +464,7 @@ namespace IngameScript
                 if (_designators[i].CanScan(_scanMx))
                 {
                     var t = _designators[i].Raycast(_scanMx);
-                    if (_p.PassTarget(t))
+                    if (_p.PassTarget(t, true))
                     {
                         if (track) AssignLidarTarget(_p.Targets.Get(t.EntityId));
                         break;
@@ -476,7 +487,7 @@ namespace IngameScript
                     return;
                 }
 
-                var aim = tgt.Position;
+                var aim = tgt.AdjustedPosition(_p.F);
                 if (_useLidar || Interceptable(tgt, ref aim)) // admittedly not the best way to do this
                 {
                     var azm = _azimuth.WorldMatrix;

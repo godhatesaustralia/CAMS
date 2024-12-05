@@ -18,7 +18,7 @@ namespace IngameScript
         public readonly string Tag;
         public double ScanAVG;
         const float SCAT_R = 0.2f;
-        public int Scans = 0;
+        public int Scans = 0, MaxScans;
         bool _missed = false;
         public int Count => _cameras.Length;
 
@@ -49,9 +49,22 @@ namespace IngameScript
 
         Vector3D RaycastLead(Target t, Vector3D srcPos, Program p, double ofs = 5) // ofs is spread factor. whip left as 5 default
         {
-            var dT = t.Elapsed(p.F);
-            var tPos = t.AdjustedPosition(p.F);
-            var tDir = (tPos - srcPos).Normalized();
+            double dT;
+            Vector3D tPos, tDir;
+
+            if (t.HitPoints.Count > 0)
+            {
+                var h = t.HitPoints[Scans];
+                dT = Math.Max(1, p.F - h.Frame);
+                tPos = h.Hit + t.Velocity * dT + t.Accel * dT * dT;
+            }
+            else
+            {
+                dT = t.Elapsed(p.F);
+                tPos = t.AdjustedPosition(p.F);
+            }
+
+            tDir = (tPos - srcPos).Normalized();
 
             if (_lastScan == ScanResult.Failed)
             {
@@ -72,6 +85,8 @@ namespace IngameScript
             var r = _lastScan = ScanResult.Failed;
             int i = Scans = 0;
 
+            MaxScans = offset ? 2 : (t.HitPoints.Count > 0 ? t.HitPoints.Count - 1 : 0);
+
             if (p.Targets.ScannedIDs.Contains(t.EID))
                 return r;
 
@@ -89,24 +104,36 @@ namespace IngameScript
 
             foreach (var c in _camerasByRange)
             {
+                if (Scans > MaxScans)
+                {
+                    if (!offset && MaxScans == 0)
+                    {
+                        offset = true;
+                        MaxScans = 2;
+                    }
+                    else return _lastScan;
+                }
+
                 if (!c.IsWorking || !c.CanScan(t.Distance))
                     continue;
 
                 var pos = RaycastLead(t, c.WorldMatrix.Translation, p);
                 pos += offset ? p.RandomOffset() * SCAT_R * t.Radius : Vector3D.Zero;
+
                 if (!c.CanScan(pos) || pos == Vector3D.Zero)
                     continue;
 
                 var info = c.Raycast(pos);
 
+                if (info.IsEmpty())
+                {
+                    _lastScan = ScanResult.Failed;
+                    continue;
+                }
+
                 if (offset)
                 {
-                    if (info.IsEmpty())
-                    {
-                        _lastScan = ScanResult.Failed;
-                        continue;
-                    }
-                    else if (p.Targets.Exists(info.EntityId) && p.Targets.AddHit(info.EntityId, p.F, info.HitPosition.Value))
+                    if (p.Targets.Exists(info.EntityId) && p.Targets.AddHit(info.EntityId, p.F, info.HitPosition.Value))
                     {
                         Scans++;
                         _lastScan = ScanResult.Update;
@@ -241,8 +268,7 @@ namespace IngameScript
 
         public void Designate()
         {
-            if (_activeCTC && Main.IsActive)
-                if (Main.CanScan(_p.ScanDistLimit))
+            if (_activeCTC && Main.IsActive && Main.CanScan(_p.ScanDistLimit))
                     _p.PassTarget(Main.Raycast(_p.ScanDistLimit), true);
         }
 
@@ -286,7 +312,7 @@ namespace IngameScript
                 if (!_p.Targets.ScannedIDs.Contains(t.EID))
                     for (int i = 0; i < Lidars.Length; i++)
                     {
-                        var icpt = t.Position + t.Elapsed(_p.F) * t.Velocity - Main.WorldMatrix.Translation;
+                        var icpt = t.Center + t.Elapsed(_p.F) * t.Velocity - Main.WorldMatrix.Translation;
                         icpt.Normalize();
 
                         if (icpt.Dot(_az.WorldMatrix.Down) > _maxAzD ||

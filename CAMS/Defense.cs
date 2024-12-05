@@ -6,7 +6,7 @@ namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        const int TGT_LOSS_T = 91, FIRE_T = 7;
+        const int TGT_LOSS_T = 91, FIRE_T = 7, TRACK_D = 800;
         void ScrollLN(int p, int x, bool b, Screen s)
         {
             int i = b ? x : p;
@@ -133,9 +133,9 @@ namespace IngameScript
             _nxtFireF = F;
         }
 
-        public bool TrackOnFinal(Target t)
+        bool AddLidarTrack(Target t)
         {
-            if (mslTargets.Contains(t.EID))
+            if (auxTracks.Contains(t.EID))
                 return true;
 
             foreach (var n in PDTNames)
@@ -143,7 +143,7 @@ namespace IngameScript
                 var tur = (PDT)Turrets[n];
                 if ((tur.tEID == -1 || (tur.Status & AimState.Blocked) != 0) && tur.AssignLidarTarget(t, true))
                 {
-                    mslTargets.Add(t.EID);
+                    auxTracks.Add(t.EID);
                     return true;
                 }
             }
@@ -179,6 +179,7 @@ namespace IngameScript
                 }
                 #endregion
             }
+
             for (int i = 0; i++ < MaxRotorTurretUpdates;)
                 UpdateRR.Next(ref Turrets).UpdateTurret();
         }
@@ -200,7 +201,7 @@ namespace IngameScript
                             t = Targets.Prioritized.Min;
                             m.TEID = t.EID;
                             if (t.PriorityKill)
-                                ekvTargets.Add(t.EID);
+                                ekvTracks.Add(t.EID);
                         }
                         else if (F > m.LastActiveF + TGT_LOSS_T)
                             m.Hold();
@@ -210,6 +211,7 @@ namespace IngameScript
                     {
                         m.Update(t);
                         if (m.Inoperable) mslCull.Add(m.MEID);
+                        else if (m.DistToTarget < TRACK_D && !auxTracks.Contains(m.TEID))
                     }
                 }
                 else if (m.NextStatusF <= F) m.CheckStatus();
@@ -268,27 +270,27 @@ namespace IngameScript
             for (int i = 0; i < MaxTgtKillTracks && i < Targets.Prioritized.Count; i++)
             {
                 t = Targets.Prioritized.Min;
-                if (t.PriorityKill && !ekvTargets.Contains(t.EID))
+                if (t.PriorityKill && !ekvTracks.Contains(t.EID))
                 {
                     foreach (var n in AMSNames)
                         if (Launchers[n].Fire(t.EID))
                         {
-                            ekvTargets.Add(t.EID);
+                            ekvTracks.Add(t.EID);
                             Targets.Prioritized.Remove(t);
                             break;
                         }
                 }
             }
-            if (ekvTargets.Count > 0)
+            if (ekvTracks.Count > 0)
             {
                 foreach (var n in PDTNames)
                 {
                     tur = (PDT)Turrets[n];
-                    var id = ekvTargets.GetEnumerator().Current;
+                    var id = ekvTracks.GetEnumerator().Current;
                     t = Targets.Get(id);
                     if ((tur.tEID == -1 || (tur.Status & AimState.Blocked) != 0) && tur.AssignLidarTarget(t))
                     {
-                        ekvTargets.Remove(id);
+                        ekvTracks.Remove(id);
                         break;
                     }
                 }

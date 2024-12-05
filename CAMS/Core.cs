@@ -117,12 +117,12 @@ namespace IngameScript
             AllTurrets = new List<IMyLargeTurretBase>(), 
             Artillery = new List<IMyLargeTurretBase>();
 
-        public bool PassTarget(MyDetectedEntityInfo info, bool m = false)
+        public bool PassTarget(MyDetectedEntityInfo info, bool d = false)
         {
             ScanResult fake;
-            return PassTarget(info, out fake, m);
+            return PassTarget(info, out fake, d);
         }
-        public bool PassTarget(MyDetectedEntityInfo info, out ScanResult r, bool m = false)
+        public bool PassTarget(MyDetectedEntityInfo info, out ScanResult r, bool d = false)
         {
             r = ScanResult.Failed;
             if (info.IsEmpty() || Targets.Blacklist.Contains(info.EntityId))
@@ -134,7 +134,7 @@ namespace IngameScript
                 return false;
 
             r = Targets.AddOrUpdate(ref info, ID);
-            if (!m)
+            if (!d)
                 Targets.ScannedIDs.Add(info.EntityId);
             return true;
         }
@@ -178,7 +178,7 @@ namespace IngameScript
         public Dictionary<long, Missile> Missiles;
         Dictionary<string, Launcher> Launchers = new Dictionary<string, Launcher>();
         RoundRobin<string, Launcher> ReloadRR, FireRR;
-        HashSet<long> ekvTargets, mslTargets = new HashSet<long>(), mslCull = new HashSet<long>();
+        HashSet<long> ekvTracks, auxTracks = new HashSet<long>(), mslCull = new HashSet<long>();
         Dictionary<string, RotorTurret> Turrets = new Dictionary<string, RotorTurret>();
         RoundRobin<string, RotorTurret> AssignRR, UpdateRR;
         #endregion

@@ -45,6 +45,7 @@ namespace IngameScript
         {
             if (!_screens.ContainsKey(a)) return;
 
+            _sel = false;
             _ptr = _idx = 0;
             _pMax = _screens[a].Max;
             _active = a;

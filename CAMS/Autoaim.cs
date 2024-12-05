@@ -111,7 +111,7 @@ namespace IngameScript
         public void Update()
         {
             if (doPoint)
-                toPoint = _p.Targets.Prioritized.Min.Position;
+                toPoint = _p.Targets.Prioritized.Min.Center;
             // er what does this even do?
             // it is basically the set of stuff to run each _main loop (primary function of subsyeestem
 

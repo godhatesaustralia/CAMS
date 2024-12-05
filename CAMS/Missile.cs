@@ -284,10 +284,11 @@ namespace IngameScript
 
 	public class Missile
 	{
-		const int DEF_UPDATE = 8, DEF_STAT = 29, EVN_ADJ = 500, TRACK_D = 800, FUSE_D = 220;
-		const double TOL = .00001, CAM_ANG = .707, PROX_R = .375, OFS_PCT = .58, PD_AIM_LIM = 6.3;
+		const int DEF_UPDATE = 8, DEF_STAT = 29, EVN_ADJ = 500, FUSE_D = 220;
+		const double TOL = .00001, CAM_ANG = .707, PROX_R = .265, OFS_PCT = .58, PD_AIM_LIM = 6.3;
 		public long MEID = -1, TEID, LastActiveF, NextUpdateF, NextStatusF, NextEvnAdjF;
 		public bool Inoperable => _dead || !Controller.IsFunctional || Controller.Closed;
+		public double DistToTarget => _range;
 		public string IDTG = "NULL", DEBUG;
 		public IMyRemoteControl Controller;
 		IMyShipConnector _ctor;
@@ -301,7 +302,7 @@ namespace IngameScript
 
 		bool _evade, _checkAccel, _turTrack, _dead, _arm, _cams, _kill;
 		byte _gYaw, _gPitch, _gRoll;
-		double _accel, _evMax, _evMin;
+		double _range, _accel, _evMax, _evMin;
 
 		Program _p;
 		PDCtrl _yawCtrl = new PDCtrl(), _pitchCtrl = new PDCtrl();
@@ -540,19 +541,19 @@ namespace IngameScript
 			_pos = Controller.WorldMatrix.Translation;
 
 			Vector3D
-				icpt = tgt.Position,
+				icpt = tgt.Center,
 				rP = icpt - _pos,
 				rV = tgt.Velocity - Controller.GetShipVelocities().LinearVelocity,
 				rA = tgt.Accel - Controller.GetNaturalGravity();
 
-			var r = rP.Length();
+			_range = rP.Length();
 
 			#region main-final
-			if (!_turTrack && r < TRACK_D) 
-			{
-				_turTrack = (int)tgt.Type == 2 || _p.TrackOnFinal(tgt);
-			}
-			else if (r < FUSE_D)
+			// if (!_turTrack && _range < TRACK_D) 
+			// {
+			// 	_turTrack = (int)tgt.Type == 2 || _p.TrackOnFinal(tgt);
+			// }
+			if (_range < FUSE_D)
 			{
 				if (_arm)
 				{
@@ -568,10 +569,10 @@ namespace IngameScript
 					}
 					else _ofs = Vector3D.Zero;
 				}
-				else if (!_cams && r < tgt.Radius * PROX_R)	_kill = true;
+				else if (!_cams && _range < tgt.Radius * PROX_R)	_kill = true;
 				else 
 				{
-					r = 2 * FUSE_D;
+					var r = 2 * FUSE_D; // FUSE_D = 220
 					for (int i = _sensors.Count - 1; i >= 0; i--)
 					{
 						var s = _sensors[i];
@@ -580,24 +581,27 @@ namespace IngameScript
 							_sensors.RemoveAtFast(i);
 						else if (s.CanScan(r))
 						{
-							var p = s.WorldMatrix.Forward;
+							var m = s.WorldMatrix;
+							var p = m.Forward;
 							var dot = p.Dot(rP);
-							if (dot < CAM_ANG * 0.5) continue;
 
-							p = tgt.Position + tgt.Velocity * Lib.TPS + tgt.Accel * Lib.TPS * Lib.TPS + _ofs * tgt.Radius * OFS_PCT;
+							if (dot < CAM_ANG * 0.75) continue;
+
+							p = tgt.Center + tgt.Velocity * Lib.TPS + tgt.Accel * Lib.TPS * Lib.TPS + _ofs * tgt.Radius * OFS_PCT;
+							p -= m.Translation;
 							p.Normalize();
 
-							_p.Debug.DrawLine(s.WorldMatrix.Translation, p * r, _p.PMY);
-							var det = s.Raycast(p * r);
+							//_p.Debug.DrawLine(s.WorldMatrix.Translation, p * r, _p.PMY);
+							var info = s.Raycast(p * r);
 
-							if (!det.IsEmpty())
+							if (!info.IsEmpty())
 							{
-								icpt = det.HitPosition.Value;
-								if ((icpt - _pos).Length() < tgt.Radius * PROX_R)
+								icpt = info.HitPosition.Value;
+								if ((icpt - _pos).Length() < tgt.Radius * PROX_R) // PROX_R = 0.375
 									_kill = true;
 								break;
 							}
-							else if (dot > CAM_ANG * 2) _ofs = _p.RandomOffset();
+							else if (dot > CAM_ANG) _ofs = _p.RandomOffset();
 						}
 					}
 				}
@@ -651,13 +655,13 @@ namespace IngameScript
 					NextEvnAdjF += EVN_ADJ;
 				}
 
-				if (r < _evMax && r > _evMin)
+				if (_range < _evMax && _range > _evMin)
 					icpt += _evn;
 			}
 
 			_cmd = Vector3D.TransformNormal(icpt - _pos, ref _viewMat);
 
-			DEBUG = $"\n<{IDTG}> \nT {t:G3}S, MVEL {Controller.GetShipVelocities().LinearVelocity.Length():#0.#}, MACL {_accel:#0.#} MEVN {(_evade && r < _evMax && r > _evMin).ToString().ToUpper()}";
+			//DEBUG = $"\n<{IDTG}> \nT {t:G3}S, MVEL {Controller.GetShipVelocities().LinearVelocity.Length():#0.#}, MACL {_accel:#0.#} MEVN {(_evade && r < _evMax && r > _evMin).ToString().ToUpper()}";
 			AimGyro();
 			#endregion
 		}

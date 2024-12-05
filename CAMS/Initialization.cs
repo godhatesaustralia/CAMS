@@ -84,7 +84,7 @@ namespace IngameScript
 
                     mslReuse = new List<Missile>(HardpointsCount);
                     Missiles = new Dictionary<long, Missile>(HardpointsCount * 2);
-                    ekvTargets = new HashSet<long>(MaxTgtKillTracks);
+                    ekvTracks = new HashSet<long>(MaxTgtKillTracks);
                 }
                 else throw new Exception($"\n{r.Error} at line {r.LineNo} of {Me} custom data.");
         }
@@ -256,7 +256,7 @@ namespace IngameScript
                     SPR(TXT, "", Lib.V2(272, 108), n, SDY, Lib.V, Lib.RGT, 0.8735f),
                     SPR(TXT, "", Lib.V2(20, 248), n, PMY, Lib.VB, 0, 0.6135f), // 5
                     SPR(TXT, "", Lib.V2(272, 248), n, SDY, Lib.V, Lib.RGT, 0.6135f), //7                 
-                    SPR(TXT, "TGTS\nTEID\nDIST\nELEV\nASPD\nACCL\nSIZE\nSCOR\nSTAT", Lib.V2(292, 112), n, PMY, Lib.VB, 0, 0.6495f),
+                    SPR(TXT, "TGTS\nTEID\nDIST\nELEV\nASPD\nACCL\nSIZE\nSCOR\nHITS", Lib.V2(292, 112), n, PMY, Lib.VB, 0, 0.6495f),
                     SPR(TXT, "", Lib.V2(492, 112), n, SDY, Lib.V, Lib.RGT, 0.6495f),
                     SPR(SHP, Lib.SQS, Lib.V2(282, 256), Lib.V2(8, 288), PMY), // 9
                     SPR(SHP, Lib.SQS, Lib.V2(144, 242), Lib.V2(268, 8), PMY)
