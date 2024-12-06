@@ -277,7 +277,7 @@ namespace IngameScript
                 pos = Lib.V2((float)scrX, (float)scrY),
                 txt = (sel ? 2.375F : 1.75f) * tgtSz;
 
-            _rdrBuffer.Add(new MySprite(TXT, eid, scrX > 2 * X_MIN ? pos - txt : pos + 0.5f * txt, null, _p.PMY, Program.V, rotation: 0.375f));
+            _rdrBuffer.Add(new MySprite(TXT, eid, scrX > 2 * X_MIN ? pos - txt : pos + 0.5f * txt, null, _p.PMY, Lib.F_DF, rotation: 0.375f * Lib.FSCL));
             return new MySprite(SHP, sel ? Lib.SQS : Lib.TRI, pos, (sel ? 1.5f : 1) * tgtSz, _p.PMY, null); // Center
         }
         #endregion

@@ -13,13 +13,10 @@ namespace IngameScript
         public const string 
             H = "CAMS", 
             P = "pri", 
-            VB = "VCRBold",
-            V = "VCR",
-            M = "Monospace",
             IgcFleet = "[FLT-CA]";
         public Color PMY, SDY, BKG;
         public const SpriteType TXT = SpriteType.TEXT, SHP = SpriteType.TEXTURE, CLP = SpriteType.CLIP_RECT;
-        public bool Based;
+        public float FSCL;
 
         public double
             PDSpray,
@@ -38,6 +35,8 @@ namespace IngameScript
             PriorityCheckTicks;
 
         public string
+            F_BD,
+            F_DF,
             ShipTag,
             ControllerTag,
             DisplayGroup,
@@ -67,7 +66,7 @@ namespace IngameScript
                     RackNamesList = p.String(H, "rack" + grp);
                     PanelNamesList = p.String(H, "lidar" + grp);
 
-                    Based = p.Bool(H, "vcr");
+                    Lib.VCR = p.Bool(H, "vcr");
                     ReceiveIGCTicks = p.Int(H, "igcCheckInterval", 0);
                     SendIGCTicks = p.Int(H, "igcTransmitInterval", 0);
                     PDSpray = p.Double(H, "spray", -1);
@@ -87,6 +86,18 @@ namespace IngameScript
 
                     _surf.BackgroundColor = BKG;
                     sprites = p.Sprites(H, "sprites");
+                    
+                    if (Lib.VCR)
+                    {
+                        Lib.F_BD = "VCRBold";
+                        Lib.F_DF = "VCR";
+                        Lib.FSCL = 1;
+                    }
+                    else 
+                    {
+                        Lib.F_BD = Lib.F_DF = "Monospace";
+                        Lib.FSCL = 1.625f;
+                    }
 
                     Targets.UpdateRadarSettings(this);
 
@@ -118,12 +129,12 @@ namespace IngameScript
                     Display d;
                     if (b is IMyTextPanel)
                     {
-                        d = new Display(this, b, Lib.RD, Based);
+                        d = new Display(this, b, Lib.RD);
                         Displays.Add(d.Name, d);
                     }
                     else if (b is IMyTextSurfaceProvider)
                     {
-                        d = new Display(this, b, Lib.LN, Based);
+                        d = new Display(this, b, Lib.LN);
                         Displays.Add(d.Name, d);
                     }
                 }
@@ -306,12 +317,12 @@ namespace IngameScript
                 () => MastNames.Length,
                 new MySprite[]
                 {
-                    SPR(TXT, "", Lib.V2(20, 108), n, PMY, VB, 0, 0.8735f),// 4
-                    SPR(TXT, "", Lib.V2(272, 108), n, SDY, V, Lib.RGT, 0.8735f),
-                    SPR(TXT, "", Lib.V2(20, 248), n, PMY, VB, 0, 0.6135f), // 5
-                    SPR(TXT, "", Lib.V2(272, 248), n, SDY, V, Lib.RGT, 0.6135f), //7                 
-                    SPR(TXT, "TGTS\nTEID\nDIST\nELEV\nASPD\nACCL\nSIZE\nSCOR\nHITS", Lib.V2(292, 112), n, PMY, VB, 0, 0.6495f),
-                    SPR(TXT, "", Lib.V2(492, 112), n, SDY, V, Lib.RGT, 0.6495f),
+                    SPR(TXT, "", Lib.V2(20, 108), n, PMY, Lib.F_BD, 0, 0.8735f),// 4
+                    SPR(TXT, "", Lib.V2(272, 108), n, SDY, Lib.F_DF, Lib.RGT, 0.8735f),
+                    SPR(TXT, "", Lib.V2(20, 248), n, PMY, Lib.F_BD, 0, 0.6135f), // 5
+                    SPR(TXT, "", Lib.V2(272, 248), n, SDY, Lib.F_DF, Lib.RGT, 0.6135f), //7                 
+                    SPR(TXT, "TGTS\nTEID\nDIST\nELEV\nASPD\nACCL\nSIZE\nSCOR\nHITS", Lib.V2(292, 112), n, PMY, Lib.F_BD, 0, 0.6495f * FSCL),
+                    SPR(TXT, "", Lib.V2(492, 112), n, SDY, Lib.F_DF, Lib.RGT, 0.6495f),
                     SPR(SHP, Lib.SQS, Lib.V2(282, 256), Lib.V2(8, 288), PMY), // 9
                     SPR(SHP, Lib.SQS, Lib.V2(144, 242), Lib.V2(268, 8), PMY)
                 },
@@ -324,13 +335,13 @@ namespace IngameScript
                 () => MainRR.IDs.Length,
                 new MySprite[]
                 {
-                    SPR(TXT, "", Lib.V2(20, 112), n, PMY, VB, 0, 0.925f),// 1. TUR NAME
-                    SPR(TXT, "AZ\nEL", Lib.V2(20, 160), n, PMY, VB, 0, 1.825f),// 2. ANGLE HDR 1
-                    SPR(TXT, "TG\nCR\nTG\nCR", Lib.V2(132, 164), n, PMY, VB, 0, 0.9125f), // 2. ANGLE HDR 2
-                    SPR(TXT, "", Lib.V2(192, 164), n, SDY, V, 0, 0.9125f),// 4. ANGLE DATA
-                    SPR(TXT, "", Lib.V2(20, 348), n, PMY, VB, 0, 0.925f),// 5. STATE
-                    SPR(TXT, "MODE\nWSPD\nFIRE\nTRCK\nARPM\nERPM", Lib.V2(342, 164), n, PMY, VB, 0, 0.6045f),
-                    SPR(TXT, "", Lib.V2(496, 164), n, SDY, V, Lib.RGT, 0.6045f),
+                    SPR(TXT, "", Lib.V2(20, 112), n, PMY, Lib.F_BD, 0, 0.925f),// 1. TUR NAME
+                    SPR(TXT, "AZ\nEL", Lib.V2(20, 160), n, PMY, Lib.F_BD, 0, 1.825f),// 2. ANGLE HDR 1
+                    SPR(TXT, "TG\nCR\nTG\nCR", Lib.V2(132, 164), n, PMY, Lib.F_BD, 0, 0.9125f), // 2. ANGLE HDR 2
+                    SPR(TXT, "", Lib.V2(192, 164), n, SDY, Lib.F_DF, 0, 0.9125f),// 4. ANGLE DATA
+                    SPR(TXT, "", Lib.V2(20, 348), n, PMY, Lib.F_BD, 0, 0.925f),// 5. STATE
+                    SPR(TXT, "MODE\nWSPD\nFIRE\nTRCK\nARPM\nERPM", Lib.V2(342, 164), n, PMY, Lib.F_BD, 0, 0.6045f),
+                    SPR(TXT, "", Lib.V2(496, 164), n, SDY, Lib.F_DF, Lib.RGT, 0.6045f),
                     SPR(SHP, Lib.SQS, Lib.V2(256, 162), Lib.V2(496, 4), PMY, null),
                     SPR(SHP, Lib.SQS, Lib.V2(256, 346), Lib.V2(496, 4), PMY, null),
                     SPR(SHP, Lib.SQS, Lib.V2(332, 255), Lib.V2(4, 296), PMY)
@@ -346,12 +357,12 @@ namespace IngameScript
                 new MySprite[]
                 {
                     SPR(SHP, Lib.SQS, Lib.V2(89, 131.625f), Lib.V2(128, 36), SDY),
-                    SPR(TXT, "", Lib.V2(24, 108), n, PMY, VB, 0, 0.8735f),
-                    SPR(TXT, "", Lib.V2(300, 108), n, SDY, V, Lib.RGT, 0.8735f),
-                    SPR(TXT, "", Lib.V2(300, 248), n, SDY, V, Lib.RGT, 0.6135f),
-                    SPR(TXT, "", Lib.V2(24, 248), n, PMY, VB, 0, 0.6135f),
-                    SPR(TXT, "MEID\nBATT\nFUEL\nCONN\n\nMEID\nBATT\nFUEL\nCONN", Lib.V2(326, 112), n, PMY, VB, 0, 0.6495f),
-                    SPR(TXT, "", Lib.V2(490, 112), n, SDY, V, Lib.RGT, 0.6495f),
+                    SPR(TXT, "", Lib.V2(24, 108), n, PMY, Lib.F_BD, 0, 0.8735f),
+                    SPR(TXT, "", Lib.V2(300, 108), n, SDY, Lib.F_DF, Lib.RGT, 0.8735f),
+                    SPR(TXT, "", Lib.V2(300, 248), n, SDY, Lib.F_DF, Lib.RGT, 0.6135f),
+                    SPR(TXT, "", Lib.V2(24, 248), n, PMY, Lib.F_BD, 0, 0.6135f),
+                    SPR(TXT, "MEID\nBATT\nFUEL\nCONN\n\nMEID\nBATT\nFUEL\nCONN", Lib.V2(326, 112), n, PMY, Lib.F_BD, 0, 0.6495f),
+                    SPR(TXT, "", Lib.V2(490, 112), n, SDY, Lib.F_DF, Lib.RGT, 0.6495f),
                     SPR(SHP, Lib.SQS, Lib.V2(160, 242), Lib.V2(308, 8), PMY), // 5
                     SPR(SHP, Lib.SQS, Lib.V2(408, 254), Lib.V2(184, 8), PMY),
                     SPR(SHP, Lib.SQS, Lib.V2(314, 256), Lib.V2(8, 288), PMY), // 8

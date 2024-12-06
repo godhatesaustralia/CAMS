@@ -14,6 +14,10 @@ namespace IngameScript
     {
         #region you arent built for these public static fields son
 
+        public static float FSCL = 1;
+        public static string F_BD, F_DF;
+        public static bool VCR;
+
         public const string
             H = "CAMS",
             N = "name",

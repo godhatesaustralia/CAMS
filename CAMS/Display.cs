@@ -22,7 +22,7 @@ namespace IngameScript
 
         Func<int> _pMax = null;
         Color _bg;
-        public Display(Program m, IMyTerminalBlock b, string a, bool vcr = true)
+        public Display(Program m, IMyTerminalBlock b, string a)
         {
             _m = m;
             _surf = b is IMyTextPanel ? b as IMyTextSurface : (b is IMyTextSurfaceProvider ? ((IMyTextSurfaceProvider)b).GetSurface(0) : null);
@@ -33,7 +33,7 @@ namespace IngameScript
                     Name = p.String(Lib.H, "name", b.CustomName);
                     isLarge = b is IMyTextPanel;
                     _bg = p.Color(Lib.H, "colorBG", Color.Black);
-                    _sprites = p.Sprites(Lib.H, vcr ? Lib.SPR : Lib.SPR + "_V");
+                    _sprites = p.Sprites(Lib.H, Lib.VCR ? Lib.SPR : Lib.SPR + "_V");
                 }
                 else return;
 
@@ -132,6 +132,11 @@ namespace IngameScript
             Enter = e;
             Return = r;
             UseBaseSprites = u;
+
+        if (!Lib.VCR)
+            for (int i = 0; i < Sprites.Length; ++i)
+                if ((int)Sprites[i].Type == 2)
+                    Sprites[i].RotationOrScale *= Lib.FSCL;
         }
         public void Write(string d, int i) => Sprites[i].Data = d;
         public void Color(Color c, int i) => Sprites[i].Color = c;
