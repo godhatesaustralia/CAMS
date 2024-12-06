@@ -10,7 +10,13 @@ namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        public const string H = "CAMS", P = "pri", IgcFleet = "[FLT-CA]";
+        public const string 
+            H = "CAMS", 
+            P = "pri", 
+            VB = "VCRBold",
+            V = "VCR",
+            M = "Monospace",
+            IgcFleet = "[FLT-CA]";
         public Color PMY, SDY, BKG;
         public const SpriteType TXT = SpriteType.TEXT, SHP = SpriteType.TEXTURE, CLP = SpriteType.CLIP_RECT;
         public bool Based;
@@ -28,7 +34,7 @@ namespace IngameScript
             MaxScansPDLR,
             MaxTgtKillTracks,
             MaxRotorTurretUpdates,
-            MastCheckTicks,
+            LidarUpdateTicks,
             PriorityCheckTicks;
 
         public string
@@ -37,7 +43,8 @@ namespace IngameScript
             DisplayGroup,
             TurPDLRGroup,
             TurMainGroup,
-            RackNamesList;
+            RackNamesList,
+            PanelNamesList;
 
         void ParseComputerSettings()
         {
@@ -54,10 +61,11 @@ namespace IngameScript
 
                     ShipTag = p.String(H, "tag", H);
                     ControllerTag = p.String(H, "controller", "Helm");
-                    DisplayGroup = p.String(H, "displays", "MFD Users");
+                    DisplayGroup = p.String(H, "displays", "CAMS MFD");
                     TurPDLRGroup = p.String(H, "pd" + grp, "PD" + def);
                     TurMainGroup = p.String(H, "main" + grp, "Main" + def);
                     RackNamesList = p.String(H, "rack" + grp);
+                    PanelNamesList = p.String(H, "lidar" + grp);
 
                     Based = p.Bool(H, "vcr");
                     ReceiveIGCTicks = p.Int(H, "igcCheckInterval", 0);
@@ -67,9 +75,9 @@ namespace IngameScript
                     MaxScansMasts = p.Int(H, "maxScansMast", 1);
                     MaxScansPDLR = p.Int(H, "maxScansPDLR", 3);
                     MaxAutoTgtChecks = p.Int(H, "tStep", 4);
-                    MaxRotorTurretUpdates = p.Int(H, "maxTurUpdates", 2);
+                    MaxRotorTurretUpdates = p.Int(H, "maxTurUpdates", 1);
                     MaxTgtKillTracks = p.Int(H, "maxKillTracks", 3);
-                    MastCheckTicks = p.Int(H, "mastUpdateTicks", 3);
+                    LidarUpdateTicks = p.Int(H, "mastUpdateTicks", 3);
                     PriorityCheckTicks = p.Int(H, "priorityUpdateTicks", 10);
                     HardpointsCount = p.Int(H, "mslHardpoints", 16);
 
@@ -98,9 +106,10 @@ namespace IngameScript
                     Controller = b;
                 return false;
             });
+            if (Controller == null) throw new Exception($"\nNo ship controller found with tag {ControllerTag}.");
 
             var dspGrp = new List<IMyTerminalBlock>();
-            Terminal.GetBlockGroupWithName(DisplayGroup).GetBlocks(dspGrp);
+            Terminal.GetBlockGroupWithName(DisplayGroup)?.GetBlocks(dspGrp);
 
             if (dspGrp.Count > 0)
             {
@@ -122,7 +131,7 @@ namespace IngameScript
             }
             else throw new Exception($"\nNo displays found with tag \'{DisplayGroup}\'.");
             #endregion
-            
+
             #region masts and sensors
             Terminal.GetBlocksOfType<IMyLargeTurretBase>(null, b =>
             {
@@ -134,18 +143,42 @@ namespace IngameScript
                 }
                 return false;
             });
+
             Terminal.GetBlocksOfType<IMyMotorStator>(null, mtr =>
             {
                 if (mtr.CustomName.Contains(Lib.ARY) && mtr.CubeGrid.EntityId == ID)
                 {
                     var tur = new LidarMast(this, mtr);
                     tur.Setup(this, ref MastAryTags);
+
                     if (!Masts.ContainsKey(tur.Name))
                         Masts.Add(tur.Name, tur);
                 }
                 return false;
             });
-            MastNames = Lib.Keys(ref Masts);
+            if (Masts.Count > 0) MastNames = Lib.Keys(ref Masts);
+            else 
+            {
+                CtrlScreens.Remove(Lib.MS);
+                // todo - alternate
+            }
+
+            // if ( PanelNamesList != "")
+            // {
+            //     var c = new List<IMyCameraBlock>();
+            //     foreach (var b in PanelNamesList.Split('\n'))
+            //     {
+            //         c.Clear();
+            //         var l = Terminal.GetBlockGroupWithName(b);
+            //         l?.GetBlocksOfType(c);
+
+            //         if (c.Count > 0)
+            //         {
+            //             var dir = Controller.WorldMatrix.GetClosestDirection(c[0].WorldMatrix.Forward);
+            //             Panels[dir] = new LidarArray(c);
+            //         }
+            //     }
+            // }
             #endregion
 
             #region turrets and racks
@@ -164,8 +197,14 @@ namespace IngameScript
                 if (pd != null)
                     Turrets.Add(pd.Name, pd);
             }
-            PDTNames = Lib.Keys(ref Turrets);
+            if (Turrets.Count > 0)
+            {
+                PDTNames = Lib.Keys(ref Turrets);
+                PDTRR = new RoundRobin<string, RotorTurret>(PDTNames);
+            }
 
+
+            var ntmp = new List<string>();
             r.Clear();
             Terminal.GetBlockGroupWithName(TurMainGroup).GetBlocks(null, b =>
             {
@@ -178,10 +217,22 @@ namespace IngameScript
             {
                 var tr = new RotorTurret(az, this);
                 if (tr != null)
+                {
+                    ntmp.Add(tr.Name);
                     Turrets.Add(tr.Name, tr);
+                }
+            }
+            if (ntmp.Count > 0)
+            {
+                MainTNames = new string[ntmp.Count];
+                for (int i = 0; i < ntmp.Count; ++i)
+                    MainTNames[i] = ntmp[i];
+
+                MainRR = new RoundRobin<string, RotorTurret>(MainTNames);
             }
 
-            var antmp = new List<string>();
+
+            ntmp.Clear();
             foreach (var b in RackNamesList.Split('\n'))
             {
                 var a = Terminal.GetBlockWithName(b) as IMyMotorStator;
@@ -217,21 +268,29 @@ namespace IngameScript
 
             foreach (var kvp in Launchers)
                 if (kvp.Value.Auto)
-                    antmp.Add(kvp.Key);
+                    ntmp.Add(kvp.Key);
 
-            AMSNames = new string[antmp.Count];
-            for (int i = 0; i < antmp.Count; i++)
-                AMSNames[i] = antmp[i];
+            AMSNames = new string[ntmp.Count];
+            for (int i = 0; i < ntmp.Count; i++)
+                AMSNames[i] = ntmp[i];
 
-            var temp = Lib.Keys(ref Launchers);
+            string[] temp;
 
-            ReloadRR = new RoundRobin<string, Launcher>(temp);
-            FireRR = new RoundRobin<string, Launcher>(temp);
+            if (Launchers.Count > 0)
+            {
+                temp = Lib.Keys(ref Launchers);
+                ReloadRR = new RoundRobin<string, Launcher>(temp);
+                FireRR = new RoundRobin<string, Launcher>(temp);
+            }
+            else CtrlScreens.Remove(Lib.LN);
 
-            temp = Lib.Keys(ref Turrets);
-
-            AssignRR = new RoundRobin<string, RotorTurret>(temp);
-            UpdateRR = new RoundRobin<string, RotorTurret>(temp);
+            if (Turrets.Count > 0)
+            {
+                temp = Lib.Keys(ref Turrets);
+                AssignRR = new RoundRobin<string, RotorTurret>(temp);
+                //MainRR = new RoundRobin<string, RotorTurret>(temp);
+            }
+            else CtrlScreens.Remove(Lib.TR);
             #endregion
 
         }
@@ -239,12 +298,7 @@ namespace IngameScript
         static MySprite SPR(SpriteType t, string d, Vector2 pos, Vector2? sz = null, Color? c = null, string f = null, TextAlignment a = TextAlignment.CENTER, float rs = 0) => new MySprite(t, d, pos, sz, c, f, a, rs);
 
         void AddSystemScreens()
-        {
-            #region masts screen
-            Vector2
-                sqvpos = Lib.V2(20, 244), // standard rect pos
-                sqvsz = Lib.V2(132, 36), // standard rect size
-                sqoff = Lib.V2(0, 42); // standard rect offset
+        {    
             Vector2? n = null;
 
             CtrlScreens[Lib.MS] = new Screen
@@ -252,32 +306,31 @@ namespace IngameScript
                 () => MastNames.Length,
                 new MySprite[]
                 {
-                    SPR(TXT, "", Lib.V2(20, 108), n, PMY, Lib.VB, 0, 0.8735f),// 4
-                    SPR(TXT, "", Lib.V2(272, 108), n, SDY, Lib.V, Lib.RGT, 0.8735f),
-                    SPR(TXT, "", Lib.V2(20, 248), n, PMY, Lib.VB, 0, 0.6135f), // 5
-                    SPR(TXT, "", Lib.V2(272, 248), n, SDY, Lib.V, Lib.RGT, 0.6135f), //7                 
-                    SPR(TXT, "TGTS\nTEID\nDIST\nELEV\nASPD\nACCL\nSIZE\nSCOR\nHITS", Lib.V2(292, 112), n, PMY, Lib.VB, 0, 0.6495f),
-                    SPR(TXT, "", Lib.V2(492, 112), n, SDY, Lib.V, Lib.RGT, 0.6495f),
+                    SPR(TXT, "", Lib.V2(20, 108), n, PMY, VB, 0, 0.8735f),// 4
+                    SPR(TXT, "", Lib.V2(272, 108), n, SDY, V, Lib.RGT, 0.8735f),
+                    SPR(TXT, "", Lib.V2(20, 248), n, PMY, VB, 0, 0.6135f), // 5
+                    SPR(TXT, "", Lib.V2(272, 248), n, SDY, V, Lib.RGT, 0.6135f), //7                 
+                    SPR(TXT, "TGTS\nTEID\nDIST\nELEV\nASPD\nACCL\nSIZE\nSCOR\nHITS", Lib.V2(292, 112), n, PMY, VB, 0, 0.6495f),
+                    SPR(TXT, "", Lib.V2(492, 112), n, SDY, V, Lib.RGT, 0.6495f),
                     SPR(SHP, Lib.SQS, Lib.V2(282, 256), Lib.V2(8, 288), PMY), // 9
                     SPR(SHP, Lib.SQS, Lib.V2(144, 242), Lib.V2(268, 8), PMY)
                 },
                 ScrollMS, Targets.TargetMode, BackMS
             );
-            #endregion
 
             #region turrets screen
             CtrlScreens[Lib.TR] = new Screen
             (
-                () => UpdateRR.IDs.Length,
+                () => MainRR.IDs.Length,
                 new MySprite[]
                 {
-                    SPR(TXT, "", Lib.V2(20, 112), n, PMY, Lib.VB, 0, 0.925f),// 1. TUR NAME
-                    SPR(TXT, "AZ\nEL", Lib.V2(20, 160), n, PMY, Lib.VB, 0, 1.825f),// 2. ANGLE HDR 1
-                    SPR(TXT, "TG\nCR\nTG\nCR", Lib.V2(132, 164), n, PMY, Lib.VB, 0, 0.9125f), // 2. ANGLE HDR 2
-                    SPR(TXT, "", Lib.V2(192, 164), n, SDY, Lib.V, 0, 0.9125f),// 4. ANGLE DATA
-                    SPR(TXT, "", Lib.V2(20, 348), n, PMY, Lib.VB, 0, 0.925f),// 5. STATE
-                    SPR(TXT, "MODE\nWSPD\nFIRE\nTRCK\nARPM\nERPM", Lib.V2(342, 164), n, PMY, Lib.VB, 0, 0.6045f),
-                    SPR(TXT, "", Lib.V2(496, 164), n, SDY, Lib.V, Lib.RGT, 0.6045f),
+                    SPR(TXT, "", Lib.V2(20, 112), n, PMY, VB, 0, 0.925f),// 1. TUR NAME
+                    SPR(TXT, "AZ\nEL", Lib.V2(20, 160), n, PMY, VB, 0, 1.825f),// 2. ANGLE HDR 1
+                    SPR(TXT, "TG\nCR\nTG\nCR", Lib.V2(132, 164), n, PMY, VB, 0, 0.9125f), // 2. ANGLE HDR 2
+                    SPR(TXT, "", Lib.V2(192, 164), n, SDY, V, 0, 0.9125f),// 4. ANGLE DATA
+                    SPR(TXT, "", Lib.V2(20, 348), n, PMY, VB, 0, 0.925f),// 5. STATE
+                    SPR(TXT, "MODE\nWSPD\nFIRE\nTRCK\nARPM\nERPM", Lib.V2(342, 164), n, PMY, VB, 0, 0.6045f),
+                    SPR(TXT, "", Lib.V2(496, 164), n, SDY, V, Lib.RGT, 0.6045f),
                     SPR(SHP, Lib.SQS, Lib.V2(256, 162), Lib.V2(496, 4), PMY, null),
                     SPR(SHP, Lib.SQS, Lib.V2(256, 346), Lib.V2(496, 4), PMY, null),
                     SPR(SHP, Lib.SQS, Lib.V2(332, 255), Lib.V2(4, 296), PMY)
@@ -293,12 +346,12 @@ namespace IngameScript
                 new MySprite[]
                 {
                     SPR(SHP, Lib.SQS, Lib.V2(89, 131.625f), Lib.V2(128, 36), SDY),
-                    SPR(TXT, "", Lib.V2(24, 108), n, PMY, Lib.VB, 0, 0.8735f),
-                    SPR(TXT, "", Lib.V2(300, 108), n, SDY, Lib.V, Lib.RGT, 0.8735f),
-                    SPR(TXT, "", Lib.V2(300, 248), n, SDY, Lib.V, Lib.RGT, 0.6135f),
-                    SPR(TXT, "", Lib.V2(24, 248), n, PMY, Lib.VB, 0, 0.6135f), 
-                    SPR(TXT, "MEID\nBATT\nFUEL\nCONN\n\nMEID\nBATT\nFUEL\nCONN", Lib.V2(326, 112), n, PMY, Lib.VB, 0, 0.6495f),
-                    SPR(TXT, "", Lib.V2(490, 112), n, SDY, Lib.V, Lib.RGT, 0.6495f),
+                    SPR(TXT, "", Lib.V2(24, 108), n, PMY, VB, 0, 0.8735f),
+                    SPR(TXT, "", Lib.V2(300, 108), n, SDY, V, Lib.RGT, 0.8735f),
+                    SPR(TXT, "", Lib.V2(300, 248), n, SDY, V, Lib.RGT, 0.6135f),
+                    SPR(TXT, "", Lib.V2(24, 248), n, PMY, VB, 0, 0.6135f),
+                    SPR(TXT, "MEID\nBATT\nFUEL\nCONN\n\nMEID\nBATT\nFUEL\nCONN", Lib.V2(326, 112), n, PMY, VB, 0, 0.6495f),
+                    SPR(TXT, "", Lib.V2(490, 112), n, SDY, V, Lib.RGT, 0.6495f),
                     SPR(SHP, Lib.SQS, Lib.V2(160, 242), Lib.V2(308, 8), PMY), // 5
                     SPR(SHP, Lib.SQS, Lib.V2(408, 254), Lib.V2(184, 8), PMY),
                     SPR(SHP, Lib.SQS, Lib.V2(314, 256), Lib.V2(8, 288), PMY), // 8

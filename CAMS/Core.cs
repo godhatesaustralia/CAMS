@@ -49,9 +49,8 @@ namespace IngameScript
     public partial class Program
     {
         public static long ID;
-        string[] MastNames, MastAryTags, PDTNames, AMSNames;
+        string[] MastNames, MastAryTags, MainTNames, PDTNames, AMSNames;
         public IMyGridTerminalSystem Terminal => GridTerminalSystem;
-        public DebugAPI Debug;
         public static MySprite X = new MySprite();
         IMyTextSurface _surf;
         MySprite[] sprites;
@@ -111,8 +110,6 @@ namespace IngameScript
         public TargetProvider Targets;
         public bool GlobalPriorityUpdateSwitch = true;
         Dictionary<string, LidarMast> Masts = new Dictionary<string, LidarMast>();
-        Dictionary<string, LidarArray> Panels = new Dictionary<string, LidarArray>();
-
         List<IMyLargeTurretBase> 
             AllTurrets = new List<IMyLargeTurretBase>(), 
             Artillery = new List<IMyLargeTurretBase>();
@@ -153,7 +150,7 @@ namespace IngameScript
 
         double _lastRT, _totalRT = 0, _worstRT, _avgRT;
         int _turCheckPtr = 0, _launchCt = 0;
-        long _frame = -1, _worstF, _nxtFireF, _fireID;
+        long _frame = -1, _worstF, _nxtLidarCheck, _nxtFireF, _fireID;
         Queue<double> _runtimes = new Queue<double>(10);
         public double RuntimeMS => _totalRT;
         public long F => _frame;
@@ -180,7 +177,7 @@ namespace IngameScript
         RoundRobin<string, Launcher> ReloadRR, FireRR;
         HashSet<long> ekvTracks, auxTracks = new HashSet<long>(), mslCull = new HashSet<long>();
         Dictionary<string, RotorTurret> Turrets = new Dictionary<string, RotorTurret>();
-        RoundRobin<string, RotorTurret> AssignRR, UpdateRR;
+        RoundRobin<string, RotorTurret> AssignRR, MainRR, PDTRR;
         #endregion
     }
 }

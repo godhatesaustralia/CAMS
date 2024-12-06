@@ -36,11 +36,11 @@ namespace IngameScript
         public long Frame;
         public int Priority = -1;
         public MatrixD Matrix;
-        public Vector3D Hit, Center, Velocity, LastVelocity, Accel;
+        public Vector3D Hit, Center, Velocity, Accel;
         public List<Offset> HitPoints = new List<Offset>(5);
         public readonly MyDetectedEntityType Type;
         public readonly string eIDString, eIDTag;
-        public bool 
+        public bool
         PriorityKill, Engaged;
         #endregion
 
@@ -53,7 +53,7 @@ namespace IngameScript
             Frame = f;
             Type = i.Type;
             Center = i.Position;
-            Matrix = MatrixD.Transpose(i.Orientation);
+            Matrix = i.Orientation;
             Velocity = i.Velocity;
             Radius = i.BoundingBox.Size.Length();
             Distance = dist;
@@ -101,7 +101,6 @@ namespace IngameScript
         const SpriteType TXT = SpriteType.TEXT, SHP = SpriteType.TEXTURE;
         const string IgcTgt = "[FLT-TG]", N = "▮▮▮▮▮";
         public long Selected = -1;
-        bool _showMsls;
         double _invD = INV_MAX_D;
         public string Log, SelTag;
 
@@ -146,20 +145,14 @@ namespace IngameScript
                         {
                             if (b.Argument(2) == "close")
                                 _invD = 0.0004;
-                            else if (b.Argument(2) == "reset")
+                            else if (b.Argument(2) == Lib.R)
                                 _invD = INV_MAX_D;
-                            else if (b.Argument(2) == Lib.ML)
-                                _showMsls = !_showMsls;
                             break;
                         }
                     default:
-                    case "clear":
+                    case Lib.R:
                         {
                             Clear();
-                            break;
-                        }
-                    case "reset":
-                        {
                             UpdateBlacklist();
                             break;
                         }
@@ -241,18 +234,6 @@ namespace IngameScript
                 _rdrBuffer.Add(DisplayTarget(ref rPos, ref mat, _targets[id].eIDTag, i == x));
             }
 
-            if (_showMsls)
-            {
-                foreach (var m in _p.Missiles.Values)
-                {
-                    var mat = _p.Controller.WorldMatrix;
-                    var id = m.IDTG;
-                    var rPos = _p.Center - m.Controller.WorldMatrix.Translation;
-                    _rdrBuffer.Add(DisplayTarget(ref rPos, ref mat, id, false, true));
-                }
-
-            }
-
             int l = _rdrBuffer.Count + _rdr.Length;
             if (l != s.Sprites.Length)
             {
@@ -274,7 +255,7 @@ namespace IngameScript
         /// <param name="relPos">relative position</param>
         /// <param name="mat">World Matrix of the reference</param>
         /// <param name="sel">if currently selected</param>
-        MySprite DisplayTarget(ref Vector3D relPos, ref MatrixD mat, string eid, bool sel, bool msl = false)
+        MySprite DisplayTarget(ref Vector3D relPos, ref MatrixD mat, string eid, bool sel)
         {
             // Get the Left, Forward, and Up vectors from the mat
             // Project the relative position onto the radar's plane defined by Left and Forward vectors
@@ -296,8 +277,7 @@ namespace IngameScript
                 pos = Lib.V2((float)scrX, (float)scrY),
                 txt = (sel ? 2.375F : 1.75f) * tgtSz;
 
-            if (!msl) _rdrBuffer.Add(new MySprite(TXT, eid, scrX > 2 * X_MIN ? pos - txt : pos + 0.5f * txt, null, _p.PMY, Lib.V, rotation: 0.375f));
-            else return new MySprite(TXT, "M", pos, null, _p.PMY, Lib.VB, rotation: 0.425f);
+            _rdrBuffer.Add(new MySprite(TXT, eid, scrX > 2 * X_MIN ? pos - txt : pos + 0.5f * txt, null, _p.PMY, Program.V, rotation: 0.375f));
             return new MySprite(SHP, sel ? Lib.SQS : Lib.TRI, pos, (sel ? 1.5f : 1) * tgtSz, _p.PMY, null); // Center
         }
         #endregion
@@ -311,27 +291,25 @@ namespace IngameScript
             {
                 var t = _targets[id];
                 var dT = (_p.F - t.Frame) * Lib.TPS;
-
-                t.Frame = _p.F;
-                t.Center = i.Position;
-                t.Hit = i.HitPosition ?? t.Center;
-                t.LastVelocity = t.Velocity;
-                t.Velocity = i.Velocity;
-                t.Matrix = MatrixD.Transpose(i.Orientation);
-                t.Accel = Vector3D.Zero;
-                t.Radius = i.BoundingBox.Size.Length();
-                t.Distance = dist;
-                
-                var a = (t.Velocity - t.LastVelocity) / dT;
+                var a = (i.Velocity - t.Velocity) / dT;
                 if (a.LengthSquared() > 1)
                     t.Accel = (t.Accel * 0.25) + (a * 0.75);
 
-                if (t.HitPoints.Count > 0)
+                for (int j = t.HitPoints.Count - 1; j >= 0; --j)
                 {
-                    for (int j = t.HitPoints.Count - 1; j >= 0; j--)
-                        if (_p.F - t.HitPoints[j].Frame > HIT_T)
-                            t.HitPoints.RemoveAtFast(j);
+                    var h = t.HitPoints[j];
+                    if (_p.F - h.Frame > HIT_T) t.HitPoints.RemoveAtFast(j);
+                    else t.HitPoints[j].Hit = Vector3D.TransformNormal(t.HitPoints[j].Hit - i.Position, i.Orientation);
                 }
+
+                t.Hit = i.HitPosition ?? i.Position;
+                t.Center = i.Position;
+                t.Frame = _p.F;
+                t.Velocity = i.Velocity;
+                t.Matrix = i.Orientation;
+                t.Accel = Vector3D.Zero;
+                t.Radius = i.BoundingBox.Size.Length();
+                t.Distance = dist;
 
                 SetPriority(t);
 

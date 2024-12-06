@@ -17,6 +17,7 @@ namespace IngameScript
         public const string
             H = "CAMS",
             N = "name",
+            R = "reset",
             ARY = "ARY",
             SPR = "SPRITES",
             TR = "turrets",
@@ -26,38 +27,24 @@ namespace IngameScript
             TG = "targets",
             MS = "masts",
             SN = "scanner",
-            DF = "defense",
-            V = "VCR",
-            VB = "VCRBold",
-            WH = "White",
             NL = "<n>",
             SQS = "SquareSimple",
             SQH = "SquareHollow",
-            TRI = "Triangle",
-            WPN = "Weapons";
+            TRI = "Triangle";
 
         public const UpdateType
             u1 = UpdateType.Update1,
             u10 = UpdateType.Update10,
             u100 = UpdateType.Update100;
 
-        public static TextAlignment
-            LFT = TextAlignment.LEFT,
-            RGT = TextAlignment.RIGHT;
+        public const TextAlignment RGT = TextAlignment.RIGHT;
 
         public const double
-            TICK = 16.6666,//ms
             TPS = 0.016666, // sec
             PI = Math.PI,
             HALF_PI = MathHelperD.PiOver2,
             PI2X = MathHelper.TwoPi,
             RAD_PER_TICK = 30 / PI2X;
-
-        public static Color
-            GRN = new Color(100, 250, 100),
-            RED = new Color(240, 50, 50),
-            YEL = new Color(250, 250, 100);
-
 
         #endregion
 
@@ -137,6 +124,7 @@ namespace IngameScript
         #endregion
     }
 
+    //#if DEBUG
     public class DebugAPI
     {
         public readonly bool ModDetected;
@@ -318,5 +306,5 @@ namespace IngameScript
 
         void Assign<T>(out T field, object method) => field = (T)method;
     }
-
+    //#endif
 }

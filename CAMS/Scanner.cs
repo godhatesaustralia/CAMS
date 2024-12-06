@@ -35,7 +35,7 @@ namespace IngameScript
             Targets.SelTag = "";
             s.Max = () => MastNames.Length;
         }
-
+        
         void GetTurretTgt(IMyLargeTurretBase t, bool arty = false)
         {
             MyDetectedEntityInfo info;

@@ -8,6 +8,7 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
+        public DebugAPI Debug;
         public Program()
         {
             Runtime.UpdateFrequency |= UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;
@@ -15,7 +16,7 @@ namespace IngameScript
 
             _surf = Me.GetSurface(0);
             _surf.ContentType = ContentType.SCRIPT;
-            
+
             Debug = new DebugAPI(this, true);
 
             #region commands
@@ -30,8 +31,7 @@ namespace IngameScript
                 { "designate", b =>
                     {
                         if (b.ArgumentCount == 2 || b.ArgumentCount == 3)
-                            if (Masts.ContainsKey(b.Argument(1)))
-                                Masts[b.Argument(1)].Designate();
+                            if (Masts.ContainsKey(b.Argument(1))) Masts[b.Argument(1)].Designate();
                             else if (Turrets.ContainsKey(b.Argument(1)))
                             {
                                 var t = Turrets[b.Argument(1)] as PDT;
@@ -67,9 +67,9 @@ namespace IngameScript
                             t.Azimuth = t.Elevation = 0;
                         foreach (var t in Artillery)
                             t.Azimuth = t.Elevation = 0;
-                    }    
+                    }
                 },
-                { "system_update", b =>
+                { Lib.R, b =>
                     {
                         if (b.ArgumentCount != 2)
                             return;
@@ -99,7 +99,7 @@ namespace IngameScript
             UpdateRotorTurrets();
             UpdateLaunchers();
             UpdateMissileGuidance();
-            _frame = 0;  
+            _frame = 0;
 
             #endregion
         }
@@ -146,8 +146,7 @@ namespace IngameScript
                 Gravity = Controller.GetNaturalGravity();
             }
 
-            if (F % 100 == 0)
-                Debug.RemoveDraw();
+            if ((updateSource & Lib.u100) != 0) Debug.RemoveDraw();
             #endregion
 
             #region argument-parsing
@@ -164,26 +163,26 @@ namespace IngameScript
                         switch (_cmd.Argument(1))
                         {
                             case "up":
-                            {
-                                Displays[_cmd.Argument(0)].Up();
-                                break;
-                            }
+                                {
+                                    Displays[_cmd.Argument(0)].Up();
+                                    break;
+                                }
                             case "down":
-                            {
-                                Displays[_cmd.Argument(0)].Down();
-                                break;
-                            }
+                                {
+                                    Displays[_cmd.Argument(0)].Down();
+                                    break;
+                                }
                             case "select":
-                            {
-                                Displays[_cmd.Argument(0)].Select();
-                                break;
-                            }
+                                {
+                                    Displays[_cmd.Argument(0)].Select();
+                                    break;
+                                }
                             case "back":
                             default:
-                            {
-                                Displays[_cmd.Argument(0)].Back();
-                                break;
-                            }
+                                {
+                                    Displays[_cmd.Argument(0)].Back();
+                                    break;
+                                }
                         }
                     }
                 }
@@ -191,11 +190,21 @@ namespace IngameScript
             #endregion
 
             #region inline scan checks
-            if (F % MastCheckTicks == 0) // guar
-                foreach (var m in Masts.Values)
-                    m.Update();
+            if (F >= _nxtLidarCheck)
+            {
+                foreach (var m in Masts.Values) m.Update();
 
-            int i = AllTurrets.Count - 1; 
+                if (Targets.Count > 0 && PDTNames.Length > 0)
+                {
+                    var tur = PDTRR.Next(ref Turrets);
+                    while ((tur.Inoperable || !tur.UseLidar) && PDTRR.Next(ref Turrets, out tur)) ;
+                    tur.UpdateTurret();
+                }
+
+                _nxtLidarCheck += LidarUpdateTicks;
+            }
+
+            int i = AllTurrets.Count - 1;
             for (; i >= 0; i--)
             {
                 var at = AllTurrets[i];
@@ -203,7 +212,7 @@ namespace IngameScript
                     AllTurrets.RemoveAtFast(i);
                 else GetTurretTgt(at);
             }
-            
+
             for (i = Math.Max(0, _turCheckPtr - MaxAutoTgtChecks); _turCheckPtr >= i; _turCheckPtr--)
             {
                 var at = Artillery[_turCheckPtr];
@@ -212,8 +221,7 @@ namespace IngameScript
                 else GetTurretTgt(at, true);
             }
 
-            if (_turCheckPtr <= 0)
-                _turCheckPtr = Artillery.Count - 1;
+            if (_turCheckPtr <= 0) _turCheckPtr = Artillery.Count - 1;
             #endregion
 
             #region main-sys-update

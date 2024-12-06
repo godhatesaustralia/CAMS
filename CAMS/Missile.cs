@@ -300,7 +300,7 @@ namespace IngameScript
 		List<IMyThrust> _thrust = new List<IMyThrust>();
 		List<IMyWarhead> _warhead = new List<IMyWarhead>();
 
-		bool _evade, _checkAccel, _turTrack, _dead, _arm, _cams, _kill;
+		bool _evade, _checkAccel, _dead, _arm, _cams, _kill;
 		byte _gYaw, _gPitch, _gRoll;
 		double _range, _accel, _evMax, _evMin;
 
@@ -549,10 +549,6 @@ namespace IngameScript
 			_range = rP.Length();
 
 			#region main-final
-			// if (!_turTrack && _range < TRACK_D) 
-			// {
-			// 	_turTrack = (int)tgt.Type == 2 || _p.TrackOnFinal(tgt);
-			// }
 			if (_range < FUSE_D)
 			{
 				if (_arm)

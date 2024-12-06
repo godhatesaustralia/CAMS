@@ -2,8 +2,6 @@
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using VRage.ModAPI;
 using VRageMath;
 
 namespace IngameScript
@@ -324,6 +322,7 @@ namespace IngameScript
                         {
                             TGT = $"ID {t.eIDTag}";
                             Scans += Lidars[i].Scans;
+                            break;
                         }
 
                         if (Lidars[i].ScanAVG < min)
