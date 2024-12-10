@@ -16,6 +16,7 @@ namespace IngameScript
         {
             _start = s;
             IDs = ks;
+            
             Reset();
         }
 
@@ -49,7 +50,7 @@ namespace IngameScript
     public partial class Program
     {
         public static long ID;
-        string[] MastNames, MastAryTags, MainTNames, PDTNames, AMSNames;
+        string[] MastNames, MastAryTags, AMSNames;
         public IMyGridTerminalSystem Terminal => GridTerminalSystem;
         public static MySprite X = new MySprite();
         IMyTextSurface _surf;
@@ -64,7 +65,7 @@ namespace IngameScript
         /// <summary>
         /// Gets random unit vector normal to a given direction
         /// </summary>
-        /// <param name="random">System.Random generator in use</param>
+        /// <param nme="random">System.Random generator in use</param>
         /// <param name="dir">Given direction that the result should be orthogonal to</param>
         /// <param name="norm">Output random normal</param>
         public void RandomNormalVector(ref Vector3D dir, ref Vector3D norm)

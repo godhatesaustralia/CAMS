@@ -1,12 +1,11 @@
-﻿using System.Runtime.CompilerServices;
-using Sandbox.ModAPI.Ingame;
+﻿using Sandbox.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
 
 namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        const int TUR_REST_T = 37, TGT_LOSS_T = 91, FIRE_T = 7, TRACK_D = 800;
+        const int TUR_REST_T = 37, TGT_LOSS_T = 91, FIRE_T = 7, TRACK_REQ_C = 5;
         void ScrollLN(int p, int x, bool b, Screen s)
         {
             int i = b ? x : p;
@@ -83,15 +82,15 @@ namespace IngameScript
         void ScrollTR(int p, int x, bool b, Screen s)
         {
             int i = s.Sel ? s.Index : p, ct = 12;
-            var t = Turrets[MainRR.IDs[i]];
+            var t = Turrets[AssignRR.IDs[i]];
             var n = t.Name;
-    
+
             ct -= t.Name.Length;
 
             for (; ct-- > 0;)
                 n += " ";
 
-            s.Write(n + $"{i + 1:00}/{MainRR.IDs.Length:00}", 0);
+            s.Write(n + $"{i + 1:00}/{AssignRR.IDs.Length:00}", 0);
 
             n = "ST " + t.Status.ToString().ToUpper();
             ct = 17 - n.Length;
@@ -101,7 +100,7 @@ namespace IngameScript
             n += $"{t.TGT}";
             s.Write(t.AZ + "\n" + t.EL, 3);
             s.Write(n, 4);
-            s.Write($"{(t.ActiveCTC ? "MANL" : "AUTO")}\n{t.Speed:0000}\n{t.Range:0000}\n{t.TrackRange:0000}\n{t.ARPM:0000}\n{t.ERPM:0000}", 6);
+            s.Write($"{t.BlockF:X4}\n{t.Speed:0000}\n{t.Range:0000}\n{t.TrackRange:0000}\n{t.ARPM:+000;-000}\n{t.ERPM:+000;-000}", 6);
 
         }
 
@@ -134,15 +133,17 @@ namespace IngameScript
             _nxtFireF = F;
         }
 
-        bool AddLidarTrack(Target t)
+        public bool AddLidarTrack(Target t)
         {
+            if (PDTRR == null) return false;
+
             if (auxTracks.Contains(t.EID))
                 return true;
 
-            foreach (var n in PDTNames)
+            foreach (var k in PDTRR.IDs)
             {
-                var tur = (PDT)Turrets[n];
-                if ((tur.TEID == -1 || (tur.Status & AimState.Blocked) != 0) && tur.AssignLidarTarget(t, true))
+                var tur = (PDT)Turrets[k];
+                if ((tur.TEID == -1 || (tur.Status & AimState.Blocked) != 0 && tur.BlockF > TUR_REST_T) && tur.AssignLidarTarget(t, true))
                 {
                     auxTracks.Add(t.EID);
                     return true;
@@ -151,6 +152,7 @@ namespace IngameScript
             return false;
         }
 
+        string tu;
         void UpdateRotorTurrets()
         {
             if (AssignRR == null) return;
@@ -158,60 +160,51 @@ namespace IngameScript
             RotorTurret tur;
 
             #region assignment
-            if (Targets.Count > 0 && !GlobalPriorityUpdateSwitch)
+            if (Targets.Count > 0)
             {
-                Target temp = null;
-                GlobalPriorityUpdateSwitch = AssignRR.Next(ref Turrets, out tur);
-
-                if (tur.TEID != -1)
+                if (!GlobalPriorityUpdateSwitch)
                 {
-                    bool ok = tur.UseLidar || tur.CanTarget(tur.TEID);
-                    if (tur.Inoperable || (ok && (tur.Status & AimState.Blocked) == 0))
-                        goto CYCLE;
-                    else if (!ok || tur.BlockF > TUR_REST_T)
-                    {
-                        tur.LastTEID = tur.TEID;
-                        tur.TEID = -1;
-                    }
-                }
+                    Target temp = null;
+                    GlobalPriorityUpdateSwitch = AssignRR.Next(ref Turrets, out tur);
 
-                foreach (var tgt in Targets.Prioritized)
-                {
-                    int type = (int)tgt.Type;
-                    if (tur.CanTarget(tgt.EID))
+                    if (tur.TEID != -1)
                     {
-                        temp = tgt;
-                        if (!tgt.Engaged && ((tur.IsPDT && type == 2) || (!tur.IsPDT && type == 3)))
-                            break;
-                    }
-                }
+                        bool ok = tur.UseLidar || tur.CanTarget(tur.TEID);
+                        if (ok || (tur.Status & AimState.Blocked) == 0) goto CYCLE;
 
-                if (temp != null)
-                    tur.TEID = temp.EID;
+                        //else if (!ok || tur.BlockF > TUR_REST_T) tur.TEID = -1;
+                    }
+
+                    foreach (var tgt in Targets.Prioritized)
+                    {
+                        int type = (int)tgt.Type;
+                        if (tur.CanTarget(tgt.EID))
+                        {
+                            temp = tgt;
+                            if (!tgt.Engaged && ((tur.IsPDT && type == 2) || (!tur.IsPDT && type == 3)))
+                                break;
+                        }
+                    }
+
+                    if (temp != null)
+                        tur.TEID = temp.EID;
+                }
+                else if (Targets.Count > TRACK_REQ_C && !Targets.Prioritized.Min.PriorityKill)  
+                    AddLidarTrack(Targets.Prioritized.Max);
             }
-            #endregion
 
-            CYCLE:
+        #endregion
+
+        CYCLE:
             int i = 0;
-            if (MainTNames.Length > 0)
+            if (MainRR != null)
             {
-                tur = MainRR.Next(ref Turrets);
-                for (; ++i < MaxRotorTurretUpdates;)
-                {
-                    while (tur.Inoperable && MainRR.Next(ref Turrets, out tur)) ;
-                    tur.UpdateTurret();
-                }
+                MainRR.Next(ref Turrets).UpdateTurret();
             }
 
-            if (PDTNames.Length > 0)
-            {
-                tur = PDTRR.Next(ref Turrets);
-                for (i = 0; ++i < MaxRotorTurretUpdates;)
-                {
-                    while ((tur.Inoperable || !tur.UseLidar) && PDTRR.Next(ref Turrets, out tur)) ;
-                    tur.UpdateTurret();
-                }
-            }
+            if (PDTRR != null)
+                for (; i++ <= MaxRotorTurretUpdates;)
+                    PDTRR.Next(ref Turrets).UpdateTurret();
         }
 
 
@@ -230,7 +223,7 @@ namespace IngameScript
                         {
                             t = Targets.Prioritized.Min;
                             m.TEID = t.EID;
-                            if (t.PriorityKill)
+                            if (t.PriorityKill && !ekvTracks.Contains(t.EID))
                                 ekvTracks.Add(t.EID);
                         }
                         else if (F > m.LastActiveF + TGT_LOSS_T)
@@ -314,9 +307,9 @@ namespace IngameScript
                         }
                 }
             }
-            if (ekvTracks.Count > 0)
+            if (ekvTracks.Count > 0 && PDTRR != null)
             {
-                foreach (var n in PDTNames)
+                foreach (var n in PDTRR.IDs)
                 {
                     tur = (PDT)Turrets[n];
                     var id = ekvTracks.GetEnumerator().Current;

@@ -284,8 +284,8 @@ namespace IngameScript
 
 	public class Missile
 	{
-		const int DEF_UPDATE = 8, DEF_STAT = 29, EVN_ADJ = 500, FUSE_D = 220;
-		const double TOL = .00001, CAM_ANG = .707, PROX_R = .265, OFS_PCT = .58, PD_AIM_LIM = 6.3;
+		const int DEF_UPDATE = 8, DEF_STAT = 29, EVN_ADJ = 500, OFS_D = 400, FUSE_D = 220;
+		const double TOL = 1E-5, CAM_ANG = .707, PROX_R = .265, PD_AIM_LIM = 6.3, MAX_TTK = 1E4;
 		public long MEID = -1, TEID, LastActiveF, NextUpdateF, NextStatusF, NextEvnAdjF;
 		public bool Inoperable => _dead || !Controller.IsFunctional || Controller.Closed;
 		public double DistToTarget => _range;
@@ -300,14 +300,15 @@ namespace IngameScript
 		List<IMyThrust> _thrust = new List<IMyThrust>();
 		List<IMyWarhead> _warhead = new List<IMyWarhead>();
 
-		bool _evade, _checkAccel, _dead, _arm, _cams, _kill;
+		bool _evade, _selOfsPt, _checkAccel, _dead, _arm, _cams, _kill;
 		byte _gYaw, _gPitch, _gRoll;
 		double _range, _accel, _evMax, _evMin;
 
 		Program _p;
 		PDCtrl _yawCtrl = new PDCtrl(), _pitchCtrl = new PDCtrl();
 		MatrixD _viewMat;
-		Vector3D _pos, _cmd, _evn, _ofs;
+		Offset _ofs;
+		Vector3D _pos, _cmd, _evn;
 
 		#region msl-gyro
 		static Action<IMyGyro, float>[] _profiles =
@@ -471,17 +472,18 @@ namespace IngameScript
 			_checkAccel |= _merge.Closed || _ctor.Closed;
 
 			var fuel = 0d;
-			int i = 0;
+			int i = _tanks.Count;
 
-			for (; i < _tanks.Count; i++)
+			for (; --i > 0;)
 			{
-				_checkAccel |= _tanks[i].Closed;
-				if (!_tanks[i].IsFunctional || _tanks[i].Closed)
+				var t = _tanks[i];
+				_checkAccel |= t.Closed;
+				if (!t.IsFunctional || t.Closed)
 					_tanks.RemoveAtFast(i);
-				else fuel += _tanks[i].FilledRatio;
+				else fuel += t.FilledRatio;
 			}
 
-			for (i = 0; i < _thrust.Count; i++)
+			for (i = _thrust.Count; --i > 0;)
 			{
 				_checkAccel |= _thrust[i].Closed;
 				if (!_thrust[i].IsFunctional || _thrust[i].Closed)
@@ -495,7 +497,6 @@ namespace IngameScript
 		{
 			TEID = teid;
 			_p = p;
-			_ofs = p.RandomOffset();
 
 			LastActiveF = _p.F;
 			NextUpdateF = p.F + DEF_UPDATE;
@@ -515,7 +516,13 @@ namespace IngameScript
 
 			_cams = _sensors.Count > 0;
 			_checkAccel = _accel == -1;
-			_gyro.GyroOverride = true;
+			_gyro.GyroOverride = _selOfsPt = true;
+		}
+
+		public void Send()
+		{
+			var t = _p.Targets.Get(TEID);
+			_selOfsPt = t.Radius > 10;
 		}
 
 		public void Hold()
@@ -524,6 +531,7 @@ namespace IngameScript
 			if (v.Length() < 1)
 				return;
 
+			_selOfsPt = true;
 			_viewMat = MatrixD.Transpose(Controller.WorldMatrix);
 			_cmd = Vector3D.TransformNormal(-v, _viewMat);
 
@@ -540,8 +548,11 @@ namespace IngameScript
 			_viewMat = MatrixD.Transpose(Controller.WorldMatrix);
 			_pos = Controller.WorldMatrix.Translation;
 
+			var icpt = tgt.Center;
+			if (_ofs.Frame != 0 && _range < OFS_D)
+				icpt += Vector3D.TransformNormal(_ofs.Hit, tgt.Matrix);
+
 			Vector3D
-				icpt = tgt.Center,
 				rP = icpt - _pos,
 				rV = tgt.Velocity - Controller.GetShipVelocities().LinearVelocity,
 				rA = tgt.Accel - Controller.GetNaturalGravity();
@@ -549,6 +560,21 @@ namespace IngameScript
 			_range = rP.Length();
 
 			#region main-final
+			if (_selOfsPt && _range < OFS_D)
+			{
+				int h = tgt.HitPoints.Count;
+				_selOfsPt = false;
+				
+				if (h > 0)
+					_ofs = tgt.HitPoints[_p.RNG.Next(h)];
+				
+				else _ofs = new Offset
+				{
+					Frame = tgt.Frame,
+					Hit = Vector3D.TransformNormal(tgt.Hit - tgt.Center, MatrixD.Transpose(tgt.Matrix))
+				};
+			}
+
 			if (_range < FUSE_D)
 			{
 				if (_arm)
@@ -556,14 +582,6 @@ namespace IngameScript
 					_arm = !_arm;
 					foreach (var w in _warhead)
 						w.IsArmed = true;
-					if ((int)tgt.Type == 3)
-					{
-						int h = tgt.HitPoints.Count;
-						
-						if (h > 0) _ofs = tgt.HitPoints[_p.RNG.Next(h)].Hit;
-						else _ofs = _p.RandomOffset() * tgt.Radius * OFS_PCT;
-					}
-					else _ofs = Vector3D.Zero;
 				}
 				else if (!_cams && _range < tgt.Radius * PROX_R)	_kill = true;
 				else 
@@ -581,9 +599,9 @@ namespace IngameScript
 							var p = m.Forward;
 							var dot = p.Dot(rP);
 
-							if (dot < CAM_ANG * 0.75) continue;
+							if (dot < CAM_ANG) continue;
 
-							p = tgt.Center + tgt.Velocity * Lib.TPS + tgt.Accel * Lib.TPS * Lib.TPS + _ofs * tgt.Radius * OFS_PCT;
+							p = icpt;
 							p -= m.Translation;
 							p.Normalize();
 
@@ -597,7 +615,6 @@ namespace IngameScript
 									_kill = true;
 								break;
 							}
-							else if (dot > CAM_ANG) _ofs = _p.RandomOffset();
 						}
 					}
 				}
@@ -637,10 +654,12 @@ namespace IngameScript
 				e = rV.LengthSquared(),
 				t = FastSolver.Solve(a, b, c, d, e);
 
-			if (t == double.MaxValue || double.IsNaN(t)) t = 1000;
-			else t += tgt.Elapsed(_p.F);
+			if (t == double.MaxValue || double.IsNaN(t)) t = MAX_TTK;
+			else t = Math.Min(t, MAX_TTK) + tgt.Elapsed(_p.F);
 
 			icpt += (rV * t) + (0.5 * rA * t * t);
+
+			_p.Debug.DrawLine(_pos, icpt, Color.Azure, 0.03f);
 
 			if (_evade)
 			{

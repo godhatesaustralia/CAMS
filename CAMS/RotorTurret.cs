@@ -29,8 +29,8 @@ namespace IngameScript
         public string Name, AZ, EL, TGT; // yeah
         protected IMyMotorStator _azimuth, _elevation;
         public AimState Status { get; protected set; }
-
         protected int _ofsIdx;
+        protected long _ofsLastF, _ofsTEID;
         protected float
             _aMx,
             _aMn,
@@ -46,7 +46,7 @@ namespace IngameScript
         protected Weapons _weapons;
         protected Program _p;
         protected Vector3D _ofsStart, _ofsEnd;
-        public long TEID = -1, LastTEID, LastF, BlockF;
+        public long AEID, TEID = -1, BlockF;
         public bool Inoperable = false, IsPDT, TgtSmall, UseLidar = false;
         public bool ActiveCTC => _ctc?.IsUnderControl ?? false;
         #endregion
@@ -103,6 +103,7 @@ namespace IngameScript
                             return true;
                         });
 
+                    AEID = _azimuth.EntityId;
                     IsPDT = this is PDT;
                     _azimuth.UpperLimitRad = _aMx = RAD * p.Float(h, "azMax", 361);
                     _azimuth.LowerLimitRad = _aMn = RAD * p.Float(h, "azMin", -361);
@@ -136,7 +137,7 @@ namespace IngameScript
                     }
 
                     var list = new List<IMyUserControllableGun>();
-                    m.Terminal.GetBlocksOfType(list, b => b.CubeGrid == _elevation.CubeGrid || b.CustomName.Contains(Name));
+                    m.Terminal.GetBlocksOfType(list, b => (b.CubeGrid == _elevation.CubeGrid || b.CustomName.Contains(Name)) && !(b is IMyLargeTurretBase));
                     _weapons = new Weapons(list, p.Int(h, "salvo"), p.Int(h, "offset"));
 
                     double a, e;
@@ -238,31 +239,28 @@ namespace IngameScript
 
         protected AimState Idle(double aCur, double eCur, bool reset = false)
         {
-            LastF = _p.F;
-
-            if ((Status & AimState.Blocked) != 0)
+            if (Status == AimState.Holding || Status == AimState.Resting)
                 return Status;
             else if (Inoperable)
                 return AimState.Offline;
 
             _weapons.Hold();
-             _p.Targets.MarkLost(TEID);
+            _p.Targets.MarkLost(TEID);
 
             if (reset)
             {
-                LastTEID = TEID;
                 TEID = -1;
                 BlockF = 0;
+                TGT = "CLEAR";
             }
 
             AZ = $"{_aRest * DEG:+000;-000}°\n{aCur * DEG:+000;-000}°";
             EL = $"{_eRest * DEG:+000;-000}°\n{eCur * DEG:+000;-000}°";
-            TGT = "CLEAR";
 
             if (!reset || (Math.Abs(aCur - _aRest) < _tol && Math.Abs(eCur - _eRest) < _tol))
             {
                 _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
-                return !reset ? AimState.Holding : AimState.Resting;
+                return !reset ? AimState.Blocked : AimState.Resting;
             }
 
             SetAndMoveStators(aCur, _aRest, eCur, _eRest);
@@ -272,12 +270,8 @@ namespace IngameScript
 
         protected AimState AimAtTarget(ref MatrixD azm, ref Vector3D aim, double aCur, double eCur, bool test = false)
         {
-            if (Status == AimState.Blocked)
-            {
-                BlockF += _p.F - LastF;
-                _azimuth.TargetVelocityRad = _elevation.TargetVelocityRad = 0;
-            }
-            LastF = _p.F;
+            if (Status != AimState.Blocked) BlockF = 0;
+
             aim.Normalize();
             Vector3D
                 eTgtV = Lib.Projection(aim, azm.Up), // projection of target pos on z axis (elevation)
@@ -315,8 +309,6 @@ namespace IngameScript
             AZ = $"{aTgt * DEG:+000;-000}°\n{aCur * DEG:+000;-000}°";
             EL = $"{eTgt * DEG:+000;-000}°\n{eCur * DEG:+000;-000}°";
 
-            BlockF = 0;
-
             SetAndMoveStators(aCur, aTgt, eCur, eTgt);
             //bool r = Math.Abs(aTgt - aCur) < _tol && Math.Abs(eTgt - eCur) < _tol;
             bool r = _weapons.AimDir.Dot(aim) > 0.995;
@@ -329,9 +321,9 @@ namespace IngameScript
 
             bool reset = false;
 
-            if (LastTEID != TEID)
+            if (_ofsTEID != TEID)
             {
-                LastTEID = TEID;
+                _ofsTEID = TEID;
                 _ofsIdx = 0;
 
                 _ofsStart = Vector3D.TransformNormal(t.Hit - t.Center, MatrixD.Transpose(t.Matrix));
@@ -342,8 +334,8 @@ namespace IngameScript
             else if (_ofsAmt > 1)
             {
                 Lib.Next(ref _ofsIdx, t.HitPoints.Count);
-
                 _ofsStart = _ofsEnd;
+                
                 _ofsEnd = t.HitPoints[_ofsIdx].Hit;
 
                 reset = true;
@@ -351,15 +343,18 @@ namespace IngameScript
 
             if (reset)
             {
+                _ofsLastF = _p.F;
+
                 var dst = (_ofsStart - _ofsEnd).Length();
-                _ofsMov = dst < 1 ? Lib.TPS : Lib.TPS * dst * OFS_TAN_HZ * (t.Center - az.Translation).Length();
+                _ofsMov = dst < 1 ? Lib.TPS : Lib.TPS / dst * (OFS_TAN_HZ * (t.Center - az.Translation).Length());
+                
                 _ofsAmt = 0;
             }
 
-            _ofsAmt += (_p.F - LastF) * _ofsMov;
+            _ofsAmt += (_p.F - _ofsLastF) * _ofsMov;
+            _ofsLastF = _p.F;
             return t.Center + Vector3D.TransformNormal(Vector3D.Lerp(_ofsStart, _ofsEnd, _ofsAmt), t.Matrix);
         }
-
         #endregion
 
         public bool CanTarget(long eid)
@@ -393,8 +388,10 @@ namespace IngameScript
 
                 var azm = _azimuth.WorldMatrix;
                 var aim = GetAimPoint(tgt, ref azm);
+                //_p.Debug.DrawLine(azm.Translation, aim, Color.Crimson);
+
                 if (Interceptable(tgt, ref aim))
-                {      
+                {
                     aim -= _elevation.WorldMatrix.Translation; // ????? i have no fucking idea at this point is it htis????
                     var tgtDst = aim.Length();
 
@@ -479,7 +476,6 @@ namespace IngameScript
             {
                 UseLidar = r;
                 _ofsLidar = offset;
-                LastTEID = TEID;
                 TEID = t.EID;
             }
             return r;
@@ -488,7 +484,7 @@ namespace IngameScript
         public void Designate(bool track = false)
         {
             if (Inoperable || _designators == null) return;
-            
+
             for (int i = 0; i < _designators.Length; i++)
                 if (_designators[i].CanScan(_scanMx))
                 {
@@ -520,9 +516,10 @@ namespace IngameScript
 
                 var azm = _azimuth.WorldMatrix;
                 var aim = GetAimPoint(tgt, ref azm);
+                //_p.Debug.DrawLine(azm.Translation, aim, Color.LightCyan);
 
                 if (UseLidar || Interceptable(tgt, ref aim)) // admittedly not the best way to do this
-                {     
+                {
                     aim -= _weapons.AimPos;
                     var tgtDst = aim.Length();
 

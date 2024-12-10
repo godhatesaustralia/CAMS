@@ -5,6 +5,7 @@ using VRage.Game.ModAPI.Ingame.Utilities;
 using SpaceEngineers.Game.ModAPI.Ingame;
 using VRage.Game.GUI.TextPanel;
 using VRageMath;
+using System.Runtime.InteropServices;
 
 namespace IngameScript
 {
@@ -20,6 +21,7 @@ namespace IngameScript
 
         public double
             PDSpray,
+            ScanChgLimit,
             ScanDistLimit;
 
         public int
@@ -71,6 +73,7 @@ namespace IngameScript
                     SendIGCTicks = p.Int(H, "igcTransmitInterval", 0);
                     PDSpray = p.Double(H, "spray", -1);
                     ScanDistLimit = p.Double(H, "maxRaycast", 8E3);
+                    ScanChgLimit = p.Double(H, "minLdrChg", 1E4);
                     MaxScansMasts = p.Int(H, "maxScansMast", 1);
                     MaxScansPDLR = p.Int(H, "maxScansPDLR", 3);
                     MaxAutoTgtChecks = p.Int(H, "tStep", 4);
@@ -209,10 +212,7 @@ namespace IngameScript
                     Turrets.Add(pd.Name, pd);
             }
             if (Turrets.Count > 0)
-            {
-                PDTNames = Lib.Keys(ref Turrets);
-                PDTRR = new RoundRobin<string, RotorTurret>(PDTNames);
-            }
+                PDTRR = new RoundRobin<string, RotorTurret>(Lib.Keys(ref Turrets));
 
 
             var ntmp = new List<string>();
@@ -235,13 +235,17 @@ namespace IngameScript
             }
             if (ntmp.Count > 0)
             {
-                MainTNames = new string[ntmp.Count];
-                for (int i = 0; i < ntmp.Count; ++i)
-                    MainTNames[i] = ntmp[i];
+                var mn = new string[ntmp.Count];
+                for (int i = 0; i < ntmp.Count; i++)
+                    mn[i] = ntmp[i]; 
 
-                MainRR = new RoundRobin<string, RotorTurret>(MainTNames);
+                MainRR = new RoundRobin<string, RotorTurret>(mn);
             }
-
+            if (Turrets.Count > 0)
+            {
+                AssignRR = new RoundRobin<string, RotorTurret>(Lib.Keys(ref Turrets));
+            }
+            else CtrlScreens.Remove(Lib.TR);
 
             ntmp.Clear();
             foreach (var b in RackNamesList.Split('\n'))
@@ -295,13 +299,6 @@ namespace IngameScript
             }
             else CtrlScreens.Remove(Lib.LN);
 
-            if (Turrets.Count > 0)
-            {
-                temp = Lib.Keys(ref Turrets);
-                AssignRR = new RoundRobin<string, RotorTurret>(temp);
-                //MainRR = new RoundRobin<string, RotorTurret>(temp);
-            }
-            else CtrlScreens.Remove(Lib.TR);
             #endregion
 
         }
@@ -321,7 +318,7 @@ namespace IngameScript
                     SPR(TXT, "", Lib.V2(272, 108), n, SDY, Lib.F_DF, Lib.RGT, 0.8735f),
                     SPR(TXT, "", Lib.V2(20, 248), n, PMY, Lib.F_BD, 0, 0.6135f), // 5
                     SPR(TXT, "", Lib.V2(272, 248), n, SDY, Lib.F_DF, Lib.RGT, 0.6135f), //7                 
-                    SPR(TXT, "TGTS\nTEID\nDIST\nELEV\nASPD\nACCL\nSIZE\nSCOR\nHITS", Lib.V2(292, 112), n, PMY, Lib.F_BD, 0, 0.6495f * FSCL),
+                    SPR(TXT, "TGTS\nTEID\nDIST\nELEV\nASPD\nACCL\nSIZE\nSCOR\nHITS", Lib.V2(292, 112), n, PMY, Lib.F_BD, 0, 0.6495f),
                     SPR(TXT, "", Lib.V2(492, 112), n, SDY, Lib.F_DF, Lib.RGT, 0.6495f),
                     SPR(SHP, Lib.SQS, Lib.V2(282, 256), Lib.V2(8, 288), PMY), // 9
                     SPR(SHP, Lib.SQS, Lib.V2(144, 242), Lib.V2(268, 8), PMY)
@@ -332,7 +329,7 @@ namespace IngameScript
             #region turrets screen
             CtrlScreens[Lib.TR] = new Screen
             (
-                () => MainRR.IDs.Length,
+                () => AssignRR.IDs.Length,
                 new MySprite[]
                 {
                     SPR(TXT, "", Lib.V2(20, 112), n, PMY, Lib.F_BD, 0, 0.925f),// 1. TUR NAME
@@ -340,7 +337,7 @@ namespace IngameScript
                     SPR(TXT, "TG\nCR\nTG\nCR", Lib.V2(132, 164), n, PMY, Lib.F_BD, 0, 0.9125f), // 2. ANGLE HDR 2
                     SPR(TXT, "", Lib.V2(192, 164), n, SDY, Lib.F_DF, 0, 0.9125f),// 4. ANGLE DATA
                     SPR(TXT, "", Lib.V2(20, 348), n, PMY, Lib.F_BD, 0, 0.925f),// 5. STATE
-                    SPR(TXT, "MODE\nWSPD\nFIRE\nTRCK\nARPM\nERPM", Lib.V2(342, 164), n, PMY, Lib.F_BD, 0, 0.6045f),
+                    SPR(TXT, "CLCK\nWSPD\nFIRE\nTRCK\nARPM\nERPM", Lib.V2(342, 164), n, PMY, Lib.F_BD, 0, 0.6045f),
                     SPR(TXT, "", Lib.V2(496, 164), n, SDY, Lib.F_DF, Lib.RGT, 0.6045f),
                     SPR(SHP, Lib.SQS, Lib.V2(256, 162), Lib.V2(496, 4), PMY, null),
                     SPR(SHP, Lib.SQS, Lib.V2(256, 346), Lib.V2(496, 4), PMY, null),

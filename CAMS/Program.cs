@@ -87,21 +87,21 @@ namespace IngameScript
 
             ParseComputerSettings();
 
+            #region jit
+            var m = new Missile();
+            m.Update(null);
+            CommandFire(_cmd);
+            PassTarget(new MyDetectedEntityInfo());
+            UpdateLaunchers();
+            UpdateRotorTurrets();
+            UpdateMissileGuidance();
+            _frame = 0;
+            #endregion
+
             AddSystemScreens();
 
             CacheMainSystems();
 
-            #region jit
-
-            var m = new Missile();
-            m.Update(null);
-            CommandFire(_cmd);
-            UpdateRotorTurrets();
-            UpdateLaunchers();
-            UpdateMissileGuidance();
-            _frame = 0;
-
-            #endregion
         }
         public void Save()
         {
@@ -192,14 +192,14 @@ namespace IngameScript
             #region inline scan checks
             if (F >= _nxtLidarCheck)
             {
-                foreach (var m in Masts.Values) m.Update();
-
-                if (Targets.Count > 0 && PDTNames.Length > 0)
+                if (Targets.Count > 0 && PDTRR != null)
                 {
                     var tur = PDTRR.Next(ref Turrets);
                     while ((tur.Inoperable || !tur.UseLidar) && PDTRR.Next(ref Turrets, out tur)) ;
                     tur.UpdateTurret();
                 }
+
+                foreach (var m in Masts.Values) m.Update();
 
                 _nxtLidarCheck += LidarUpdateTicks;
             }
@@ -239,6 +239,7 @@ namespace IngameScript
             string r = "====<CAMS>====\n\n=<PERF>=\n";
             r += $"CLOCK - {_frame:X}\nRUNTIME - {_lastRT} ms\nAVG - {_avgRT:0.####} ms\nWORST - {_worstRT} ms, F{_worstF}\n\n=<TGTS>=\n";
             r += Targets.Log;
+            
             Echo(r);
         }
     }
