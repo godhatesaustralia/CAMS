@@ -289,7 +289,7 @@ namespace IngameScript
 		public long MEID = -1, TEID, LastActiveF, NextUpdateF, NextStatusF, NextEvnAdjF;
 		public bool Inoperable => _dead || !Controller.IsFunctional || Controller.Closed;
 		public double DistToTarget => _range;
-		public string IDTG = "NULL", DEBUG;
+		public string IDTG = "N/A", DEBUG;
 		public IMyRemoteControl Controller;
 		IMyShipConnector _ctor;
 		IMyShipMergeBlock _merge;
@@ -430,19 +430,16 @@ namespace IngameScript
 
 		public void Clear()
 		{
-			if (!_dead)
+			foreach (var tk in _tanks)
+				tk.Enabled = false;
+			foreach (var th in _thrust)
+				th.Enabled = false;
+			foreach (var w in _warhead)
 			{
-				foreach (var tk in _tanks)
-					tk.Enabled = false;
-				foreach (var th in _thrust)
-					th.Enabled = false;
-				foreach (var w in _warhead)
-				{
-					w.IsArmed = true;
-					w.Detonate();
-				}
-				_gyro.Enabled = _batt.Enabled = false;
+				w.IsArmed = true;
+				w.Detonate();
 			}
+			_gyro.Enabled = _batt.Enabled = false;
 
 			Controller = null;
 			_gyro = null;
@@ -456,7 +453,7 @@ namespace IngameScript
 			_sensors.Clear();
 
 			MEID = TEID = -1;
-			IDTG = "NULL";
+			IDTG = "N/A";
 		}
 		#endregion
 
@@ -474,7 +471,7 @@ namespace IngameScript
 			var fuel = 0d;
 			int i = _tanks.Count;
 
-			for (; --i > 0;)
+			for (; --i >= 0;)
 			{
 				var t = _tanks[i];
 				_checkAccel |= t.Closed;
@@ -483,7 +480,7 @@ namespace IngameScript
 				else fuel += t.FilledRatio;
 			}
 
-			for (i = _thrust.Count; --i > 0;)
+			for (i = _thrust.Count; --i >= 0;)
 			{
 				_checkAccel |= _thrust[i].Closed;
 				if (!_thrust[i].IsFunctional || _thrust[i].Closed)
@@ -544,6 +541,8 @@ namespace IngameScript
 			if (tgt == null || _dead)
 				return;
 
+			if (!tgt.Engaged) _p.Targets.MarkEngaged(tgt.EID);
+
 			LastActiveF = _p.F;
 			_viewMat = MatrixD.Transpose(Controller.WorldMatrix);
 			_pos = Controller.WorldMatrix.Translation;
@@ -562,12 +561,12 @@ namespace IngameScript
 			#region main-final
 			if (_selOfsPt && _range < OFS_D)
 			{
-				int h = tgt.HitPoints.Count;
+				int h = tgt.HitPoints?.Count ?? 0;
 				_selOfsPt = false;
-				
+
 				if (h > 0)
 					_ofs = tgt.HitPoints[_p.RNG.Next(h)];
-				
+
 				else _ofs = new Offset
 				{
 					Frame = tgt.Frame,
@@ -583,14 +582,14 @@ namespace IngameScript
 					foreach (var w in _warhead)
 						w.IsArmed = true;
 				}
-				else if (!_cams && _range < tgt.Radius * PROX_R)	_kill = true;
-				else 
+				else if (!_cams && _range < tgt.Radius * PROX_R) _kill = true;
+				else
 				{
 					var r = 2 * FUSE_D; // FUSE_D = 220
 					for (int i = _sensors.Count - 1; i >= 0; i--)
 					{
 						var s = _sensors[i];
-						
+
 						if (s.Closed || !s.IsFunctional)
 							_sensors.RemoveAtFast(i);
 						else if (s.CanScan(r))

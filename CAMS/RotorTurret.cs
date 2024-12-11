@@ -317,7 +317,7 @@ namespace IngameScript
 
         protected Vector3D GetAimPoint(Target t, ref MatrixD az)
         {
-            if ((int)t.Type == 2 || t.HitPoints.Count == 0) return t.Hit;
+            if ((int)t.Type == 2 || t.HitPoints?.Count == 0) return t.Hit;
 
             bool reset = false;
 
@@ -485,14 +485,17 @@ namespace IngameScript
         {
             if (Inoperable || _designators == null) return;
 
-            for (int i = 0; i < _designators.Length; i++)
+            for (int i = _designators.Length; --i >= 0;)
                 if (_designators[i].CanScan(_scanMx))
                 {
-                    var t = _designators[i].Raycast(_scanMx);
-                    if (_p.PassTarget(t, true))
+                    var e = _designators[i].Raycast(_scanMx);
+                    if (_p.PassTarget(ref e, true))
                     {
-                        if (track) AssignLidarTarget(_p.Targets.Get(t.EntityId));
-                        break;
+                        var t = _p.Targets.Get(e.EntityId);
+
+                        if (track && AssignLidarTarget(t))
+                            break;
+                        else _p.TransferLidar(t);
                     }
                 }
         }
@@ -542,12 +545,12 @@ namespace IngameScript
                     Status = AimAtTarget(ref azm, ref aim, a, e);
                     TGT = tgt.eIDTag;
 
-                    if (Status == AimState.OnTarget)
+                    if (Status == AimState.OnTarget || (UseLidar && aim.Dot(_designators[0].WorldMatrix.Forward) > 0.707))
                     {
                         if (UseLidar)
                         {
                             var r = ScanResult.Failed;
-                            for (_scanCtr = 0; _scanCtr++ < _scanMx && r == ScanResult.Failed;)
+                            for (_scanCtr = _scanMx; --_scanCtr >= 0 && r == ScanResult.Failed;)
                                 r = _lidar.Scan(_p, tgt, _ofsLidar);
                         }
 
@@ -556,6 +559,14 @@ namespace IngameScript
                             if (!tgt.Engaged) _p.Targets.MarkEngaged(TEID);
 
                             _weapons.Fire(_p.F);
+                        }
+                    }
+                    else if (UseLidar && (Status & AimState.Blocked) != 0)
+                    {
+                        if (BlockF > 20 && _p.TransferLidar(tgt))
+                        {
+                            Status = Idle(a, e, true);
+                            return;
                         }
                     }
                     else _weapons.Hold();

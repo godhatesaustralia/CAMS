@@ -100,7 +100,7 @@ namespace IngameScript
         {
             if (p < max)
                 p++;
-            if (p == max)
+            if (p >= max)
                 p = 0;
             return p;
         }

@@ -88,10 +88,11 @@ namespace IngameScript
             ParseComputerSettings();
 
             #region jit
+            var i = new MyDetectedEntityInfo();
             var m = new Missile();
             m.Update(null);
             CommandFire(_cmd);
-            PassTarget(new MyDetectedEntityInfo());
+            PassTarget(ref i);
             UpdateLaunchers();
             UpdateRotorTurrets();
             UpdateMissileGuidance();
@@ -190,22 +191,17 @@ namespace IngameScript
             #endregion
 
             #region inline scan checks
-            if (F >= _nxtLidarCheck)
+            if (Targets.Count > 0 && PDTRR != null)
             {
-                if (Targets.Count > 0 && PDTRR != null)
-                {
-                    var tur = PDTRR.Next(ref Turrets);
-                    while ((tur.Inoperable || !tur.UseLidar) && PDTRR.Next(ref Turrets, out tur)) ;
-                    tur.UpdateTurret();
-                }
-
-                foreach (var m in Masts.Values) m.Update();
-
-                _nxtLidarCheck += LidarUpdateTicks;
+                RotorTurret tur;
+                while (PDTRR.Next(ref Turrets, out tur) && tur.UseLidar) ;
+                tur.UpdateTurret();
             }
 
-            int i = AllTurrets.Count - 1;
-            for (; i >= 0; i--)
+            MastsRR.Next(ref Masts).Update();
+
+            int i = AllTurrets.Count;
+            for (; --i >= 0;)
             {
                 var at = AllTurrets[i];
                 if (at.Closed || !at.IsFunctional)
@@ -213,15 +209,15 @@ namespace IngameScript
                 else GetTurretTgt(at);
             }
 
-            for (i = Math.Max(0, _turCheckPtr - MaxAutoTgtChecks); _turCheckPtr >= i; _turCheckPtr--)
+            for (i = Math.Max(0, _turCheckPtr - MaxAutoTgtChecks); --_turCheckPtr >= i;)
             {
                 var at = Artillery[_turCheckPtr];
                 if (at.Closed || !at.IsFunctional)
-                    AllTurrets.RemoveAtFast(_turCheckPtr);
+                    Artillery.RemoveAtFast(_turCheckPtr);
                 else GetTurretTgt(at, true);
             }
 
-            if (_turCheckPtr <= 0) _turCheckPtr = Artillery.Count - 1;
+            if (_turCheckPtr <= 0) _turCheckPtr = Artillery.Count;
             #endregion
 
             #region main-sys-update
@@ -239,7 +235,7 @@ namespace IngameScript
             string r = "====<CAMS>====\n\n=<PERF>=\n";
             r += $"CLOCK - {_frame:X}\nRUNTIME - {_lastRT} ms\nAVG - {_avgRT:0.####} ms\nWORST - {_worstRT} ms, F{_worstF}\n\n=<TGTS>=\n";
             r += Targets.Log;
-            
+
             Echo(r);
         }
     }

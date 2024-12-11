@@ -16,7 +16,7 @@ namespace IngameScript
         public readonly string Tag;
         public double ScanAVG;
         const float SCAT_R = 0.2f, SPREAD = 5;
-        const int DEF_OP = 2, MIN_SZ = 10;
+        const int DEF_CT = 2, MIN_SZ = 20;
         public int Scans = 0, MaxScans;
         bool _missed = false;
         int _hit = 0;
@@ -47,51 +47,15 @@ namespace IngameScript
             }
         }
 
-        // Vector3D RaycastLead(Target t, Vector3D srcPos, Program p, bool ofs, double spread = 5) // ofs is spread factor. whip left as 5 default
-        // {
-        //     double dT;
-        //     Vector3D tPos, tDir;
-
-        //     if (ofs && t.HitPoints.Count > 0)
-        //     {
-        //         var h = t.HitPoints[Lib.Next(ref _hit, t.HitPoints.Count)];
-        //         dT = Math.Max(1, p.F - h.Frame);
-        //         tPos = h.Hit;
-        //     }
-        //     else
-        //     {
-        //         dT = t.Elapsed(p.F);
-        //         tPos = t.Hit;
-        //         if (ofs && (int)t.Type == 3)
-        //             tPos += Vector3D.TransformNormal(p.RandomOffset() * t.Radius * SCAT_R, t.Matrix);
-        //     }
-
-        //     tPos += t.Velocity * dT + t.Accel * dT * dT;
-        //     tDir = (tPos - srcPos).Normalized();
-
-        //     if (ofs && _lastScan == ScanResult.Failed)
-        //     {
-        //         _missed = !_missed;
-        //         if (_missed)
-        //         {
-        //             var p1 = Vector3D.CalculatePerpendicularVector(tDir);
-        //             var p2 = p1.Cross(tDir);
-        //             p2.Normalize();
-        //             tPos += (p.GaussRNG() * p1 + p.GaussRNG() * p2) * dT * spread;
-        //         }
-        //     }
-        //     return tPos + tDir * 2 * t.Radius;
-        // }
-
         public ScanResult Scan(Program p, Target t, bool offset = false)
         {
             var r = _lastScan = ScanResult.Failed;
             int i = _hit = Scans = 0;
             offset &= t.Radius > MIN_SZ;
 
-            MaxScans = offset ? DEF_OP : 0;
+            MaxScans = offset ? DEF_CT : 0;
 
-            if (!offset && p.Targets.ScannedIDs.Contains(t.EID))
+            if (!offset && t.Frame + p.TgtRefreshTicks > p.F)
                 return r;
 
             _camerasByRange.Clear();
@@ -148,26 +112,29 @@ namespace IngameScript
 
                 if (offset)
                 {
-                    if (p.Targets.Exists(info.EntityId))
-                    {
-                        Scans++;
-                        _lastScan = ScanResult.Update;
+                    if (p.Targets.Blacklist.Contains(info.EntityId)) continue;
 
+                    Scans++;
+                    _lastScan = ScanResult.Update;
+
+                    var exst = p.Targets.Exists(info.EntityId);
+                    if (exst || info.BoundingBox.Size.Length() < MIN_SZ)
+                    {
                         var h = info.HitPosition.Value;
-                        if (!p.Targets.AddHit(info.EntityId, p.F, ref h))
+                        if (!p.Targets.AddHit(exst ? info.EntityId : t.EID, p.F, ref h))
                             break;
                     }
-                    else if (p.PassTarget(info, out r)) break;
+                    else if (p.PassTarget(ref info, out r)) break;
                 }
-                else if (p.PassTarget(info, out r))
+                else if (p.PassTarget(ref info, out r))
                 {
                     Scans++;
-                    bool rs = MaxScans == 0 && t.Radius > MIN_SZ;
+                    var rs = (!t.Subgrid || t.Radius > MIN_SZ) && t.Engaged;
 
-                    if (!offset && rs)
+                    if (!offset && rs && MaxScans == 0)
                     {
                         offset = true;
-                        MaxScans = DEF_OP;
+                        MaxScans = DEF_CT;
                     }
                     else return r;
                 }
@@ -182,23 +149,22 @@ namespace IngameScript
         IMyMotorStator _az, _el;
         IMyTurretControlBlock _ctc;
         Program _p;
+        HashSet<long> _tEIDs = new HashSet<long>(16);
         public IMyCameraBlock Main;
         public string Name, RPM, TGT;
         public LidarArray[] Lidars;
         bool _activeCTC => _ctc?.IsUnderControl ?? false;
         public bool Manual => _stopSpin || _activeCTC;
-        double _maxAzD, _maxCamD;
+        double _maxAzD, _maxCamD, _minAvg;
         float _azR, _elR, _max = float.MaxValue, _min = float.MinValue; // rest angles - it's my code, i can name stuff as terribly as i want!!!!
         bool _stopSpin = false;
-        int _aRPM = 20, _eRPM = 53, _mxLim = 4;
+        int _aRPM, _eRPM;
         public int Scans;
 
         public LidarMast(Program p, IMyMotorStator azi)
         {
             _az = azi;
             _p = p;
-            _aRPM = 29;
-            _eRPM = 53;
         }
 
         public void Setup(Program m, ref string[] tags)
@@ -216,6 +182,8 @@ namespace IngameScript
                     _maxCamD = p.Double(Lib.H, "limRayCamDown", 0.6025);
                     _azR = rad * p.Float(Lib.H, "azR", 360);
                     _elR = rad * p.Float(Lib.H, "elR", 360);
+                    _aRPM = p.Int(Lib.H, "azRPM", 29);
+                    _eRPM = p.Int(Lib.H, "elRPM", 53);
                 }
             }
 
@@ -285,12 +253,44 @@ namespace IngameScript
             _az.UpperLimitRad = _azR;
             _el.UpperLimitRad = _elR;
             _stopSpin = true;
+
+            if (_tEIDs.Count > 0)
+                foreach (var id in _tEIDs)
+                {
+                    var t = _p.Targets.Get(id);
+                    if (t != null) _p.TransferLidar(t, Name);
+                }
+            
+            _tEIDs.Clear();
+
         }
 
         public void Designate()
         {
             if (_activeCTC && Main.IsActive && Main.CanScan(_p.ScanDistLimit))
-                _p.PassTarget(Main.Raycast(_p.ScanDistLimit), true);
+            {
+                var i = Main.Raycast(_p.ScanDistLimit);
+                if (!i.IsEmpty() && _p.PassTarget(ref i, true))
+                {
+                    var t = _p.Targets.Get(i.EntityId);
+                    if (!_p.TransferLidar(t, Name)) 
+                        _tEIDs.Add(i.EntityId);
+                    
+                }
+            }
+        }
+
+        public bool CanTrack(Target t)
+        {
+            if (_tEIDs.Contains(t.EID)) return true;
+
+            var i = t.Center + t.Elapsed(_p.F) * t.Velocity - Main.WorldMatrix.Translation;
+            i.Normalize();
+
+            var r = i.Dot(_az.WorldMatrix.Down) < _maxAzD && _minAvg > _p.ScanChgLimit;
+            if (r) _tEIDs.Add(t.EID);
+
+            return r;
         }
 
         public void Update()
@@ -320,41 +320,47 @@ namespace IngameScript
 
             }
             RPM = $"\n{_az.TargetVelocityRPM:000}\n{_el.TargetVelocityRPM:000}";
-
-            double min = _max;
-            Scans = 0;
             if (_p.Targets.Count == 0)
             {
                 TGT = "NO TRGTS";
                 return;
             }
 
-            foreach (var t in _p.Targets.Prioritized)
-                if (!_p.Targets.ScannedIDs.Contains(t.EID))
+            _minAvg = _max;
+            Scans = 0;
+
+            foreach (var t in _p.Targets.All)
+            {
+                if (_p.F - t.Frame >= _p.TgtRefreshTicks)
                 {
-                    if (min < _p.ScanChgLimit && _p.AddLidarTrack(t)) break;
+                    var icpt = t.Center + t.Elapsed(_p.F) * t.Velocity - Main.WorldMatrix.Translation;
+                    icpt.Normalize();
 
-                    for (int i = 0; i < Lidars.Length; i++)
+                    if (icpt.Dot(_az.WorldMatrix.Down) > _maxAzD || _minAvg < _p.ScanChgLimit)
                     {
-                        var icpt = t.Center + t.Elapsed(_p.F) * t.Velocity - Main.WorldMatrix.Translation;
-                        icpt.Normalize();
+                        if (_p.TransferLidar(t, Name))
+                            _tEIDs.Remove(t.EID);
+                        continue;
+                    }
 
-                        if (icpt.Dot(_az.WorldMatrix.Down) > _maxAzD ||
-                            icpt.Dot(Lidars[i].First.WorldMatrix.Backward) > 0 ||
-                            icpt.Dot(Lidars[i].First.WorldMatrix.Down) > _maxCamD)
+                    for (int j = 0; j < Lidars.Length; j++)
+                    {
+                        if (icpt.Dot(Lidars[j].First.WorldMatrix.Backward) > 0 ||
+                            icpt.Dot(Lidars[j].First.WorldMatrix.Down) > _maxCamD)
                             continue;
 
-                        if (Lidars[i].Scan(_p, t) != ScanResult.Failed)
+                        if (Lidars[j].Scan(_p, t) != ScanResult.Failed)
                         {
                             TGT = $"ID {t.eIDTag}";
-                            Scans += Lidars[i].Scans;
+                            Scans += Lidars[j].Scans;
                             break;
                         }
 
-                        if (Lidars[i].ScanAVG < min)
-                            min = Lidars[i].ScanAVG;
+                        if (Lidars[j].ScanAVG < _minAvg)
+                            _minAvg = Lidars[j].ScanAVG;
                     }
                 }
+            }
         }
     }
 

@@ -93,6 +93,7 @@ namespace IngameScript
         {
             int i = 0;
             var s = _screens[_active];
+            if (_ptr >= _pMax()) _ptr = _pMax() - 1;
 
             _surf.ScriptBackgroundColor = _bg;
             s.Data(_ptr, _idx, _sel, s);

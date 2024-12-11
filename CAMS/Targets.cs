@@ -34,7 +34,7 @@ namespace IngameScript
         /// <summary>
         /// offset points max count
         /// </summary>
-        public const int OPMX = 5;
+        public const int OPMX = 4;
         public readonly long EID, Source;
         public double Radius, Distance;
         public long Frame;
@@ -42,7 +42,7 @@ namespace IngameScript
         public MatrixD Matrix;
         public BoundingBoxD? Volume;
         public Vector3D Hit, Center, Velocity, Accel;
-        public List<Offset> HitPoints = new List<Offset>(OPMX);
+        public List<Offset> HitPoints = null;
         public readonly MyDetectedEntityType Type;
         public readonly string eIDString, eIDTag;
         public bool Subgrid, PriorityKill, Engaged;
@@ -60,7 +60,10 @@ namespace IngameScript
             Matrix = i.Orientation;
             Velocity = i.Velocity;
             if ((int)i.Type == 3)
+            {
                 Volume = i.BoundingBox;
+                HitPoints = new List<Offset>(OPMX);
+            }
             Radius = i.BoundingBox.Size.Length();
             Distance = dist;
             Hit = i.HitPosition ?? Center;
@@ -110,14 +113,12 @@ namespace IngameScript
         double _invD = INV_MAX_D;
         public string Log, SelTag;
         public int Count => _iEIDs.Count;
+        public HashSet<long> Blacklist = new HashSet<long>();
         public SortedSet<Target> Prioritized = new SortedSet<Target>();
-        List<long> _rmvEIDs = new List<long>(), _iEIDs = new List<long>();
+        public List<Target> All = new List<Target>();
+        List<long> _iEIDs = new List<long>();
         Dictionary<long, Target> _targets = new Dictionary<long, Target>();
         Dictionary<long, long> _offsets = new Dictionary<long, long>();
-
-        public HashSet<long>
-            ScannedIDs = new HashSet<long>(),
-            Blacklist = new HashSet<long>();
 
         const float rad = (float)Math.PI / 180, X_MIN = 28, X_MAX = 484, Y_MIN = 28, Y_MAX = 484; // radar
         static Vector2 rdrCNR = Lib.V2(256, 256), tgtSz = Lib.V2(12, 12), env = Lib.V2(91.2f, 91.2f);
@@ -199,14 +200,12 @@ namespace IngameScript
                 return;
             }
 
-            if (p >= Count) p = Count - 1;
-
             var t = _targets[_iEIDs[p]];
             var r = t.EID == Selected ? "SLCTD" : $"{p + 1:00}/{Count:00}";
             var e = Lib.Projection(_p.Center - t.Center, _p.Controller.WorldMatrix.Up).Length();
 
             r += $"\n{t.eIDTag}\n{t.Distance:00000}\n{e:+0000;-0000}";
-            r += $"\n{t.Velocity.Length():00000}\n{t.Accel.Length():00000}\n{t.Radius:0000}M\n{t.Priority:0000}P\n{t.HitPoints.Count} LOC";
+            r += $"\n{t.Velocity.Length():00000}\n{t.Accel.Length():00000}\n{t.Radius:0000}M\n{t.Priority:0000}P\n{(t.Subgrid ? "CHILD" : $"{t.HitPoints.Count}/{Target.OPMX}HT")}";
 
             s.Write(r, 5);
         }
@@ -219,6 +218,7 @@ namespace IngameScript
 
         void Enter(int p, Screen s)
         {
+            if (p >= Count) p = Count - 1;
             Selected = _iEIDs[p];
             SelTag = _targets[Selected].eIDTag;
         }
@@ -289,7 +289,7 @@ namespace IngameScript
         }
         #endregion
 
-        public ScanResult AddOrUpdate(ref MyDetectedEntityInfo i, long src, bool hits = false)
+        public ScanResult AddOrUpdate(ref MyDetectedEntityInfo i, long src, long f)
         {
             var id = i.EntityId;
             var dist = (_p.Center - i.Position).Length();
@@ -297,7 +297,7 @@ namespace IngameScript
             if (_targets.ContainsKey(id))
             {
                 var t = _targets[id];
-                var dT = (_p.F - t.Frame) * Lib.TPS;
+                var dT = (f - t.Frame) * Lib.TPS;
                 var a = (i.Velocity - t.Velocity) / dT;
                 if (a.LengthSquared() > 1)
                     t.Accel = (t.Accel * 0.25) + (a * 0.75);
@@ -305,7 +305,7 @@ namespace IngameScript
 
                 t.Hit = i.HitPosition ?? i.Position;
                 t.Center = i.Position;
-                t.Frame = _p.F;
+                t.Frame = f;
                 t.Velocity = i.Velocity;
                 t.Matrix = i.Orientation;
                 t.Accel = Vector3D.Zero;
@@ -319,7 +319,7 @@ namespace IngameScript
             else
             {
 
-                var t = _targets[id] = new Target(i, _p.F, src, dist);
+                var t = _targets[id] = new Target(i, f, src, dist);
 
                 if (t.Radius < 20)
                 {
@@ -375,15 +375,6 @@ namespace IngameScript
                 t.Priority -= uhoh ? 500 : 400;
         }
 
-        public List<Target> AllTargets()
-        {
-            var list = new List<Target>(Count);
-            foreach (var t in _targets.Values)
-                list.Add(t);
-
-            return list;
-        }
-
         public void MarkEngaged(long eid)
         {
             if (_targets.ContainsKey(eid))
@@ -398,24 +389,23 @@ namespace IngameScript
 
         public void Update(UpdateType u, long f)
         {
-            ScannedIDs.Clear();
-
             if ((u & Lib.u100) != 0)
             {
                 if (Count == 0)
                     return;
 
-                _rmvEIDs.Clear();
-
-                foreach (var t in _targets.Values)
-                    if (t.Elapsed(f) >= MAX_LIFE_SEC)
-                        _rmvEIDs.Add(t.EID);
-
-                foreach (var id in _rmvEIDs)
+                All.Clear();
+                for (int i = _iEIDs.Count; --i >= 0;)
                 {
-                    _targets.Remove(id);
-                    _iEIDs.Remove(id);
+                    var t = _targets[_iEIDs[i]];
+                    if (t.Elapsed(f) > MAX_LIFE_SEC)
+                    {
+                        _targets.Remove(_iEIDs[i]);
+                        _iEIDs.RemoveAt(i);
+                    }
+                    else All.Add(t);
                 }
+            
             }
             else if (_p.GlobalPriorityUpdateSwitch && f >= _nextPrioritySortF)
             {
@@ -489,6 +479,9 @@ namespace IngameScript
         public bool AddHit(long id, long f, ref Vector3D h)
         {
             var t = _targets[id];
+
+            if (t.HitPoints == null) return false;
+
             var r = t.HitPoints.Count < Target.OPMX;
             var o = new Offset
             {
@@ -516,11 +509,12 @@ namespace IngameScript
 
         public void Clear()
         {
-            _rmvEIDs.Clear();
             _offsets.Clear();
             _targets.Clear();
-            ScannedIDs.Clear();
             _iEIDs.Clear();
+            Prioritized.Clear();
+            All.Clear();
+            Selected = -1;
         }
     }
 }

@@ -33,7 +33,7 @@ namespace IngameScript
                     t = (int)info.Type;
                     if (rel == 1 || rel == 5 || (t != 2 && t != 3)) // owner or friends
                         continue;
-                    Targets.AddOrUpdate(ref i, ID);
+                    Targets.AddOrUpdate(ref i, ID, ID);
                 }
             }
         }

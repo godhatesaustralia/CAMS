@@ -25,6 +25,7 @@ namespace IngameScript
             ScanDistLimit;
 
         public int
+            TgtRefreshTicks,
             HardpointsCount,
             SendIGCTicks,
             ReceiveIGCTicks,
@@ -33,7 +34,6 @@ namespace IngameScript
             MaxScansPDLR,
             MaxTgtKillTracks,
             MaxRotorTurretUpdates,
-            LidarUpdateTicks,
             PriorityCheckTicks;
 
         public string
@@ -69,6 +69,7 @@ namespace IngameScript
                     PanelNamesList = p.String(H, "lidar" + grp);
 
                     Lib.VCR = p.Bool(H, "vcr");
+                    TgtRefreshTicks = p.Int(H, "tgtRefreshInterval", 4);
                     ReceiveIGCTicks = p.Int(H, "igcCheckInterval", 0);
                     SendIGCTicks = p.Int(H, "igcTransmitInterval", 0);
                     PDSpray = p.Double(H, "spray", -1);
@@ -79,7 +80,7 @@ namespace IngameScript
                     MaxAutoTgtChecks = p.Int(H, "tStep", 4);
                     MaxRotorTurretUpdates = p.Int(H, "maxTurUpdates", 1);
                     MaxTgtKillTracks = p.Int(H, "maxKillTracks", 3);
-                    LidarUpdateTicks = p.Int(H, "mastUpdateTicks", 3);
+
                     PriorityCheckTicks = p.Int(H, "priorityUpdateTicks", 10);
                     HardpointsCount = p.Int(H, "mslHardpoints", 16);
 
@@ -170,7 +171,7 @@ namespace IngameScript
                 }
                 return false;
             });
-            if (Masts.Count > 0) MastNames = Lib.Keys(ref Masts);
+            if (Masts.Count > 0) MastsRR = new RoundRobin<string, LidarMast>(Lib.Keys(ref Masts));
             else 
             {
                 CtrlScreens.Remove(Lib.MS);
@@ -311,7 +312,7 @@ namespace IngameScript
 
             CtrlScreens[Lib.MS] = new Screen
             (
-                () => MastNames.Length,
+                () => MastsRR.IDs.Length,
                 new MySprite[]
                 {
                     SPR(TXT, "", Lib.V2(20, 108), n, PMY, Lib.F_BD, 0, 0.8735f),// 4

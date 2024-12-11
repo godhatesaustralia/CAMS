@@ -1,4 +1,5 @@
-﻿using Sandbox.ModAPI.Ingame;
+﻿using System;
+using Sandbox.ModAPI.Ingame;
 
 namespace IngameScript
 {
@@ -7,8 +8,10 @@ namespace IngameScript
         void ScrollMS(int p, int x, bool b, Screen s)
         {
             int i = b ? x : p;
-            var l = Masts[MastNames[i]];
-            var g = $"{i + 1:0}/{MastNames.Length:0}"; 
+
+            i = Math.Min(i, MastsRR.IDs.Length - 1);
+            var l = Masts[MastsRR.IDs[i]];
+            var g = $"{i + 1:0}/{MastsRR.IDs.Length:0}"; 
 
             g += l.RPM;
             s.Write(g, 1);
@@ -33,9 +36,42 @@ namespace IngameScript
             Targets.Selected = -1;
             s.Enter = Targets.TargetMode;
             Targets.SelTag = "";
-            s.Max = () => MastNames.Length;
+            s.Max = () =>MastsRR.IDs.Length;
         }
         
+
+
+        public bool TransferLidar(Target t, string src = "")
+        {
+            auxTracks.Remove(t.EID);
+
+            foreach (var m in Masts)
+                if (m.Key != src && m.Value.CanTrack(t)) return true;
+
+            return AssignPDTScan(t);
+        }
+
+        bool AssignPDTScan(Target t)
+        {
+            if (PDTRR == null) return false;
+
+            if (auxTracks.Contains(t.EID))
+                return true;
+
+            foreach (var k in PDTRR.IDs)
+            {
+                var tur = (PDT)Turrets[k];
+                if ((tur.TEID == -1 || (tur.Status & AimState.Blocked) != 0 && tur.BlockF > TUR_REST_T) && tur.AssignLidarTarget(t, true))
+                {
+                    auxTracks.Add(t.EID);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+
+
         void GetTurretTgt(IMyLargeTurretBase t, bool arty = false)
         {
             MyDetectedEntityInfo info;
@@ -44,7 +80,7 @@ namespace IngameScript
                 info = t.GetTargetedEntity();
                 if (info.IsEmpty() || Targets.Exists(info.EntityId))
                     return;
-                else if (PassTarget(info) && arty && (int)info.Type == 2) // if small, retarget
+                else if (PassTarget(ref info, true) && arty && (int)info.Type == 2) // if small, retarget
                 {
                     t.ResetTargetingToDefault();
                     t.EnableIdleRotation = false;

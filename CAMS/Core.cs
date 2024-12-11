@@ -50,7 +50,7 @@ namespace IngameScript
     public partial class Program
     {
         public static long ID;
-        string[] MastNames, MastAryTags, AMSNames;
+        string[] MastAryTags, AMSNames;
         public IMyGridTerminalSystem Terminal => GridTerminalSystem;
         public static MySprite X = new MySprite();
         IMyTextSurface _surf;
@@ -110,17 +110,18 @@ namespace IngameScript
         #region targeting
         public TargetProvider Targets;
         public bool GlobalPriorityUpdateSwitch = true;
+        RoundRobin<string, LidarMast> MastsRR;
         Dictionary<string, LidarMast> Masts = new Dictionary<string, LidarMast>();
         List<IMyLargeTurretBase> 
             AllTurrets = new List<IMyLargeTurretBase>(), 
             Artillery = new List<IMyLargeTurretBase>();
 
-        public bool PassTarget(MyDetectedEntityInfo info, bool d = false)
+        public bool PassTarget(ref MyDetectedEntityInfo info, bool d = false)
         {
             ScanResult fake;
-            return PassTarget(info, out fake, d);
+            return PassTarget(ref info, out fake, d);
         }
-        public bool PassTarget(MyDetectedEntityInfo info, out ScanResult r, bool d = false)
+        public bool PassTarget(ref MyDetectedEntityInfo info, out ScanResult r, bool d = false)
         {
             r = ScanResult.Failed;
             if (info.IsEmpty() || Targets.Blacklist.Contains(info.EntityId))
@@ -131,9 +132,7 @@ namespace IngameScript
             if (rel == 1 || rel == 5 || (t != 2 && t != 3)) 
                 return false;
 
-            r = Targets.AddOrUpdate(ref info, ID);
-            if (!d)
-                Targets.ScannedIDs.Add(info.EntityId);
+            r = Targets.AddOrUpdate(ref info, ID, d ? F - TgtRefreshTicks : F);
             return true;
         }
         #endregion
