@@ -288,7 +288,6 @@ namespace IngameScript
 		const double TOL = 1E-5, CAM_ANG = .707, PROX_R = .265, PD_AIM_LIM = 6.3, MAX_TTK = 1E4;
 		public long MEID = -1, TEID, LastActiveF, NextUpdateF, NextStatusF, NextEvnAdjF;
 		public bool Inoperable => _dead || !Controller.IsFunctional || Controller.Closed;
-		public double DistToTarget => _range;
 		public string IDTG = "N/A", DEBUG;
 		public IMyRemoteControl Controller;
 		IMyShipConnector _ctor;
@@ -300,7 +299,7 @@ namespace IngameScript
 		List<IMyThrust> _thrust = new List<IMyThrust>();
 		List<IMyWarhead> _warhead = new List<IMyWarhead>();
 
-		bool _evade, _selOfsPt, _checkAccel, _dead, _arm, _cams, _kill;
+		bool _evade, _selOfsPt, _checkAccel, _dead = true, _arm, _cams, _kill;
 		byte _gYaw, _gPitch, _gRoll;
 		double _range, _accel, _evMax, _evMin;
 
@@ -388,7 +387,6 @@ namespace IngameScript
 		#region msl-reset
 		public void Reset(double a, byte y, byte p, byte r, int pg, int dg, int eMx, int eMn)
 		{
-			_dead = false;
 			_accel = a;
 			_gYaw = y;
 			_gPitch = p;
@@ -396,6 +394,7 @@ namespace IngameScript
 			_evade = eMx != 0 && eMn != 0;
 			_evMax = eMx;
 			_evMin = eMn;
+			_dead = false;
 
 			_yawCtrl.Reset(pg, dg, DEF_UPDATE);
 			_pitchCtrl.Reset(pg, dg, DEF_UPDATE);
@@ -430,6 +429,8 @@ namespace IngameScript
 
 		public void Clear()
 		{
+			_dead = true;
+
 			foreach (var tk in _tanks)
 				tk.Enabled = false;
 			foreach (var th in _thrust)
@@ -463,8 +464,7 @@ namespace IngameScript
 			NextStatusF += DEF_STAT;
 			_dead |= !_batt.IsFunctional || !_gyro.IsFunctional || _batt.Closed || _gyro.Closed;
 
-			if (_dead)
-				return;
+			if (_dead) return;
 
 			_checkAccel |= _merge.Closed || _ctor.Closed;
 
@@ -487,7 +487,7 @@ namespace IngameScript
 					_thrust.RemoveAtFast(i);
 			}
 
-			_dead |= fuel <= TOL && _tanks.Count == 0 && _thrust.Count == 0;
+			_dead |= fuel <= TOL || _tanks.Count == 0 || _thrust.Count == 0;
 		}
 
 		public void Launch(long teid, Program p)
@@ -609,9 +609,8 @@ namespace IngameScript
 
 							if (!info.IsEmpty())
 							{
-								icpt = info.HitPosition.Value;
-								if ((icpt - _pos).Length() < tgt.Radius * PROX_R) // PROX_R = 0.375
-									_kill = true;
+								p = info.HitPosition.Value - _pos;
+								_kill |= p.Length() < FUSE_D * 0.2 || info.BoundingBox.Contains(_pos) != 0;
 								break;
 							}
 						}

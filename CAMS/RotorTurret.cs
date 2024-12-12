@@ -25,30 +25,23 @@ namespace IngameScript
 
         const float RAD = (float)Math.PI / 180, DEG = 1 / RAD, OFS_TAN_HZ = 0.0091387f;
         // https://github.com/wellstat/SpaceEngineers/blob/master/IngameScripts/DiamondDomeDefense.cs#L3903
-
         public string Name, AZ, EL, TGT; // yeah
         protected IMyMotorStator _azimuth, _elevation;
         public AimState Status { get; protected set; }
         protected int _ofsIdx;
         protected long _ofsLastF, _ofsTEID;
-        protected float
-            _aMx,
-            _aMn,
-            _aRest,
-            _eMx,
-            _eMn,
-            _eRest; // absolute max and min azi/el for basic check
+        protected float _aMx, _aMn, _aRest, _eMx, _eMn, _eRest; // absolute max and min azi/el for basic check
         protected double _tol, _ofsAmt, _ofsMov; // aim tolerance, offset amount
         public readonly double Range, TrackRange, Speed;
-        public IMyTurretControlBlock _ctc;
+        public IMyTurretControlBlock CTC;
         PCtrl _aPCtrl, _ePCtrl;
         SectorCheck[] _limits;
         protected Weapons _weapons;
         protected Program _p;
         protected Vector3D _ofsStart, _ofsEnd;
-        public long AEID, TEID = -1, BlockF;
-        public bool Inoperable = false, IsPDT, TgtSmall, UseLidar = false;
-        public bool ActiveCTC => _ctc?.IsUnderControl ?? false;
+        public long TEID = -1, BlockF;
+        public bool Inoperable, IsPDT, TgtSmall, UseLidar;
+        public bool ActiveCTC => CTC?.IsUnderControl ?? false;
         #endregion
 
         #region debugFields
@@ -64,8 +57,8 @@ namespace IngameScript
             public SectorCheck(string s)
             {
                 var ar = s.Split(',');
-                if (ar.Length != 4)
-                    return;
+                if (ar.Length != 4) return;
+
                 foreach (var st in ar) st.Trim();
 
                 aMn = int.Parse(ar[0]) * RAD;
@@ -79,12 +72,13 @@ namespace IngameScript
         {
             _p = m;
             _azimuth = mtr;
-            if (_azimuth.Top == null)
-                return;
+            if (_azimuth.Top == null) return;
+
             m.Terminal.GetBlocksOfType<IMyMotorStator>(null, b =>
             {
                 if (b.CubeGrid == _azimuth.TopGrid)
                     _elevation = b;
+
                 return true;
             });
             var inv = "~";
@@ -93,17 +87,17 @@ namespace IngameScript
                 {
                     var h = Lib.H;
                     Name = p.String(h, Lib.N, inv);
+
                     if (p.Bool(h, "ctc"))
                         m.Terminal.GetBlocksOfType<IMyTurretControlBlock>(null, b =>
                         {
                             if (b.CustomName.Contains(Name) ||
                             b.CubeGrid == _azimuth.CubeGrid ||
                             b.CubeGrid == _elevation.CubeGrid)
-                                _ctc = b;
+                                CTC = b;
                             return true;
                         });
 
-                    AEID = _azimuth.EntityId;
                     IsPDT = this is PDT;
                     _azimuth.UpperLimitRad = _aMx = RAD * p.Float(h, "azMax", 361);
                     _azimuth.LowerLimitRad = _aMn = RAD * p.Float(h, "azMin", -361);
@@ -125,6 +119,7 @@ namespace IngameScript
                     {
                         var ary = sct.Split('\n');
                         _limits = new SectorCheck[ary.Length];
+
                         for (int i = 0; i < ary.Length; i++)
                             try
                             {
@@ -209,10 +204,12 @@ namespace IngameScript
         protected void GetStatorAngles(out double a, out double e)
         {
             a = _azimuth.Angle;
+
             if (a < -Lib.PI)
                 a += Lib.PI2X;
             else if (a > Lib.PI)
                 a -= Lib.PI2X;
+
             e = (_elevation.Angle + Lib.PI) % Lib.PI2X - Lib.PI;
         }
 
@@ -268,7 +265,7 @@ namespace IngameScript
             return AimState.Moving;
         }
 
-        protected AimState AimAtTarget(ref MatrixD azm, ref Vector3D aim, double aCur, double eCur, bool test = false)
+        protected AimState AimAtTarget(ref MatrixD azm, ref Vector3D aim, double aCur, double eCur)
         {
             if (Status != AimState.Blocked) BlockF = 0;
 
@@ -304,15 +301,14 @@ namespace IngameScript
                     return AimState.Blocked;
                 }
 
-            if (test) return 0;
-
             AZ = $"{aTgt * DEG:+000;-000}°\n{aCur * DEG:+000;-000}°";
             EL = $"{eTgt * DEG:+000;-000}°\n{eCur * DEG:+000;-000}°";
 
             SetAndMoveStators(aCur, aTgt, eCur, eTgt);
-            //bool r = Math.Abs(aTgt - aCur) < _tol && Math.Abs(eTgt - eCur) < _tol;
-            bool r = _weapons.AimDir.Dot(aim) > 0.995;
-            return r ? AimState.OnTarget : AimState.Moving;
+            
+            if (UseLidar && _weapons.AimDir.Dot(aim) > 0.707) return AimState.OnTarget;
+          
+            return _weapons.AimDir.Dot(aim) > 0.995 ? AimState.OnTarget : AimState.Moving;
         }
 
         protected Vector3D GetAimPoint(Target t, ref MatrixD az)
@@ -471,7 +467,7 @@ namespace IngameScript
             var azm = _azimuth.WorldMatrix;
             var aim = t.Center - azm.Translation;
 
-            bool r = AimAtTarget(ref azm, ref aim, a, e, true) == 0;
+            bool r =  (AimAtTarget(ref azm, ref aim, a, e) & AimState.Blocked) == 0;
             if (r)
             {
                 UseLidar = r;
@@ -563,7 +559,7 @@ namespace IngameScript
                     }
                     else if (UseLidar && (Status & AimState.Blocked) != 0)
                     {
-                        if (BlockF > 20 && _p.TransferLidar(tgt))
+                        if (BlockF > 30 && _p.TransferLidar(tgt))
                         {
                             Status = Idle(a, e, true);
                             return;

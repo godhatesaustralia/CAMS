@@ -59,8 +59,8 @@ namespace IngameScript
                             Launchers[b.Argument(1)].Fire(Targets.Selected);
                     }
                 },
-                { "salvo", CommandFire },
-                { "spread", CommandFire },
+                { "sel", b => CommandFire(b, Targets.Selected) },
+                { "pk", b => CommandFire(b, Targets.Prioritized.Min?.EID ?? -1) },
                 { "zero", b =>
                     {
                         foreach (var t in AllTurrets)
@@ -91,7 +91,7 @@ namespace IngameScript
             var i = new MyDetectedEntityInfo();
             var m = new Missile();
             m.Update(null);
-            CommandFire(_cmd);
+            CommandFire(_cmd, -1);
             PassTarget(ref i);
             UpdateLaunchers();
             UpdateRotorTurrets();

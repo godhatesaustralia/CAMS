@@ -104,33 +104,36 @@ namespace IngameScript
 
         }
 
-        // this sucks lol
-        void CommandFire(MyCommandLine b)
+        void CommandFire(MyCommandLine b, long id)
         {
-            if (Targets.Count == 0 || _launchCt > 0) return;
+            if (Targets.Count == 0 || _launchCt > 0 || !Targets.Exists(id)) return;
+            
+            _fireID = id;
+            bool spr = b.Argument(1) == "spread";
 
-            bool spr = b.Argument(0) == "spread", pri = b.Argument(1) == P;
-
-            _lnFire = spr ? "" : (!pri && b.Argument(1) == "sel" ? _lnSel ?? "" : b.Argument(1));
-
-            if (spr && !pri && b.Argument(2) != P)
+            if (!spr)
             {
-                _fireID = Targets.Selected;
-                if (!Targets.Exists(_fireID)) return;
+                bool arg = Launchers.ContainsKey(b.Argument(1));
+                if (!arg && !Launchers.ContainsKey(_lnSel)) return;
+
+                _lnFire = arg ? b.Argument(1) : _lnSel;
+               
+                var l = Launchers[_lnFire];
+                for (_launchCt = 0; ++_launchCt <= l.Total;)
+                    if (l.Get(_launchCt - 1).Inoperable) break;
+
+                if (_launchCt <= 1)
+                {
+                    _launchCt = 0;
+                    _lnFire = "";
+                    return;
+                }
             }
-            else _fireID = Targets.Prioritized.Min.EID;
+            else if (int.TryParse(b.Argument(2), out _launchCt)) _lnFire = "";
+            else return;
 
-            if (spr && int.TryParse(b.Argument(2), out _launchCt))
-                _nxtFireF = F;
-
-            if (!Launchers.ContainsKey(_lnFire))
-            {
-                _lnFire = "";
-                return;
-            }
-
-            _launchCt = Launchers[_lnFire].Total;
             _nxtFireF = F;
+
         }
 
         void UpdateRotorTurrets()

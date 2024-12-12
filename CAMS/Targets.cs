@@ -105,7 +105,7 @@ namespace IngameScript
         IMyBroadcastListener _TGT;
 
         long ID, _nextPrioritySortF = 0, _nextIGCCheck = 0, _nextIGCSend = 0, _nextOffsetSend = 0;
-        const double INV_MAX_D = 0.0001, R_SIDE_L = 154;
+        const double INV_MAX_D = 0.0002, R_SIDE_L = 154;
         const int MAX_LIFE_SEC = 2, HIT_T = 23, OFS_T = 256; // s
         const SpriteType TXT = SpriteType.TEXT, SHP = SpriteType.TEXTURE;
         const string IgcTgt = "[FLT-TG]", N = "▮▮▮▮▮";
@@ -359,11 +359,11 @@ namespace IngameScript
 
             bool uhoh = t.Velocity.Normalized().Dot(dir) > 0.9; // RUUUUUUUUUNNNNNNNNNNNNNN
 
-            if (t.Radius > 20 || (int)t.Type != 2)
+            if (t.Radius > 25 || (int)t.Type != 2)
                 t.Priority += uhoh ? 75 : 300;
             else if (uhoh)
             {
-                t.Priority -= (int)Math.Round(t.Distance);
+                t.Priority -= Math.Min(200, Convert.ToInt32(2E3 - t.Distance));
                 t.PriorityKill = true;
                 if (!t.Engaged)
                     t.Priority -= 100;
