@@ -284,8 +284,8 @@ namespace IngameScript
 
 	public class Missile
 	{
-		const int DEF_UPDATE = 8, DEF_STAT = 29, EVN_ADJ = 500, OFS_D = 400, FUSE_D = 220;
-		const double TOL = 1E-5, CAM_ANG = .707, PROX_R = .265, PD_AIM_LIM = 6.3, MAX_TTK = 1E4;
+		const int DEF_UPDATE = 8, DEF_STAT = 29, ADJ_MIN = 500, ADJ_MAX = 1000, OFS_D = 400, FUSE_D = 220;
+		const double TOL = 1E-5, CAM_ANG = .707, PROX_R = .265, PD_AIM_LIM = 6.3, MAX_TTK = 1E4, KILL_D = 12.75;
 		public long MEID = -1, TEID, LastActiveF, NextUpdateF, NextStatusF, NextEvnAdjF;
 		public bool Inoperable => _dead || !Controller.IsFunctional || Controller.Closed;
 		public string IDTG = "N/A", DEBUG;
@@ -301,7 +301,7 @@ namespace IngameScript
 
 		bool _evade, _selOfsPt, _checkAccel, _dead = true, _arm, _cams, _kill;
 		byte _gYaw, _gPitch, _gRoll;
-		double _range, _accel, _evMax, _evMin;
+		double _range, _rSq, _accel, _evMaxSq, _evMinSq;
 
 		Program _p;
 		PDCtrl _yawCtrl = new PDCtrl(), _pitchCtrl = new PDCtrl();
@@ -392,8 +392,8 @@ namespace IngameScript
 			_gPitch = p;
 			_gRoll = r;
 			_evade = eMx != 0 && eMn != 0;
-			_evMax = eMx;
-			_evMin = eMn;
+			_evMaxSq = eMx * eMx;
+			_evMinSq = eMn * eMn;
 			_dead = false;
 
 			_yawCtrl.Reset(pg, dg, DEF_UPDATE);
@@ -509,24 +509,22 @@ namespace IngameScript
 
 			_ctor.Disconnect();
 			_batt.ChargeMode = ChargeMode.Discharge;
-			_merge.Enabled = _arm = false;
+			_merge.Enabled = _ctor.Enabled = _arm = false;
 
 			_cams = _sensors.Count > 0;
 			_checkAccel = _accel == -1;
 			_gyro.GyroOverride = _selOfsPt = true;
 		}
 
-		public void Send()
-		{
-			var t = _p.Targets.Get(TEID);
-			_selOfsPt = t.Radius > 10;
-		}
-
 		public void Hold()
 		{
 			var v = Controller.GetShipVelocities().LinearVelocity;
 			if (v.Length() < 1)
+			{
+				foreach (var t in _thrust)
+					t.ThrustOverridePercentage = 0;
 				return;
+			}
 
 			_selOfsPt = true;
 			_viewMat = MatrixD.Transpose(Controller.WorldMatrix);
@@ -538,14 +536,14 @@ namespace IngameScript
 
 		public void Update(Target tgt)
 		{
-			if (tgt == null || _dead)
-				return;
+			if (tgt == null || _dead) return;
 
 			if (!tgt.Engaged) _p.Targets.MarkEngaged(tgt.EID);
 
 			LastActiveF = _p.F;
 			_viewMat = MatrixD.Transpose(Controller.WorldMatrix);
 			_pos = Controller.WorldMatrix.Translation;
+			var vel = Controller.GetShipVelocities().LinearVelocity;
 
 			var icpt = tgt.Center;
 			if (_ofs.Frame != 0 && _range < OFS_D)
@@ -553,7 +551,7 @@ namespace IngameScript
 
 			Vector3D
 				rP = icpt - _pos,
-				rV = tgt.Velocity - Controller.GetShipVelocities().LinearVelocity,
+				rV = tgt.Velocity - vel,
 				rA = tgt.Accel - Controller.GetNaturalGravity();
 
 			_range = rP.Length();
@@ -564,9 +562,7 @@ namespace IngameScript
 				int h = tgt.HitPoints?.Count ?? 0;
 				_selOfsPt = false;
 
-				if (h > 0)
-					_ofs = tgt.HitPoints[_p.RNG.Next(h)];
-
+				if (h > 0) _ofs = tgt.HitPoints[_p.RNG.Next(h)];
 				else _ofs = new Offset
 				{
 					Frame = tgt.Frame,
@@ -582,35 +578,30 @@ namespace IngameScript
 					foreach (var w in _warhead)
 						w.IsArmed = true;
 				}
-				else if (!_cams && _range < tgt.Radius * PROX_R) _kill = true;
-				else
+				else if (!_cams && _range < Math.Max(tgt.Radius * PROX_R, KILL_D)) _kill = true;
+				else if (!_kill)
 				{
-					var r = 2 * FUSE_D; // FUSE_D = 220
-					for (int i = _sensors.Count - 1; i >= 0; i--)
+					var rDst = KILL_D + rV.Length() * Lib.TPS;
+
+					for (int i = _sensors.Count; --i >= 0;)
 					{
 						var s = _sensors[i];
 
 						if (s.Closed || !s.IsFunctional)
 							_sensors.RemoveAtFast(i);
-						else if (s.CanScan(r))
+						else if (s.CanScan(FUSE_D))
 						{
 							var m = s.WorldMatrix;
-							var p = m.Forward;
-							var dot = p.Dot(rP);
+							var dot = m.Forward.Dot(icpt + rV * Lib.TPS);
 
 							if (dot < CAM_ANG) continue;
 
-							p = icpt;
-							p -= m.Translation;
-							p.Normalize();
-
-							//_p.Debug.DrawLine(s.WorldMatrix.Translation, p * r, _p.PMY);
-							var info = s.Raycast(p * r);
+							var info = s.Raycast(rDst);
+							_p.Debug.DrawLine(m.Translation, m.Translation + m.Forward * rDst, Color.Coral);
 
 							if (!info.IsEmpty())
 							{
-								p = info.HitPosition.Value - _pos;
-								_kill |= p.Length() < FUSE_D * 0.2 || info.BoundingBox.Contains(_pos) != 0;
+								_kill |= (info.HitPosition.Value - _pos).Length() < KILL_D;
 								break;
 							}
 						}
@@ -630,7 +621,6 @@ namespace IngameScript
 						_dead = true;
 						NextStatusF = NextUpdateF;
 					}
-					return;
 				}
 			}
 			#endregion
@@ -656,26 +646,28 @@ namespace IngameScript
 			else t = Math.Min(t, MAX_TTK) + tgt.Elapsed(_p.F);
 
 			icpt += (rV * t) + (0.5 * rA * t * t);
+			_rSq = (icpt - _pos).LengthSquared();
 
-			_p.Debug.DrawLine(_pos, icpt, Color.Azure, 0.03f);
+			_evade = _evade && _rSq < _evMaxSq && _rSq > _evMinSq;
 
-			if (_evade)
+			if (_evade && _p.F >= NextEvnAdjF)
 			{
-				if (_p.F >= NextEvnAdjF)
-				{
-					_p.RandomNormalVector(ref rP, ref _evn);
-					_evn *= tgt.Radius;
-					NextEvnAdjF += EVN_ADJ;
-				}
+				var invlerp = Lib.InvLerp(_rSq, _evMaxSq, _evMinSq);
 
-				if (_range < _evMax && _range > _evMin)
-					icpt += _evn;
+				_p.RandomNormalVector(ref rP, ref _evn);
+				icpt += _evn * Lib.Lerp(invlerp, tgt.Radius * 2, tgt.Radius);
+				NextEvnAdjF += Convert.ToInt64(Lib.Lerp(invlerp, ADJ_MAX, ADJ_MIN));
 			}
 
 			_cmd = Vector3D.TransformNormal(icpt - _pos, ref _viewMat);
 
-			//DEBUG = $"\n<{IDTG}> \nT {t:G3}S, MVEL {Controller.GetShipVelocities().LinearVelocity.Length():#0.#}, MACL {_accel:#0.#} MEVN {(_evade && r < _evMax && r > _evMin).ToString().ToUpper()}";
 			AimGyro();
+
+			bool cr = !_evade && vel.Dot(_cmd) > 0.995;
+			if (cr || !cr && _thrust[0].ThrustOverridePercentage < 0.1)
+				foreach (var th in _thrust)
+					th.ThrustOverridePercentage = cr ? 0 : 1;
+
 			#endregion
 		}
 	}

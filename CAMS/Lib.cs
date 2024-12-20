@@ -78,7 +78,10 @@ namespace IngameScript
         /// <returns>~arctan(x)</returns>
         public static double FastAT(double x) => 0.785375 * x - x * (x - 1.0) * (0.2447 + 0.0663 * x);
 
-        public static double Clamp(double val, double min, double max) => MathHelperD.Clamp(val, min, max);
+        public static double Lerp(double lerp, double start, double end) => (1 - lerp) * start + lerp * end;
+
+        public static double InvLerp(double val, double start, double end) => (MathHelper.Clamp(val, start, end) - start) / (end - start);
+        
 
         public static double AngleBetween(ref Vector3D a, Vector3D b)
         {

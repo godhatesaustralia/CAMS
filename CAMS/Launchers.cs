@@ -38,7 +38,7 @@ namespace IngameScript
         public bool Auto;
         bool _resetProj;
         protected int _load = 0, _fire;
-        public int Total = 0;
+        public int Total = 0, Attempts = 0;
         public long NextUpdateF = 0;
         public RackState Status = 0;
 
@@ -47,6 +47,7 @@ namespace IngameScript
             READY_T = 31,
             RELOAD_T = 7,
             BLPRT_T = 10,
+            MAX_ATMPT = 34,
             MSG_CT = 4;
 
         protected IMyShipWelder _weld;
@@ -142,6 +143,7 @@ namespace IngameScript
 
                 if (m.CollectMissileBlocks() && m.IsMissileReady(ref _msls[_load]))
                 {
+                    Attempts = 0;
                     _load++;
 
                     AddReport($"READY {_load}/{Total}");
@@ -160,14 +162,19 @@ namespace IngameScript
                     }
                     return READY_T;
                 }
-                else if (!_proj.Enabled)
+                else
                 {
-                    _resetProj = true;
-                    return BLPRT_T;
+                    if (Attempts > MAX_ATMPT || m.Base.Closed || _weld.Closed || _proj.Closed)
+                        Status = RackState.Offline;
+                    else if (!_proj.Enabled)
+                    {
+                        _resetProj = true;
+                        return BLPRT_T;
+                    }
+
+                    Attempts++;
+                    return RELOAD_T;
                 }
-                else if (m.Base.Closed || _weld.Closed || _proj.Closed)
-                    Status = RackState.Offline;
-                else return RELOAD_T;
             }
             else if (Status == RackState.Empty)
             {
@@ -280,7 +287,7 @@ namespace IngameScript
             _fireAngle = q.Float(Name, "fireAngle", 60) * rad;
             _RPM = q.Float(Name, "rpm", 5);
             bool rdy = Total == c, load = c != 0;
-            
+
             while (load && _load < Total)
             {
                 var b = _bases[_load];
@@ -290,7 +297,7 @@ namespace IngameScript
 
             if (load)
             {
-                AddReport("#QK START");              
+                AddReport("#QK START");
                 _tgtAngle = _fireAngle;
                 StartRotation();
             }
@@ -309,7 +316,7 @@ namespace IngameScript
         {
             if (Status == RackState.Ready)
                 return READY_T;
-            
+
             switch (Status)
             {
                 case RackState.Reload:
@@ -317,6 +324,7 @@ namespace IngameScript
                         var e = _bases[_load];
                         if (e.CollectMissileBlocks() && e.IsMissileReady(ref _msls[_load]))
                         {
+                            Attempts = 0;
                             _load++;
 
                             // if reload set is now empty, go to firing position
@@ -328,12 +336,15 @@ namespace IngameScript
                             StartRotation();
                             return ACTIVE_T;
                         }
-                        else if (e.Base.Closed || _weld.Closed || _proj.Closed)
+                        else
                         {
-                            Status = RackState.Offline;
-                            return 0;
+                            Attempts++;
+                            if (Attempts > MAX_ATMPT || e.Base.Closed || _weld.Closed || _proj.Closed)
+                                Status = RackState.Offline;
+
+                            return RELOAD_T;
                         }
-                        else return RELOAD_T;
+
                     }
                 case RackState.Moving:
                     {

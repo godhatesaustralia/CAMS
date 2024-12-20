@@ -89,18 +89,21 @@ namespace IngameScript
                     SDY = p.Color(H, "secondaryColor", new Color(50, 125, 50));
 
                     _surf.BackgroundColor = BKG;
-                    sprites = p.Sprites(H, "sprites");
                     
                     if (Lib.VCR)
                     {
                         Lib.F_BD = "VCRBold";
                         Lib.F_DF = "VCR";
                         Lib.FSCL = 1;
+
+                        sprites = p.Sprites(H, Lib.SPR);
                     }
                     else 
                     {
-                        Lib.F_BD = Lib.F_DF = "Monospace";
+                        Lib.F_BD = Lib.F_DF = "Debug";
                         Lib.FSCL = 1.625f;
+
+                        sprites = p.Sprites(H, "SPRITES_V");
                     }
 
                     Targets.UpdateRadarSettings(this);

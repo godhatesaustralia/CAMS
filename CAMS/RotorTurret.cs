@@ -32,6 +32,7 @@ namespace IngameScript
         protected long _ofsLastF, _ofsTEID;
         protected float _aMx, _aMn, _aRest, _eMx, _eMn, _eRest; // absolute max and min azi/el for basic check
         protected double _tol, _ofsAmt, _ofsMov; // aim tolerance, offset amount
+
         public readonly double Range, TrackRange, Speed;
         public IMyTurretControlBlock CTC;
         PCtrl _aPCtrl, _ePCtrl;
@@ -384,7 +385,7 @@ namespace IngameScript
 
                 var azm = _azimuth.WorldMatrix;
                 var aim = GetAimPoint(tgt, ref azm);
-                //_p.Debug.DrawLine(azm.Translation, aim, Color.Crimson);
+                _p.Debug.DrawLine(azm.Translation, aim, Color.Crimson);
 
                 if (Interceptable(tgt, ref aim))
                 {
@@ -515,7 +516,7 @@ namespace IngameScript
 
                 var azm = _azimuth.WorldMatrix;
                 var aim = GetAimPoint(tgt, ref azm);
-                //_p.Debug.DrawLine(azm.Translation, aim, Color.LightCyan);
+                _p.Debug.DrawLine(azm.Translation, aim, Color.LightCyan);
 
                 if (UseLidar || Interceptable(tgt, ref aim)) // admittedly not the best way to do this
                 {

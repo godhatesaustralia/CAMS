@@ -1,11 +1,12 @@
-﻿using Sandbox.ModAPI.Ingame;
+﻿using System.Collections.Generic;
+using Sandbox.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
 
 namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        const int TUR_REST_T = 37, TGT_LOSS_T = 91, FIRE_T = 7, TRACK_REQ_C = 5;
+        const int TUR_REST_T = 37, TGT_LOSS_T = 256, FIRE_T = 7, TRACK_REQ_C = 5;
         void ScrollLN(int p, int x, bool b, Screen s)
         {
             int i = b ? x : p;
@@ -30,6 +31,7 @@ namespace IngameScript
             foreach (var l in ln.Log)
                 r += l;
             s.Write(r, 3);
+            
             r = $"CLOCK";
             foreach (var t in ln.Time)
                 r += t;
@@ -101,7 +103,6 @@ namespace IngameScript
             s.Write(t.AZ + "\n" + t.EL, 3);
             s.Write(n, 4);
             s.Write($"{t.BlockF:X4}\n{t.Speed:0000}\n{t.Range:0000}\n{t.TrackRange:0000}\n{t.ARPM:+000;-000}\n{t.ERPM:+000;-000}", 6);
-
         }
 
         void CommandFire(MyCommandLine b, long id)
@@ -154,7 +155,7 @@ namespace IngameScript
                     if (tur.TEID != -1)
                     {
                         if (tur.UseLidar && !pk) goto CYCLE;
-                        else if (tur.CanTarget(tur.TEID) && (tur.Status & AimState.Blocked) == 0) goto CYCLE;
+                        if (tur.CanTarget(tur.TEID) && (tur.Status & AimState.Blocked) == 0) goto CYCLE;
                     }
 
                     foreach (var tgt in Targets.Prioritized)
@@ -163,7 +164,7 @@ namespace IngameScript
                         if (tur.CanTarget(tgt.EID))
                         {
                             temp = tgt;
-                            if (!tgt.Engaged && ((tur.IsPDT && type == 2) || (!tur.IsPDT && type == 3)))
+                            if (!tgt.Engaged && ((tur.IsPDT && type == 2) || (!tur.IsPDT && type == 3 && tgt.Radius > 20)))
                                 break;
                         }
                     }
@@ -171,6 +172,7 @@ namespace IngameScript
                     if (temp != null)
                     {
                         if (tur.UseLidar) tur.UseLidar = false;
+
                         tur.TEID = temp.EID;
                     }
                 }
@@ -249,6 +251,8 @@ namespace IngameScript
 
             if (_launchCt > 0 && F >= _nxtFireF)
             {
+                bool ok = false;
+
                 if (Targets.Exists(_fireID))
                 {
                     Launcher r;
@@ -263,13 +267,15 @@ namespace IngameScript
                                 break;
                     }
 
-                    if (r.Fire(_fireID))
+                    ok = r.Fire(_fireID);
+                    if (ok)
                     {
                         _launchCt--;
                         _nxtFireF += FIRE_T;
                     }
                 }
-                else
+                
+                if (!ok)
                 {
                     _fireID = _launchCt = 0;
                     FireRR.Reset();
@@ -297,7 +303,8 @@ namespace IngameScript
                 foreach (var n in PDTRR.IDs)
                 {
                     tur = (PDT)Turrets[n];
-                    var id = ekvTracks.GetEnumerator().Current;
+                    var id = ekvTracks.FirstElement();
+
                     t = Targets.Get(id);
                     if ((tur.TEID == -1 || (tur.Status & AimState.Blocked) != 0) && tur.AssignLidarTarget(t))
                     {
