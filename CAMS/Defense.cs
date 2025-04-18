@@ -100,11 +100,10 @@ namespace IngameScript
             //     s.Color(BKG, 0);
             //     r = $"{i + 1:00}/{ReloadRR.IDs.Length:00}";
             // }
-            if (t.TEID != -1)
-            {
-                var tgt = Targets.Get(t.TEID);
+            var tgt = Targets.Get(t.TEID);
+            if (tgt != null)    
                 inf = tgt.eIDTag.Remove(0, 1) + $"\n{tgt.Velocity.Length():0000}\n{tgt.Radius:0000}";
-            }
+
             s.Write(t.AZ + "\n" +t.EL, 3);
             //s.Write(n, 2);
             s.Write(inf + $"\n{t.BlockF:X4}\n{t.Guns:0000}\n{t.Speed:0000}\n{t.Range:0000}\n{t.TrackRange:0000}\n{t.ARPM:+000;-000}\n{t.ERPM:+000;-000}", 5);
@@ -115,11 +114,11 @@ namespace IngameScript
             if (Targets.Count == 0 || _launchCt > 0 || !Targets.Exists(id)) return;
             
             _fireID = id;
-            bool spr = b.Argument(1) == "spread";
+            bool spr = b.Argument(1) == "spread", arg;
 
             if (!spr)
             {
-                bool arg = Launchers.ContainsKey(b.Argument(1));
+                arg = Launchers.ContainsKey(b.Argument(1));
                 if (!arg && !Launchers.ContainsKey(_lnSel)) return;
 
                 _lnFire = arg ? b.Argument(1) : _lnSel;
@@ -305,15 +304,18 @@ namespace IngameScript
             }
             if (ekvTracks.Count > 0 && PDTRR != null)
             {
+                pkCache.Clear();
+                foreach (var tk in ekvTracks)
+                    pkCache.Add(tk);  
                 foreach (var n in PDTRR.IDs)
                 {
                     tur = (PDT)Turrets[n];
-                    var id = ekvTracks.FirstElement();
+                    var id = pkCache.FirstElement();
 
                     t = Targets.Get(id);
                     if ((tur.TEID == -1 || (tur.Status & AimState.Blocked) != 0) && tur.AssignLidarTarget(t))
                     {
-                        ekvTracks.Remove(id);
+                        pkCache.Remove(id);
                         break;
                     }
                 }

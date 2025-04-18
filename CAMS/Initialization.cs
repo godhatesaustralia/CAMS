@@ -5,7 +5,6 @@ using VRage.Game.ModAPI.Ingame.Utilities;
 using SpaceEngineers.Game.ModAPI.Ingame;
 using VRage.Game.GUI.TextPanel;
 using VRageMath;
-using System.Runtime.InteropServices;
 
 namespace IngameScript
 {
@@ -371,6 +370,21 @@ namespace IngameScript
                     SPR(SHP, Lib.SQS, Lib.V2(314, 256), Lib.V2(8, 288), PMY), // 8
                 },
                 ScrollLN, EnterLN, BackLN
+            );
+            #endregion
+
+            #region diagnostic
+            LCDScreens[Lib.DG] = new Screen
+            (
+                () => ReloadRR.IDs.Length,
+                 new MySprite[]
+                {
+                    //SPR(TXT, "MISSILE STATUS", Lib.V2(20, 88), n, PMY, Lib.F_BD, 0, 0.675f),
+                    //SPR(TXT, "", Lib.V2(492, 88), n, SDY, Lib.F_DF, Lib.RGT, 0.675f),
+                    SPR(TXT, "X1\nX2\nX3\nX4\nX5\nX6\nX7\nX8\nX9\nX10\nX11\nX12\nX13\nX14\nX15\nX16", Lib.V2(20, 82), n, PMY, Lib.F_BD, 0, 0.3825f),
+                    SPR(TXT, "", Lib.V2(492, 82), n, SDY, Lib.F_DF, Lib.RGT, 0.675f)
+                },
+                ScrollDG, null, null
             );
             #endregion
         }

@@ -16,7 +16,7 @@ namespace IngameScript
         {
             _start = s;
             IDs = ks;
-            
+
             Reset();
         }
 
@@ -27,7 +27,7 @@ namespace IngameScript
 
             if (_current == IDs.Length)
                 _current = _start;
-                
+
             return dict[IDs[_current]];
         }
 
@@ -60,7 +60,7 @@ namespace IngameScript
         public Random RNG = new Random();
         public double GaussRNG() => (2 * RNG.NextDouble() - 1 + 2 * RNG.NextDouble() - 1 + 2 * RNG.NextDouble() - 1) / 3;
         public Vector3D RandomOffset() => new Vector3D((RNG.NextDouble() * 2) - 1, (RNG.NextDouble() * 2) - 1, (RNG.NextDouble() * 2) - 1);
-        
+
         /// <summary>
         /// Gets random unit vector normal to a given direction
         /// </summary>
@@ -78,7 +78,7 @@ namespace IngameScript
 
             norm = perp * Math.Sin(theta) + coperp * Math.Cos(theta);
         }
-    
+
         #endregion
 
         #region ship-info
@@ -87,13 +87,13 @@ namespace IngameScript
         public Vector3D Velocity => Controller.GetShipVelocities().LinearVelocity;
         public Vector3D Gravity;
 
-        static Vector3D 
+        static Vector3D
             lastVel = Vector3D.Zero,
             lastAccel = Vector3D.Zero;
         static long lastVelT = 0;
         public Vector3D Acceleration
         {
-            get 
+            get
             {
                 if (F - lastVelT > 0)
                 {
@@ -111,8 +111,8 @@ namespace IngameScript
         public bool GlobalPriorityUpdateSwitch = true;
         RoundRobin<string, LidarMast> MastsRR;
         Dictionary<string, LidarMast> Masts = new Dictionary<string, LidarMast>();
-        List<IMyLargeTurretBase> 
-            AllTurrets = new List<IMyLargeTurretBase>(), 
+        List<IMyLargeTurretBase>
+            AllTurrets = new List<IMyLargeTurretBase>(),
             Artillery = new List<IMyLargeTurretBase>();
 
         public bool PassTarget(ref MyDetectedEntityInfo info, bool d = false)
@@ -128,7 +128,7 @@ namespace IngameScript
 
             // owner or friends, then check if either small or large grid
             int rel = (int)info.Relationship, t = (int)info.Type;
-            if (rel == 1 || rel == 5 || (t != 2 && t != 3)) 
+            if (rel == 1 || rel == 5 || (t != 2 && t != 3))
                 return false;
 
             r = Targets.AddOrUpdate(ref info, ID, d ? F - TgtRefreshTicks : F);
@@ -153,7 +153,7 @@ namespace IngameScript
         Queue<double> _runtimes = new Queue<double>(10);
         public double RuntimeMS => _totalRT;
         public long F => _frame;
-        
+
         #region weapons
         public Missile RecycledMissile
         {
@@ -171,13 +171,19 @@ namespace IngameScript
 
         string _lnSel, _lnFire;
         List<Missile> mslReuse;
-        List<long> mslEIDs;
         public Dictionary<long, Missile> Missiles;
         Dictionary<string, Launcher> Launchers = new Dictionary<string, Launcher>();
         RoundRobin<string, Launcher> ReloadRR, FireRR;
-        HashSet<long> ekvTracks, auxTracks = new HashSet<long>(), mslCull = new HashSet<long>();
+        HashSet<long> ekvTracks, pkCache = new HashSet<long>(), auxTracks = new HashSet<long>(), mslCull = new HashSet<long>();
         Dictionary<string, RotorTurret> Turrets = new Dictionary<string, RotorTurret>();
         RoundRobin<string, RotorTurret> AssignRR, MainRR, PDTRR;
         #endregion
+
+        void ScrollDG(int p, int x, bool b, Screen s)
+        {
+            int i = b ? x : p;
+
+        }
     }
+
 }

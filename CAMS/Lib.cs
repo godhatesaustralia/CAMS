@@ -29,6 +29,7 @@ namespace IngameScript
             ML = "missiles",
             LN = "launchers",
             TG = "targets",
+            DG ="diagnostic",
             MS = "masts",
             SN = "scanner",
             NL = "<n>",

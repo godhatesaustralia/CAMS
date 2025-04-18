@@ -204,13 +204,13 @@ namespace IngameScript
                 s.Write($"CLEAR\n{N}\n{N}\n{N}\n{N}\n{N}\n{N}\n{N}\n{N}", 5);
                 return;
             }
-
+           
             var t = _targets[_iEIDs[p]];
             var r = t.EID == Selected ? "SLCTD" : $"{p + 1:00}/{Count:00}";
             var e = Lib.Projection(_p.Center - t.Center, _p.Controller.WorldMatrix.Up).Length();
 
             r += $"\n{t.eIDTag}\n{t.Distance:00000}\n{e:+0000;-0000}";
-            r += $"\n{t.Velocity.Length():00000}\n{t.Accel.Length():00000}\n{t.Radius:0000}M\n{t.Priority:0000}P\n{(t.Subgrid ? "CHILD" : $"{t.HitPoints.Count}/{Target.OPMX}HT")}";
+            r += $"\n{t.Velocity.Length():00000}\n{t.Accel.Length():00000}\n{t.Radius:0000}M\n{t.Priority:0000}P\n{(t.Subgrid ? "CHILD" : $"{t.HitPoints?.Count ?? 0}/{Target.OPMX}HT")}";
 
             s.Write(r, 5);
         }
