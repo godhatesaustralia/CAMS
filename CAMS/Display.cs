@@ -103,7 +103,10 @@ namespace IngameScript
             if (_m.F >= _nxSprRef)
             {
                 f.Add(Program.X);
-                _nxSprRef += REF_TKS;
+                f.Dispose();
+
+                _nxSprRef += REF_TKS + _m.RNG.Next(128);
+                return;
             }
 
             for (; i < s.Sprites.Length; i++)

@@ -155,6 +155,11 @@ namespace IngameScript
                                 _invD = INV_MAX_D;
                             break;
                         }
+                    case "clr":
+                    {
+                        Clear();
+                        break;
+                    }
                     default:
                     case Lib.R:
                         {

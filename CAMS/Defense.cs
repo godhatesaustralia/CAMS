@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using Sandbox.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
 
@@ -83,26 +84,30 @@ namespace IngameScript
 
         void ScrollTR(int p, int x, bool b, Screen s)
         {
-            int i = s.Sel ? s.Index : p, ct = 12;
+            int i = s.Sel ? s.Index : p;
             var t = Turrets[AssignRR.IDs[i]];
-            var n = t.Name;
-
-            ct -= t.Name.Length;
-
-            for (; ct-- > 0;)
-                n += " ";
-
-            s.Write(n + $"{i + 1:00}/{AssignRR.IDs.Length:00}", 0);
-
-            n = "ST " + t.Status.ToString().ToUpper();
-            ct = 17 - n.Length;
-            for (; ct-- > 5;)
-                n += " ";
-
-            n += $"{t.TGT}";
-            s.Write(t.AZ + "\n" + t.EL, 3);
-            s.Write(n, 4);
-            s.Write($"{t.BlockF:X4}\n{t.Speed:0000}\n{t.Range:0000}\n{t.TrackRange:0000}\n{t.ARPM:+000;-000}\n{t.ERPM:+000;-000}", 6);
+            var inf = "▮▮▮▮\n▮▮▮▮\n▮▮▮▮";
+  
+            s.Write(t.Name + "\nSTATE", 0);
+            s.Write($"{i + 1:00}/{AssignRR.IDs.Length:00}\n{(t.Inoperable ? "OFFLN" : "FUNCT")}", 1);
+            // if (t.Name == _lnSel)
+            // {
+            //     s.Color(SDY, 0);
+            //     r = "SLCTD";
+            // }
+            // else
+            // {
+            //     s.Color(BKG, 0);
+            //     r = $"{i + 1:00}/{ReloadRR.IDs.Length:00}";
+            // }
+            if (t.TEID != -1)
+            {
+                var tgt = Targets.Get(t.TEID);
+                inf = tgt.eIDTag.Remove(0, 1) + $"\n{tgt.Velocity.Length():0000}\n{tgt.Radius:0000}";
+            }
+            s.Write(t.AZ + "\n" +t.EL, 3);
+            //s.Write(n, 2);
+            s.Write(inf + $"\n{t.BlockF:X4}\n{t.Guns:0000}\n{t.Speed:0000}\n{t.Range:0000}\n{t.TrackRange:0000}\n{t.ARPM:+000;-000}\n{t.ERPM:+000;-000}", 5);
         }
 
         void CommandFire(MyCommandLine b, long id)

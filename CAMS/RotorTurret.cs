@@ -32,8 +32,8 @@ namespace IngameScript
         protected long _ofsLastF, _ofsTEID;
         protected float _aMx, _aMn, _aRest, _eMx, _eMn, _eRest; // absolute max and min azi/el for basic check
         protected double _tol, _ofsAmt, _ofsMov; // aim tolerance, offset amount
-
-        public readonly double Range, TrackRange, Speed;
+        
+        public readonly double Range, TrackRange, Speed, Guns;
         public IMyTurretControlBlock CTC;
         PCtrl _aPCtrl, _ePCtrl;
         SectorCheck[] _limits;
@@ -134,6 +134,7 @@ namespace IngameScript
 
                     var list = new List<IMyUserControllableGun>();
                     m.Terminal.GetBlocksOfType(list, b => (b.CubeGrid == _elevation.CubeGrid || b.CustomName.Contains(Name)) && !(b is IMyLargeTurretBase));
+                    Guns = list.Count;
                     _weapons = new Weapons(list, p.Int(h, "salvo"), p.Int(h, "offset"));
 
                     double a, e;
@@ -252,8 +253,8 @@ namespace IngameScript
                 TGT = "CLEAR";
             }
 
-            AZ = $"{_aRest * DEG:+000;-000}°\n{aCur * DEG:+000;-000}°";
-            EL = $"{_eRest * DEG:+000;-000}°\n{eCur * DEG:+000;-000}°";
+            AZ = $"{_aRest * DEG:+000;-000}\n{aCur * DEG:+000;-000}";
+            EL = $"{_eRest * DEG:+000;-000}\n{eCur * DEG:+000;-000}";
 
             if (!reset || (Math.Abs(aCur - _aRest) < _tol && Math.Abs(eCur - _eRest) < _tol))
             {
@@ -302,8 +303,8 @@ namespace IngameScript
                     return AimState.Blocked;
                 }
 
-            AZ = $"{aTgt * DEG:+000;-000}°\n{aCur * DEG:+000;-000}°";
-            EL = $"{eTgt * DEG:+000;-000}°\n{eCur * DEG:+000;-000}°";
+            AZ = $"{aTgt * DEG:+000;-000}\n{aCur * DEG:+000;-000}";
+            EL = $"{eTgt * DEG:+000;-000}\n{eCur * DEG:+000;-000}";
 
             SetAndMoveStators(aCur, aTgt, eCur, eTgt);
             

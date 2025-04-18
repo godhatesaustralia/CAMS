@@ -32,6 +32,7 @@ namespace IngameScript
             MaxAutoTgtChecks,
             MaxScansMasts,
             MaxScansPDLR,
+            MaxMslSpeed,
             MaxTgtKillTracks,
             MaxRotorTurretUpdates,
             PriorityCheckTicks;
@@ -80,6 +81,7 @@ namespace IngameScript
                     MaxAutoTgtChecks = p.Int(H, "tStep", 4);
                     MaxRotorTurretUpdates = p.Int(H, "maxTurUpdates", 1);
                     MaxTgtKillTracks = p.Int(H, "maxKillTracks", 3);
+                    MaxMslSpeed = p.Int(H, "maxMslSpd", 100);
 
                     PriorityCheckTicks = p.Int(H, "priorityUpdateTicks", 10);
                     HardpointsCount = p.Int(H, "mslHardpoints", 16);
@@ -240,6 +242,7 @@ namespace IngameScript
             if (ntmp.Count > 0)
             {
                 var mn = new string[ntmp.Count];
+        
                 for (int i = 0; i < ntmp.Count; i++)
                     mn[i] = ntmp[i]; 
 
@@ -322,7 +325,7 @@ namespace IngameScript
                     SPR(TXT, "", Lib.V2(272, 108), n, SDY, Lib.F_DF, Lib.RGT, 0.8735f),
                     SPR(TXT, "", Lib.V2(20, 248), n, PMY, Lib.F_BD, 0, 0.6135f), // 5
                     SPR(TXT, "", Lib.V2(272, 248), n, SDY, Lib.F_DF, Lib.RGT, 0.6135f), //7                 
-                    SPR(TXT, "TGTS\nTEID\nDIST\nELEV\nASPD\nACCL\nSIZE\nSCOR\nHITS", Lib.V2(292, 112), n, PMY, Lib.F_BD, 0, 0.6495f),
+                    SPR(TXT, "TGTS\nTEID\nTVEL\nELEV\nASPD\nACCL\nSIZE\nSCOR\nHITS", Lib.V2(292, 112), n, PMY, Lib.F_BD, 0, 0.6495f),
                     SPR(TXT, "", Lib.V2(492, 112), n, SDY, Lib.F_DF, Lib.RGT, 0.6495f),
                     SPR(SHP, Lib.SQS, Lib.V2(282, 256), Lib.V2(8, 288), PMY), // 9
                     SPR(SHP, Lib.SQS, Lib.V2(144, 242), Lib.V2(268, 8), PMY)
@@ -336,16 +339,15 @@ namespace IngameScript
                 () => AssignRR.IDs.Length,
                 new MySprite[]
                 {
-                    SPR(TXT, "", Lib.V2(20, 112), n, PMY, Lib.F_BD, 0, 0.925f),// 1. TUR NAME
-                    SPR(TXT, "AZ\nEL", Lib.V2(20, 160), n, PMY, Lib.F_BD, 0, 1.825f),// 2. ANGLE HDR 1
-                    SPR(TXT, "TG\nCR\nTG\nCR", Lib.V2(132, 164), n, PMY, Lib.F_BD, 0, 0.9125f), // 2. ANGLE HDR 2
-                    SPR(TXT, "", Lib.V2(192, 164), n, SDY, Lib.F_DF, 0, 0.9125f),// 4. ANGLE DATA
-                    SPR(TXT, "", Lib.V2(20, 348), n, PMY, Lib.F_BD, 0, 0.925f),// 5. STATE
-                    SPR(TXT, "CLCK\nWSPD\nFIRE\nTRCK\nARPM\nERPM", Lib.V2(342, 164), n, PMY, Lib.F_BD, 0, 0.6045f),
-                    SPR(TXT, "", Lib.V2(496, 164), n, SDY, Lib.F_DF, Lib.RGT, 0.6045f),
-                    SPR(SHP, Lib.SQS, Lib.V2(256, 162), Lib.V2(496, 4), PMY, null),
-                    SPR(SHP, Lib.SQS, Lib.V2(256, 346), Lib.V2(496, 4), PMY, null),
-                    SPR(SHP, Lib.SQS, Lib.V2(332, 255), Lib.V2(4, 296), PMY)
+                    
+                    SPR(TXT, "", Lib.V2(20, 112), n, PMY, Lib.F_BD, 0, 0.925f),
+                    SPR(TXT, "", Lib.V2(320, 112), n, SDY, Lib.F_DF, Lib.RGT, 0.925f),
+                    SPR(TXT, "AZITGT\nAZICUR\nELVTGT\nELVCUR", Lib.V2(20, 220), n, PMY, Lib.F_BD, 0, 0.9125f), // 2. ANGLE HDR 2
+                    SPR(TXT, "", Lib.V2(320, 220), n, SDY, Lib.F_DF, Lib.RGT, 0.9125f),// 4. ANGLE DATA
+                    SPR(TXT, "TEID\nDIST\nSIZE\nCLCK\nGUNS\nWSPD\nFIRE\nTRCK\nARPM\nERPM", Lib.V2(340, 112), n, PMY, Lib.F_BD, 0, 0.5935f),
+                    SPR(TXT, "", Lib.V2(496, 112), n, SDY, Lib.F_DF, Lib.RGT, 0.5935f),
+                    SPR(SHP, Lib.SQS, Lib.V2(328, 255), Lib.V2(6, 296), PMY),
+                    SPR(SHP, Lib.SQS, Lib.V2(166, 212), Lib.V2(328, 6), PMY)
                 },
                 ScrollTR, null, null
             );

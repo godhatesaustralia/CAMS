@@ -663,10 +663,12 @@ namespace IngameScript
 
 			AimGyro();
 
+			if (tgt.PriorityKill || _p.MaxMslSpeed - vel.Length() > 5) return;
+
 			bool cr = !_evade && vel.Dot(_cmd) > 0.995;
-			if (cr || !cr && _thrust[0].ThrustOverridePercentage < 0.1)
+			if (cr || (!cr && _thrust[0].ThrustOverridePercentage < 1))
 				foreach (var th in _thrust)
-					th.ThrustOverridePercentage = cr ? 0 : 1;
+					th.ThrustOverridePercentage = cr ? 0.5f : 1;
 
 			#endregion
 		}

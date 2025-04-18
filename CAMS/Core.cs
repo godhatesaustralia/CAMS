@@ -58,7 +58,6 @@ namespace IngameScript
 
         #region rng
         public Random RNG = new Random();
-
         public double GaussRNG() => (2 * RNG.NextDouble() - 1 + 2 * RNG.NextDouble() - 1 + 2 * RNG.NextDouble() - 1) / 3;
         public Vector3D RandomOffset() => new Vector3D((RNG.NextDouble() * 2) - 1, (RNG.NextDouble() * 2) - 1, (RNG.NextDouble() * 2) - 1);
         
@@ -172,6 +171,7 @@ namespace IngameScript
 
         string _lnSel, _lnFire;
         List<Missile> mslReuse;
+        List<long> mslEIDs;
         public Dictionary<long, Missile> Missiles;
         Dictionary<string, Launcher> Launchers = new Dictionary<string, Launcher>();
         RoundRobin<string, Launcher> ReloadRR, FireRR;

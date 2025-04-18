@@ -8,10 +8,11 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
+        const UpdateFrequency UDEF = UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;
         public DebugAPI Debug;
         public Program()
         {
-            Runtime.UpdateFrequency |= UpdateFrequency.Update1 | UpdateFrequency.Update10 | UpdateFrequency.Update100;
+            Runtime.UpdateFrequency = UDEF;
             ID = Me.CubeGrid.EntityId;
 
             _surf = Me.GetSurface(0);
@@ -22,6 +23,7 @@ namespace IngameScript
             #region commands
             Commands = new Dictionary<string, Action<MyCommandLine>>
             {
+
                 { "switch", b =>
                     {
                         if (_cmd.ArgumentCount == 3 && Displays.ContainsKey(_cmd.Argument(2)))
@@ -69,16 +71,35 @@ namespace IngameScript
                             t.Azimuth = t.Elevation = 0;
                     }
                 },
-                { Lib.R, b =>
+                { "system", b =>
                     {
-                        if (b.ArgumentCount != 2)
+                        if (b.ArgumentCount != 3)
                             return;
-                        else if (b.Argument(1) == "settings")
-                            ParseComputerSettings();
-                        else if (b.Argument(1) == "components")
-                            CacheMainSystems();
+                        switch (b.Argument(1))
+                        {
+                            case Lib.R:
+                            {
+                                if (b.Argument(2) == "settings")
+                                    ParseComputerSettings();
+                                else if (b.Argument(2) == "components")
+                                    CacheMainSystems();
+
+                                break;
+                            }
+                            case "speed":
+                            {
+                                int s;
+                                if (b.Argument(2) == Lib.R) Runtime.UpdateFrequency = UDEF;
+                                else if (b.Argument(2) == "freeze") Runtime.UpdateFrequency = 0;
+                                else if (!int.TryParse(b.Argument(2), out s) || (s & 7) == 0) break;
+                                else Runtime.UpdateFrequency = (UpdateFrequency)s;
+
+                                break;
+                            }
+                        }
                     }
                 }
+
             };
             #endregion
 
@@ -137,11 +158,15 @@ namespace IngameScript
                 sprites[4].Data = $"RUNTIME {_avgRT:0.000} MS";
 
                 if (F % 200 == 0)
+                {
                     f.Add(X);
-                foreach (var s in sprites)
-                    f.Add(s);
-
-                f.Dispose();
+                    f.Dispose();
+                }
+                else 
+                {
+                    foreach (var s in sprites) f.Add(s);
+                    f.Dispose();
+                }
                 #endregion
 
                 Gravity = Controller.GetNaturalGravity();
