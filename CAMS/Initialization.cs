@@ -302,6 +302,7 @@ namespace IngameScript
                 temp = Lib.Keys(ref Launchers);
                 ReloadRR = new RoundRobin<string, Launcher>(temp);
                 FireRR = new RoundRobin<string, Launcher>(temp);
+                AMSRR = new RoundRobin<string, Launcher>(AMSNames);
             }
             else CtrlScreens.Remove(Lib.LN);
 
@@ -338,7 +339,7 @@ namespace IngameScript
                 () => AssignRR.IDs.Length,
                 new MySprite[]
                 {
-                    
+                    SPR(SHP, Lib.SQS, Lib.V2(89, 136.375f), Lib.V2(134, 38), SDY),
                     SPR(TXT, "", Lib.V2(20, 112), n, PMY, Lib.F_BD, 0, 0.925f),
                     SPR(TXT, "", Lib.V2(320, 112), n, SDY, Lib.F_DF, Lib.RGT, 0.925f),
                     SPR(TXT, "AZITGT\nAZICUR\nELVTGT\nELVCUR", Lib.V2(20, 220), n, PMY, Lib.F_BD, 0, 0.9125f), // 2. ANGLE HDR 2
@@ -348,7 +349,7 @@ namespace IngameScript
                     SPR(SHP, Lib.SQS, Lib.V2(328, 255), Lib.V2(6, 296), PMY),
                     SPR(SHP, Lib.SQS, Lib.V2(166, 212), Lib.V2(328, 6), PMY)
                 },
-                ScrollTR, null, null
+                ScrollTR, EnterTR, BackTR
             );
             #endregion
 

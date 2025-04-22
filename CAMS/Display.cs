@@ -34,11 +34,13 @@ namespace IngameScript
                     isLarge = b is IMyTextPanel;
                     _bg = p.Color(Lib.H, "colorBG", Color.Black);
                     _sprites = p.Sprites(Lib.H, Lib.VCR ? Lib.SPR : Lib.SPR + "_V");
+
+                    if (p.HasKey(Lib.H, "dflt")) SetActive(p.String(Lib.H, "dflt", Lib.MS));
+                    else SetActive(a ?? Lib.MS);
                 }
                 else return;
 
             _nxSprRef = m.RNG.Next(REF_TKS / 10) + _nxSprRef;
-            SetActive(a ?? Lib.MS);
         }
 
         public void SetActive(string a)

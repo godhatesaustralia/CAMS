@@ -169,11 +169,11 @@ namespace IngameScript
             }
         }
 
-        string _lnSel, _lnFire;
+        string _trSel, _lnSel, _lnFire;
         List<Missile> mslReuse;
         public Dictionary<long, Missile> Missiles;
         Dictionary<string, Launcher> Launchers = new Dictionary<string, Launcher>();
-        RoundRobin<string, Launcher> ReloadRR, FireRR;
+        RoundRobin<string, Launcher> ReloadRR, FireRR, AMSRR;
         HashSet<long> ekvTracks, pkCache = new HashSet<long>(), auxTracks = new HashSet<long>(), mslCull = new HashSet<long>();
         Dictionary<string, RotorTurret> Turrets = new Dictionary<string, RotorTurret>();
         RoundRobin<string, RotorTurret> AssignRR, MainRR, PDTRR;

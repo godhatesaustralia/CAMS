@@ -38,8 +38,6 @@ namespace IngameScript
             Targets.SelTag = "";
             s.Max = () =>MastsRR.IDs.Length;
         }
-        
-
 
         public bool TransferLidar(Target t, string src = "")
         {
@@ -69,8 +67,6 @@ namespace IngameScript
             }
             return false;
         }
-
-
 
         void GetTurretTgt(IMyLargeTurretBase t, bool arty = false)
         {

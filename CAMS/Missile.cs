@@ -286,7 +286,7 @@ namespace IngameScript
 	{
 		const int DEF_UPDATE = 8, DEF_STAT = 29, ADJ_MIN = 500, ADJ_MAX = 1000, OFS_D = 400, FUSE_D = 220;
 		const double TOL = 1E-5, CAM_ANG = .707, PROX_R = .265, PD_AIM_LIM = 6.3, MAX_TTK = 1E4, KILL_D = 12.75;
-		public long MEID = -1, TEID, LastActiveF, NextUpdateF, NextStatusF, NextEvnAdjF;
+		public long MEID = -1, TEID, LaunchF, LastActiveF, NextUpdateF, NextStatusF, NextEvnAdjF;
 		public bool Inoperable => _dead || !Controller.IsFunctional || Controller.Closed;
 		public string IDTG = "N/A", DEBUG;
 		public IMyRemoteControl Controller;
@@ -495,7 +495,7 @@ namespace IngameScript
 			TEID = teid;
 			_p = p;
 
-			LastActiveF = _p.F;
+			LastActiveF = LaunchF = _p.F;
 			NextUpdateF = p.F + DEF_UPDATE;
 			NextStatusF = NextUpdateF + DEF_STAT;
 
@@ -504,7 +504,7 @@ namespace IngameScript
 			foreach (var t in _thrust)
 			{
 				t.Enabled = true;
-				t.ThrustOverridePercentage = 1;
+				t.ThrustOverridePercentage = 0.5f;
 			}
 
 			_ctor.Disconnect();
@@ -552,7 +552,7 @@ namespace IngameScript
 			Vector3D
 				rP = icpt - _pos,
 				rV = tgt.Velocity - vel,
-				rA = tgt.Accel - Controller.GetNaturalGravity();
+				rA = /*tgt.Accel*/ - Controller.GetNaturalGravity();
 
 			_range = rP.Length();
 
@@ -660,15 +660,15 @@ namespace IngameScript
 			}
 
 			_cmd = Vector3D.TransformNormal(icpt - _pos, ref _viewMat);
-
+			_p.Debug.DrawLine(icpt, _pos, Color.AliceBlue);
 			AimGyro();
 
-			if (tgt.PriorityKill || _p.MaxMslSpeed - vel.Length() > 5) return;
+			//if (tgt.PriorityKill || _p.MaxMslSpeed - vel.Length() > 5) return;
 
-			bool cr = !_evade && vel.Dot(_cmd) > 0.995;
-			if (cr || (!cr && _thrust[0].ThrustOverridePercentage < 1))
+			// bool cr = !_evade && vel.Dot(_cmd) > 0.995;
+			// if (cr || (!cr && _thrust[0].ThrustOverridePercentage < 1))
 				foreach (var th in _thrust)
-					th.ThrustOverridePercentage = cr ? 0.5f : 1;
+					th.ThrustOverridePercentage = 1;//cr ? 0.5f : 1;
 
 			#endregion
 		}

@@ -260,7 +260,8 @@ namespace IngameScript
             string r = "====<CAMS>====\n\n=<PERF>=\n";
             r += $"CLOCK - {_frame:X}\nRUNTIME - {_lastRT} ms\nAVG - {_avgRT:0.####} ms\nWORST - {_worstRT} ms, F{_worstF}\n\n=<TGTS>=\n";
             r += Targets.Log;
-
+            foreach (var m in Missiles.Values)
+                r += $"\n{m.MEID}=>{m.IDTG}";
             Echo(r);
         }
     }

@@ -7,7 +7,7 @@ namespace IngameScript
 {
     public partial class Program : MyGridProgram
     {
-        const int TUR_REST_T = 37, TGT_LOSS_T = 256, FIRE_T = 7, TRACK_REQ_C = 5;
+        const int TUR_REST_T = 37, TGT_LOSS_T = 256, FIRE_T = 7, TRACK_REQ_C = 5, MSL_BFR = 8;
         void ScrollLN(int p, int x, bool b, Screen s)
         {
             int i = b ? x : p;
@@ -32,7 +32,7 @@ namespace IngameScript
             foreach (var l in ln.Log)
                 r += l;
             s.Write(r, 3);
-            
+
             r = $"CLOCK";
             foreach (var t in ln.Time)
                 r += t;
@@ -84,35 +84,61 @@ namespace IngameScript
 
         void ScrollTR(int p, int x, bool b, Screen s)
         {
-            int i = s.Sel ? s.Index : p;
+            int i = b ? x : p;
             var t = Turrets[AssignRR.IDs[i]];
             var inf = "▮▮▮▮\n▮▮▮▮\n▮▮▮▮";
-  
-            s.Write(t.Name + "\nSTATE", 0);
-            s.Write($"{i + 1:00}/{AssignRR.IDs.Length:00}\n{(t.Inoperable ? "OFFLN" : "FUNCT")}", 1);
-            // if (t.Name == _lnSel)
-            // {
-            //     s.Color(SDY, 0);
-            //     r = "SLCTD";
-            // }
-            // else
-            // {
-            //     s.Color(BKG, 0);
-            //     r = $"{i + 1:00}/{ReloadRR.IDs.Length:00}";
-            // }
+            var r = "";
+
+            if (t.Name == _trSel)
+            {
+                s.Color(SDY, 0);
+                r = "SLCTD";
+            }
+            else
+            {
+                s.Color(BKG, 0);
+                r = $"{i + 1:00}/{AssignRR.IDs.Length:00}";
+            }
+
+            s.Write(t.Name + "\nSTATE", 1);
+            s.Write($"{r}\n{(t.Inoperable || t.Shutdown ? "OFFLN" : "FUNCT")}", 2);
+
             var tgt = Targets.Get(t.TEID);
-            if (tgt != null)    
+            if (tgt != null)
                 inf = tgt.eIDTag.Remove(0, 1) + $"\n{tgt.Velocity.Length():0000}\n{tgt.Radius:0000}";
 
-            s.Write(t.AZ + "\n" +t.EL, 3);
-            //s.Write(n, 2);
-            s.Write(inf + $"\n{t.BlockF:X4}\n{t.Guns:0000}\n{t.Speed:0000}\n{t.Range:0000}\n{t.TrackRange:0000}\n{t.ARPM:+000;-000}\n{t.ERPM:+000;-000}", 5);
+            s.Write(t.AZ + "\n" + t.EL, 4);
+            s.Write(inf + $"\n{t.BlockF:X4}\n{t.Guns:0000}\n{t.Speed:0000}\n{t.Range:0000}\n{t.TrackRange:0000}\n{t.ARPM:+000;-000}\n{t.ERPM:+000;-000}", 6);
         }
+
+        void EnterTR(int p, Screen s)
+        {
+            s.Index = p;
+            s.Enter = ToggleTR;
+
+            _trSel = AssignRR.IDs[p];
+        }
+
+        void BackTR(int p, Screen s)
+        {
+            s.Enter = EnterTR;
+
+            _trSel = "";
+        }
+
+        void ToggleTR(int p, Screen s)
+        {
+            var tr = Turrets[AssignRR.IDs[s.Index]];
+
+            tr.Shutdown = !tr.Shutdown;
+            tr.TEID = -1;
+        }
+
 
         void CommandFire(MyCommandLine b, long id)
         {
             if (Targets.Count == 0 || _launchCt > 0 || !Targets.Exists(id)) return;
-            
+
             _fireID = id;
             bool spr = b.Argument(1) == "spread", arg;
 
@@ -122,7 +148,7 @@ namespace IngameScript
                 if (!arg && !Launchers.ContainsKey(_lnSel)) return;
 
                 _lnFire = arg ? b.Argument(1) : _lnSel;
-               
+
                 var l = Launchers[_lnFire];
                 for (_launchCt = 0; ++_launchCt <= l.Total;)
                     if (l.Get(_launchCt - 1).Inoperable) break;
@@ -138,7 +164,6 @@ namespace IngameScript
             else return;
 
             _nxtFireF = F;
-
         }
 
         void UpdateRotorTurrets()
@@ -217,14 +242,14 @@ namespace IngameScript
                             if (t.PriorityKill && !ekvTracks.Contains(t.EID))
                                 ekvTracks.Add(t.EID);
                         }
-                        else if (F > m.LastActiveF + TGT_LOSS_T)
+                        else if (F > m.LastActiveF + TGT_LOSS_T && F - m.LaunchF > MSL_BFR)
                             m.Hold();
                         else mslCull.Add(m.MEID);
                     }
                     else
                     {
                         m.Update(t);
-                        if (m.Inoperable) mslCull.Add(m.MEID);
+                        if (m.Inoperable && F - m.LaunchF > MSL_BFR) mslCull.Add(m.MEID);
                         //else if (m.DistToTarget < TRACK_D && !auxTracks.Contains(m.TEID))
                     }
                 }
@@ -244,6 +269,8 @@ namespace IngameScript
 
         void UpdateLaunchers()
         {
+            Launcher r;
+
             if (ReloadRR == null) return;
 
             var l = ReloadRR.Next(ref Launchers);
@@ -259,7 +286,7 @@ namespace IngameScript
 
                 if (Targets.Exists(_fireID))
                 {
-                    Launcher r;
+
                     if (_lnFire != "")
                         r = Launchers[_lnFire];
                     else
@@ -278,7 +305,7 @@ namespace IngameScript
                         _nxtFireF += FIRE_T;
                     }
                 }
-                
+
                 if (!ok)
                 {
                     _fireID = _launchCt = 0;
@@ -293,20 +320,24 @@ namespace IngameScript
                 t = Targets.Prioritized.Min;
                 if (t.PriorityKill && !ekvTracks.Contains(t.EID))
                 {
-                    foreach (var n in AMSNames)
-                        if (Launchers[n].Fire(t.EID))
-                        {
-                            ekvTracks.Add(t.EID);
-                            Targets.Prioritized.Remove(t);
+                    r = AMSRR.Next(ref Launchers);
+                    while (r.Auto || r.Status != RackState.Ready)
+                        if (!AMSRR.Next(ref Launchers, out r))
                             break;
-                        }
+
+                    if (r.Fire(t.EID))
+                    {
+                        ekvTracks.Add(t.EID);
+                        Targets.Prioritized.Remove(t);
+                        break;
+                    }
                 }
             }
             if (ekvTracks.Count > 0 && PDTRR != null)
             {
                 pkCache.Clear();
                 foreach (var tk in ekvTracks)
-                    pkCache.Add(tk);  
+                    pkCache.Add(tk);
                 foreach (var n in PDTRR.IDs)
                 {
                     tur = (PDT)Turrets[n];
